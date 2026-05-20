@@ -297,6 +297,12 @@ export const api = {
     json<{ deleted: boolean; tracks_deleted: number }>(`/api/library/albums/${id}`, {
       method: 'DELETE'
     }),
+  createAlbum: (body: { title: string; artist?: string; year?: number; is_public?: boolean }) =>
+    json<Album>('/api/library/albums', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    }),
   editAlbum: (id: number, body: { title?: string; year?: number; is_public?: boolean }) =>
     json<{ ok: boolean; is_public?: boolean }>(`/api/library/albums/${id}`, {
       method: 'PATCH',

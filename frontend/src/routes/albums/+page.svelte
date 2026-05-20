@@ -1,11 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { AlertTriangle, Disc3, Globe, Plus } from 'lucide-svelte';
   import { api, type Album } from '$lib/api';
+  import NewAlbumDialog from '$lib/components/NewAlbumDialog.svelte';
 
   let albums = $state<Album[]>([]);
   let scope = $state<'all' | 'mine' | 'public'>('all');
   let error = $state<string | null>(null);
   let loading = $state(false);
+  let creating = $state(false);
 
   async function load() {
     loading = true;
@@ -21,72 +24,87 @@
   }
 
   onMount(load);
-
-  // Recargar al cambiar el scope
   $effect(() => {
     if (scope) load();
   });
 </script>
 
 <div class="mx-auto max-w-5xl px-4 pt-6">
-  <header class="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+  <header class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <h1 class="text-2xl font-bold">Álbumes</h1>
-    <div class="flex gap-1 rounded-md border border-slate-800 bg-slate-900 p-1 text-xs">
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex gap-1 rounded border border-slate-800 bg-slate-900 p-1 text-xs">
+        <button
+          onclick={() => (scope = 'all')}
+          class="rounded px-3 py-1 transition"
+          class:bg-slate-800={scope === 'all'}
+          class:font-semibold={scope === 'all'}
+        >Todos</button>
+        <button
+          onclick={() => (scope = 'mine')}
+          class="rounded px-3 py-1 transition"
+          class:bg-slate-800={scope === 'mine'}
+          class:font-semibold={scope === 'mine'}
+        >Míos</button>
+        <button
+          onclick={() => (scope = 'public')}
+          class="rounded px-3 py-1 transition"
+          class:bg-slate-800={scope === 'public'}
+          class:font-semibold={scope === 'public'}
+        >Compartidos</button>
+      </div>
       <button
-        onclick={() => (scope = 'all')}
-        class="rounded px-3 py-1"
-        class:bg-slate-800={scope === 'all'}
-        class:font-semibold={scope === 'all'}
-      >Todos</button>
-      <button
-        onclick={() => (scope = 'mine')}
-        class="rounded px-3 py-1"
-        class:bg-slate-800={scope === 'mine'}
-        class:font-semibold={scope === 'mine'}
-      >Míos</button>
-      <button
-        onclick={() => (scope = 'public')}
-        class="rounded px-3 py-1"
-        class:bg-slate-800={scope === 'public'}
-        class:font-semibold={scope === 'public'}
-      >Compartidos</button>
+        onclick={() => (creating = true)}
+        class="inline-flex items-center gap-1.5 rounded bg-cyan-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+      >
+        <Plus size={14} /> Nuevo álbum
+      </button>
     </div>
   </header>
 
   {#if error}
-    <p class="text-red-400">⚠️ {error}</p>
+    <p class="inline-flex items-center gap-2 text-red-400"><AlertTriangle size={16} /> {error}</p>
   {:else if loading && albums.length === 0}
     <p class="text-sm text-slate-500">Cargando…</p>
   {:else if albums.length === 0}
-    <p class="text-sm text-slate-500">
-      {#if scope === 'mine'}
-        No tienes álbumes propios todavía. Importa algo desde <a href="/import" class="text-cyan-400 underline">/import</a>.
-      {:else if scope === 'public'}
-        No hay álbumes compartidos.
-      {:else}
-        Sin álbumes.
-      {/if}
-    </p>
+    <div class="rounded border border-dashed border-slate-800 p-8 text-center">
+      <p class="text-sm text-slate-400">
+        {#if scope === 'mine'}
+          No tienes álbumes propios. Crea uno o importa desde
+          <a href="/import" class="text-cyan-400 underline">/import</a>.
+        {:else if scope === 'public'}
+          No hay álbumes compartidos.
+        {:else}
+          Sin álbumes.
+        {/if}
+      </p>
+    </div>
   {:else}
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
       {#each albums as album (album.id)}
-        <a href="/albums/{album.id}" class="group relative">
+        <a href="/albums/{album.id}" class="group relative block">
           {#if album.cover_url}
             <img
               src={album.cover_url}
               alt={album.title}
-              class="aspect-square w-full rounded-md object-cover transition group-hover:opacity-80"
+              class="aspect-square w-full rounded object-cover transition group-hover:opacity-80"
             />
           {:else}
-            <div class="grid aspect-square w-full place-items-center rounded-md bg-slate-800 text-3xl text-slate-600">◉</div>
+            <div class="grid aspect-square w-full place-items-center rounded bg-slate-800 text-slate-700">
+              <Disc3 size={44} />
+            </div>
           {/if}
-          <!-- Badges -->
           <div class="absolute right-1 top-1 flex flex-col items-end gap-1">
             {#if album.is_mine}
-              <span class="rounded bg-cyan-500/80 px-1.5 py-0.5 text-[9px] font-semibold text-slate-950">mío</span>
+              <span class="rounded bg-cyan-400/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-950">
+                mío
+              </span>
             {/if}
             {#if album.is_public}
-              <span class="rounded bg-sky-500/70 px-1.5 py-0.5 text-[9px] font-semibold text-slate-950">🌍</span>
+              <span
+                class="inline-flex items-center gap-0.5 rounded bg-sky-500/80 px-1.5 py-0.5 text-[9px] font-semibold text-slate-950"
+                title="Compartido"
+              ><Globe size={9} /></span>
             {/if}
           </div>
           <div class="mt-2 truncate text-sm font-medium">{album.title}</div>
@@ -98,3 +116,7 @@
     </div>
   {/if}
 </div>
+
+{#if creating}
+  <NewAlbumDialog onclose={() => (creating = false)} oncreated={load} />
+{/if}

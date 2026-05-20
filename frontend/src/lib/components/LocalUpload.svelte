@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Check, Clock, FolderOpen, Loader2, X } from 'lucide-svelte';
   import { api, type Album, formatBytes } from '$lib/api';
 
   let { albums = [], onuploaded }: { albums?: Album[]; onuploaded?: () => void } = $props();
@@ -88,7 +89,9 @@
     ondrop={onDrop}
   >
     <input type="file" multiple accept="audio/*" class="hidden" onchange={onPick} />
-    <div class="text-2xl">📁</div>
+    <div class="mx-auto mb-2 grid size-12 place-items-center rounded-full bg-slate-800 text-slate-400">
+      <FolderOpen size={22} />
+    </div>
     <p class="mt-2 text-sm">
       Arrastra ficheros aquí o <span class="text-cyan-400 underline">elige del disco</span>
     </p>
@@ -163,8 +166,16 @@
     <ul class="divide-y divide-slate-900 rounded-md border border-slate-800">
       {#each items as it, i}
         <li class="flex items-center gap-3 px-3 py-2">
-          <span class="text-xs">
-            {#if it.status === 'pending'}⏱{:else if it.status === 'uploading'}⟳{:else if it.status === 'done'}✓{:else}✗{/if}
+          <span class="flex-none">
+            {#if it.status === 'pending'}
+              <Clock size={14} class="text-slate-500" />
+            {:else if it.status === 'uploading'}
+              <Loader2 size={14} class="animate-spin text-sky-400" />
+            {:else if it.status === 'done'}
+              <Check size={14} class="text-cyan-400" />
+            {:else}
+              <X size={14} class="text-red-400" />
+            {/if}
           </span>
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm">{it.file.name}</div>
@@ -176,8 +187,8 @@
           {#if it.status === 'pending'}
             <button
               onclick={() => removeItem(i)}
-              class="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-red-400"
-            >×</button>
+              class="grid size-6 place-items-center rounded text-slate-500 transition hover:bg-slate-800 hover:text-red-400"
+            ><X size={14} /></button>
           {/if}
         </li>
       {/each}

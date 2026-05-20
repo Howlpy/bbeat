@@ -11,6 +11,7 @@
     type SpotifyAuthStatus
   } from '$lib/api';
   import { jobs } from '$lib/jobs.svelte';
+  import { Check, ChevronDown, ChevronRight, Clock, Disc3, List, Loader2, Music2, RefreshCw, Trash2, X } from 'lucide-svelte';
   import LocalUpload from '$lib/components/LocalUpload.svelte';
 
   let tab = $state<'url' | 'file'>('url');
@@ -188,12 +189,12 @@
     return ({ track: 'Pista', album: 'Álbum', playlist: 'Playlist' } as Record<string, string>)[k] ?? k;
   }
 
-  function sourceLabel(s: Source): { name: string; color: string; icon: string } {
+  function sourceLabel(s: Source): { name: string; color: string } {
     return {
-      spotify: { name: 'Spotify', color: 'bg-cyan-500/15 text-cyan-300 border-cyan-700/40', icon: '♫' },
-      youtube: { name: 'YouTube', color: 'bg-red-500/15 text-red-300 border-red-700/40', icon: '▶' },
-      soundcloud: { name: 'SoundCloud', color: 'bg-orange-500/15 text-orange-300 border-orange-700/40', icon: '☁' },
-      unknown: { name: 'Desconocido', color: 'bg-slate-800 text-slate-400 border-slate-700', icon: '?' }
+      spotify: { name: 'Spotify', color: 'bg-cyan-500/15 text-cyan-300 border-cyan-700/40' },
+      youtube: { name: 'YouTube', color: 'bg-red-500/15 text-red-300 border-red-700/40' },
+      soundcloud: { name: 'SoundCloud', color: 'bg-orange-500/15 text-orange-300 border-orange-700/40' },
+      unknown: { name: 'Desconocido', color: 'bg-slate-800 text-slate-400 border-slate-700' }
     }[s];
   }
 
@@ -206,9 +207,13 @@
     } as Record<string, string>)[s];
   }
 
-  function statusIcon(s: Job['status']): string {
-    return ({ pending: '⏱', running: '⟳', done: '✓', failed: '✗' } as Record<string, string>)[s];
-  }
+  // Componente de icono según estado
+  const STATUS_ICON = {
+    pending: Clock,
+    running: Loader2,
+    done: Check,
+    failed: X
+  } as const;
 
   const needsManualMetadata = $derived(
     preview ? preview.source !== 'spotify' || !preview.tracks[0]?.album : false
@@ -258,7 +263,7 @@
         class="rounded border px-2 py-0.5 {info.color}"
         class:opacity-100={detectedSource === s}
         class:opacity-40={detectedSource !== s && detectedSource !== 'unknown'}
-      >{info.icon} {info.name}</span>
+      >{info.name}</span>
     {/each}
   </div>
 
@@ -290,13 +295,13 @@
 
   {#if previewError}
     <div class="mt-3 rounded-md border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
-      ⚠️ {previewError}
+      {previewError}
     </div>
   {/if}
 
   {#if lastImportMsg}
     <div class="mt-3 rounded-md border border-cyan-900/50 bg-cyan-950/30 p-3 text-sm text-cyan-300">
-      ✓ {lastImportMsg}
+      {lastImportMsg}
     </div>
   {/if}
 
@@ -324,12 +329,14 @@
         {#if preview.tracks[0]?.cover_url}
           <img src={preview.tracks[0].cover_url} alt="" class="size-20 flex-none rounded object-cover" />
         {:else}
-          <div class="grid size-20 flex-none place-items-center rounded bg-slate-800 text-2xl">🎵</div>
+          <div class="grid size-20 flex-none place-items-center rounded bg-slate-800 text-slate-600">
+            <Music2 size={28} />
+          </div>
         {/if}
         <div class="min-w-0 flex-1">
           <div class="mb-1 flex items-center gap-2">
             <span class="rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider {srcInfo.color}">
-              {srcInfo.icon} {srcInfo.name}
+              {srcInfo.name}
             </span>
             <span class="text-xs text-slate-500">{kindLabel(preview.kind)}</span>
           </div>
@@ -479,12 +486,12 @@
         {#if jobs.stats.failed > 0}
           <button
             onclick={retryAllFailed}
-            class="rounded border border-slate-800 px-2 py-1 hover:bg-slate-800"
-          >↻ reintentar {jobs.stats.failed} fallidos</button>
+            class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1 transition hover:bg-slate-800"
+          ><RefreshCw size={12} /> reintentar {jobs.stats.failed} fallidos</button>
           <button
             onclick={clearFailed}
-            class="rounded border border-slate-800 px-2 py-1 hover:bg-slate-800"
-          >× borrar fallidos</button>
+            class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1 transition hover:bg-slate-800"
+          ><Trash2 size={12} /> borrar fallidos</button>
         {/if}
         {#if jobs.stats.done > 0}
           <button
@@ -497,10 +504,18 @@
 
     <div class="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-xs">
       <span class="text-slate-400">Total: <b class="text-slate-200">{jobs.stats.total}</b></span>
-      {#if jobs.stats.pending > 0}<span class="text-slate-400">⏱ {jobs.stats.pending}</span>{/if}
-      {#if jobs.stats.running > 0}<span class="text-sky-400">⟳ {jobs.stats.running}</span>{/if}
-      {#if jobs.stats.done > 0}<span class="text-cyan-400">✓ {jobs.stats.done}</span>{/if}
-      {#if jobs.stats.failed > 0}<span class="text-red-400">✗ {jobs.stats.failed}</span>{/if}
+      {#if jobs.stats.pending > 0}
+        <span class="inline-flex items-center gap-1 text-slate-400"><Clock size={11} /> {jobs.stats.pending}</span>
+      {/if}
+      {#if jobs.stats.running > 0}
+        <span class="inline-flex items-center gap-1 text-sky-400"><Loader2 size={11} class="animate-spin" /> {jobs.stats.running}</span>
+      {/if}
+      {#if jobs.stats.done > 0}
+        <span class="inline-flex items-center gap-1 text-cyan-400"><Check size={11} /> {jobs.stats.done}</span>
+      {/if}
+      {#if jobs.stats.failed > 0}
+        <span class="inline-flex items-center gap-1 text-red-400"><X size={11} /> {jobs.stats.failed}</span>
+      {/if}
       {#if jobs.active > 0}
         <span class="ml-auto inline-flex items-center gap-1 text-sky-400">
           <span class="size-1.5 animate-pulse rounded-full bg-sky-400"></span>
@@ -531,8 +546,14 @@
               {#if g.cover_url}
                 <img src={g.cover_url} alt="" class="size-12 flex-none rounded object-cover" />
               {:else}
-                <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-lg">
-                  {g.kind === 'album' ? '◉' : g.kind === 'playlist' ? '☰' : '♪'}
+                <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-slate-500">
+                  {#if g.kind === 'album'}
+                    <Disc3 size={20} />
+                  {:else if g.kind === 'playlist'}
+                    <List size={20} />
+                  {:else}
+                    <Music2 size={20} />
+                  {/if}
                 </div>
               {/if}
               <div class="min-w-0 flex-1">
@@ -543,31 +564,37 @@
                 <div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
                   <span class="block h-1 w-20 overflow-hidden rounded-full bg-slate-800">
                     <span
-                      class="block h-full bg-cyan-500"
+                      class="block h-full bg-cyan-400"
                       style:width="{total > 0 ? Math.round((g.counts.done / total) * 100) : 0}%"
                     ></span>
                   </span>
                   <span class="text-slate-500">{g.counts.done}/{total}</span>
                   {#if g.counts.running > 0}
-                    <span class="text-sky-400">⟳ {g.counts.running}</span>
+                    <span class="inline-flex items-center gap-0.5 text-sky-400">
+                      <Loader2 size={10} class="animate-spin" /> {g.counts.running}
+                    </span>
                   {/if}
                   {#if g.counts.failed > 0}
-                    <span class="text-red-400">✗ {g.counts.failed}</span>
+                    <span class="inline-flex items-center gap-0.5 text-red-400">
+                      <X size={10} /> {g.counts.failed}
+                    </span>
                   {/if}
                 </div>
               </div>
-              <span class="text-slate-500">{isOpen ? '▾' : '▸'}</span>
+              <span class="text-slate-500">
+                {#if isOpen}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
+              </span>
             </button>
 
             {#if isOpen}
               <ul class="divide-y divide-slate-800 border-t border-slate-800 bg-slate-950">
                 {#each g.items as job (job.id)}
+                  {@const StatusIcon = STATUS_ICON[job.status]}
                   <li class="px-3 py-2">
                     <div class="flex items-center gap-3">
-                      <span
-                        class="w-5 flex-none text-center font-mono text-xs {statusColor(job.status)}"
-                        class:animate-spin={job.status === 'running'}
-                      >{statusIcon(job.status)}</span>
+                      <span class="flex w-5 flex-none items-center justify-center {statusColor(job.status)}">
+                        <StatusIcon size={14} class={job.status === 'running' ? 'animate-spin' : ''} />
+                      </span>
                       <div class="min-w-0 flex-1">
                         <div class="truncate text-sm">{job.title}</div>
                         <div class="truncate text-xs text-slate-500">
@@ -584,16 +611,16 @@
                         {#if job.status === 'failed'}
                           <button
                             onclick={() => retry(job.id)}
-                            class="rounded border border-slate-800 px-2 py-1 text-xs hover:bg-slate-800"
+                            class="grid size-7 place-items-center rounded border border-slate-800 transition hover:bg-slate-800"
                             title="Reintentar"
-                          >↻</button>
+                          ><RefreshCw size={12} /></button>
                         {/if}
                         {#if job.status !== 'running'}
                           <button
                             onclick={() => remove(job.id)}
-                            class="rounded border border-slate-800 px-2 py-1 text-xs text-slate-500 hover:bg-slate-800 hover:text-red-400"
+                            class="grid size-7 place-items-center rounded border border-slate-800 text-slate-500 transition hover:bg-slate-800 hover:text-red-400"
                             title="Eliminar"
-                          >×</button>
+                          ><X size={12} /></button>
                         {/if}
                       </div>
                     </div>

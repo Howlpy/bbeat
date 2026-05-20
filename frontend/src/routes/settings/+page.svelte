@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { AlertTriangle, Brush, CheckCircle2, Trash2, Upload } from 'lucide-svelte';
   import { api, formatBytes, type SpotifyAuthStatus } from '$lib/api';
 
   let setupComplete = $state<boolean | null>(null);
@@ -53,9 +54,13 @@
     {#if setupComplete === null}
       <p class="text-slate-500">Comprobando…</p>
     {:else if setupComplete}
-      <p class="text-cyan-400">✓ Credenciales de Spotify Developer configuradas.</p>
+      <p class="inline-flex items-center gap-2 text-cyan-400">
+        <CheckCircle2 size={16} /> Configuración base completa.
+      </p>
     {:else}
-      <p class="text-amber-400">⚠ Faltan SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET en backend/.env</p>
+      <p class="inline-flex items-center gap-2 text-amber-400">
+        <AlertTriangle size={16} /> Falta crear directorios de datos.
+      </p>
     {/if}
   </section>
 
@@ -71,7 +76,9 @@
     {#if cookies}
       {#if cookies.cookies_configured}
         <div class="mb-3 rounded border border-cyan-900/50 bg-cyan-950/30 p-3 text-sm">
-          <div class="text-cyan-400">✓ Cookies configuradas</div>
+          <div class="inline-flex items-center gap-2 text-cyan-400">
+            <CheckCircle2 size={14} /> Cookies configuradas
+          </div>
           <div class="mt-1 text-xs text-slate-500">
             {cookies.size ? formatBytes(cookies.size) : '—'}
             {#if cookies.mtime} · subidas {new Date(cookies.mtime * 1000).toLocaleString('es-ES')}{/if}
@@ -85,7 +92,7 @@
     {/if}
 
     <div class="flex flex-wrap items-center gap-2">
-      <label class="cursor-pointer rounded-md border border-slate-800 px-3 py-2 text-sm hover:bg-slate-800">
+      <label class="inline-flex cursor-pointer items-center gap-2 rounded border border-slate-800 px-3 py-2 text-sm transition hover:bg-slate-800">
         <input
           bind:this={fileInput}
           type="file"
@@ -94,14 +101,15 @@
           onchange={onUpload}
           disabled={uploading}
         />
+        <Upload size={14} />
         {uploading ? 'Subiendo…' : 'Subir cookies.txt'}
       </label>
       {#if cookies?.cookies_configured}
         <button
           onclick={onDelete}
-          class="rounded-md border border-slate-800 px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-red-400"
+          class="inline-flex items-center gap-2 rounded border border-slate-800 px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-red-400"
         >
-          Borrar
+          <Trash2 size={14} /> Borrar
         </button>
       {/if}
     </div>
@@ -154,9 +162,9 @@
           location.reload();
         }
       }}
-      class="rounded-md border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-sm text-amber-200 hover:bg-amber-950/50"
+      class="inline-flex items-center gap-2 rounded border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-sm text-amber-200 transition hover:bg-amber-950/50"
     >
-      🧹 Limpiar caché y recargar
+      <Brush size={14} /> Limpiar caché y recargar
     </button>
   </section>
 </div>

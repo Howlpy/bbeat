@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronUp } from 'lucide-svelte';
+  import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronUp, Music2 } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { formatDuration } from '$lib/api';
   import NowPlaying from './NowPlaying.svelte';
@@ -65,7 +65,9 @@
             class="size-12 flex-none rounded object-cover sm:size-14"
           />
         {:else}
-          <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-slate-600 sm:size-14">♪</div>
+          <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-slate-600 sm:size-14">
+            <Music2 size={18} />
+          </div>
         {/if}
         <div class="min-w-0 flex-1">
           <div class="truncate text-sm font-medium">{player.current.title}</div>

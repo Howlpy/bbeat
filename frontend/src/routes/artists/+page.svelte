@@ -19,7 +19,7 @@
   <h1 class="mb-4 text-2xl font-bold">Artistas</h1>
 
   {#if error}
-    <p class="text-red-400">⚠️ {error}</p>
+    <p class="text-red-400">{error}</p>
   {:else if artists.length === 0}
     <p class="text-sm text-slate-500">Sin artistas todavía.</p>
   {:else}

@@ -404,6 +404,42 @@ def edit_track(
     return res
 
 
+class NewAlbumIn(BaseModel):
+    title: str
+    artist: Optional[str] = None
+    year: Optional[int] = None
+    is_public: bool = False
+
+
+@router.post("/albums")
+def create_album(
+    body: NewAlbumIn,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Crea un álbum vacío. El user lo posee y decide si lo comparte."""
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(400, "título requerido")
+    artist_name = (body.artist or "").strip() or "Various Artists"
+    artist = library_svc._get_or_create_artist(session, artist_name)
+    album = library_svc._get_or_create_album(session, title, artist.id, body.year)
+    if album.owner_id is None:
+        album.owner_id = user.id
+    album.is_public = body.is_public
+    session.add(album)
+    session.flush()
+    return {
+        "id": album.id,
+        "title": album.title,
+        "artist_id": album.artist_id,
+        "artist_name": artist.name,
+        "year": album.year,
+        "is_public": album.is_public,
+        "owner_id": album.owner_id,
+    }
+
+
 @router.delete("/albums/{album_id}")
 def delete_album(
     album_id: int,

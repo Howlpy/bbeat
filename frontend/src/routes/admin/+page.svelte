@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
+  import { AlertTriangle, ArrowDown, ArrowUp, Ban, CheckCircle2, Trash2 } from 'lucide-svelte';
   import { api } from '$lib/api';
   import { auth, type AuthUser } from '$lib/auth.svelte';
 
@@ -67,7 +68,9 @@
   {#if loading}
     <p class="text-slate-500">Cargando…</p>
   {:else if error}
-    <p class="rounded border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">⚠️ {error}</p>
+    <p class="inline-flex items-center gap-2 rounded border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
+      <AlertTriangle size={16} /> {error}
+    </p>
   {:else}
     <ul class="divide-y divide-slate-900 rounded-md border border-slate-800">
       {#each users as u (u.id)}
@@ -87,14 +90,31 @@
           {#if u.id !== auth.user?.id}
             <div class="flex flex-wrap gap-1">
               {#if u.is_active}
-                <button onclick={() => setActive(u, false)} class="rounded border border-slate-800 px-2 py-1 text-xs hover:bg-slate-800">🚫 Bloquear</button>
+                <button
+                  onclick={() => setActive(u, false)}
+                  class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1 text-xs transition hover:bg-slate-800"
+                ><Ban size={12} /> Bloquear</button>
               {:else}
-                <button onclick={() => setActive(u, true)} class="rounded border border-cyan-700/40 px-2 py-1 text-xs text-cyan-300 hover:bg-cyan-950/30">✓ Desbloquear</button>
+                <button
+                  onclick={() => setActive(u, true)}
+                  class="inline-flex items-center gap-1 rounded border border-cyan-700/40 px-2 py-1 text-xs text-cyan-300 transition hover:bg-cyan-950/30"
+                ><CheckCircle2 size={12} /> Desbloquear</button>
               {/if}
-              <button onclick={() => toggleAdmin(u)} class="rounded border border-slate-800 px-2 py-1 text-xs hover:bg-slate-800">
-                {u.is_admin ? '↓ Quitar admin' : '↑ Admin'}
+              <button
+                onclick={() => toggleAdmin(u)}
+                class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1 text-xs transition hover:bg-slate-800"
+              >
+                {#if u.is_admin}
+                  <ArrowDown size={12} /> Quitar admin
+                {:else}
+                  <ArrowUp size={12} /> Admin
+                {/if}
               </button>
-              <button onclick={() => del(u)} class="rounded border border-red-900/50 px-2 py-1 text-xs text-red-300 hover:bg-red-950/40">🗑</button>
+              <button
+                onclick={() => del(u)}
+                class="grid size-6 place-items-center rounded border border-red-900/50 text-red-300 transition hover:bg-red-950/40"
+                title="Borrar usuario"
+              ><Trash2 size={12} /></button>
             </div>
           {/if}
         </li>

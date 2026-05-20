@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { X } from 'lucide-svelte';
   import { api, type Track } from '$lib/api';
   import TrackList from '$lib/components/TrackList.svelte';
 
@@ -66,12 +67,12 @@
         onclick={() => { query = ''; load(); }}
         class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:bg-slate-800"
         aria-label="Limpiar"
-      >✕</button>
+      ><X size={14} /></button>
     {/if}
   </div>
 
   {#if error}
-    <p class="text-red-400">⚠️ {error}</p>
+    <p class="text-red-400">{error}</p>
   {:else if tracks.length === 0}
     <p class="rounded-md border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">
       {query ? 'Sin resultados.' : 'Biblioteca vacía. Importa algo desde /import.'}

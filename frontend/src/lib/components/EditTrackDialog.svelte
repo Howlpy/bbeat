@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { AlertTriangle, X } from 'lucide-svelte';
   import { api, type Album, type Track } from '$lib/api';
 
   let {
@@ -61,7 +62,7 @@
   >
     <header class="mb-4 flex items-baseline justify-between">
       <h2 class="text-lg font-semibold">Editar pista</h2>
-      <button onclick={onclose} class="rounded p-1 text-slate-500 hover:bg-slate-800">✕</button>
+      <button onclick={onclose} class="grid size-8 place-items-center rounded text-slate-500 hover:bg-slate-800" aria-label="Cerrar"><X size={16} /></button>
     </header>
 
     <div class="mb-3 flex gap-2 text-xs">
@@ -161,7 +162,7 @@
     {/if}
 
     {#if error}
-      <p class="mt-3 rounded border border-red-900/50 bg-red-950/30 p-2 text-xs text-red-300">⚠️ {error}</p>
+      <p class="mt-3 inline-flex items-center gap-2 rounded border border-red-900/50 bg-red-950/30 p-2 text-xs text-red-300"><AlertTriangle size={14} /> {error}</p>
     {/if}
 
     <div class="mt-5 flex gap-2">

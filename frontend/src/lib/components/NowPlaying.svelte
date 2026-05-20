@@ -8,7 +8,8 @@
     ChevronDown,
     Volume2,
     VolumeX,
-    Mic2
+    Mic2,
+    Music2
   } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { api, formatDuration } from '$lib/api';
@@ -150,7 +151,9 @@
               class="size-full rounded object-cover shadow-2xl shadow-cyan-500/20"
             />
           {:else}
-            <div class="grid size-full place-items-center rounded bg-slate-800 text-8xl text-slate-700">♪</div>
+            <div class="grid size-full place-items-center rounded bg-slate-800 text-slate-700">
+              <Music2 size={96} />
+            </div>
           {/if}
         </div>
       {:else}

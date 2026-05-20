@@ -26,7 +26,7 @@
 
 <div class="mx-auto max-w-3xl px-4 pt-6">
   {#if error}
-    <p class="text-red-400">⚠️ {error}</p>
+    <p class="text-red-400">{error}</p>
   {:else if artist}
     <header class="mb-4">
       <h1 class="text-2xl font-bold">{artist.name}</h1>
