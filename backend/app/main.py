@@ -1,8 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.api import auth, health, ingest, jobs, library, stream
@@ -54,6 +57,28 @@ def create_app() -> FastAPI:
     app.include_router(ingest.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
+
+    # ─── Servir frontend estático (modo prod) ────────────────────
+    # En dev (Vite), no existe el build y este mount no se monta.
+    build_dir = Path(__file__).resolve().parent.parent.parent / "frontend" / "build"
+    if build_dir.is_dir():
+        log.info("Sirvo frontend desde %s", build_dir)
+        # Recursos del build (JS, CSS, assets)
+        app.mount("/_app", StaticFiles(directory=str(build_dir / "_app")), name="static_app")
+
+        # Catch-all para SPA: cualquier path no-API devuelve el fichero
+        # estático correspondiente, o index.html para deep links.
+        index_html = build_dir / "index.html"
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def spa_fallback(full_path: str, request: Request):
+            # Las rutas /api/* ya están registradas arriba, no llegamos aquí.
+            file_path = build_dir / full_path
+            if full_path and file_path.is_file():
+                return FileResponse(file_path)
+            return FileResponse(index_html)
+    else:
+        log.info("Sin build de frontend (modo dev). Usa npm run dev para servirlo.")
 
     return app
 
