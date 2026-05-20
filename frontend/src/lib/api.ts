@@ -50,10 +50,34 @@ export type ScanState = {
   errors: string[];
 };
 
-async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${url}`);
-  return res.json() as Promise<T>;
+async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs = 30_000, ...fetchInit } = init ?? {};
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...fetchInit, signal: ctrl.signal });
+    if (!res.ok) {
+      let detail = '';
+      try {
+        const data = await res.clone().json();
+        detail = typeof data?.detail === 'string' ? ` — ${data.detail}` : '';
+      } catch {
+        try {
+          const t = await res.text();
+          detail = t ? ` — ${t.slice(0, 200)}` : '';
+        } catch {}
+      }
+      throw new Error(`${res.status} ${res.statusText}${detail}`);
+    }
+    return res.json() as Promise<T>;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(`Tiempo agotado (${Math.round(timeoutMs / 1000)}s) — ${url}`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export type Job = {
@@ -152,13 +176,15 @@ export const api = {
     json<IngestPreview>('/api/ingest/preview', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url }),
+      timeoutMs: 60_000  // playlists grandes pueden tardar
     }),
   ingest: (url: string, overrides?: IngestOverrides) =>
     json<IngestResult & { source?: Source }>('/api/ingest', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url, overrides })
+      body: JSON.stringify({ url, overrides }),
+      timeoutMs: 60_000
     }),
   uploadAlbumCover: async (albumId: number, file: File) => {
     const fd = new FormData();

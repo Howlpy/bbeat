@@ -130,4 +130,33 @@
     se podrán editar desde aquí en una fase próxima. Por ahora viven en
     <code class="bg-neutral-900 px-1">backend/.env</code>.
   </p>
+
+  <section class="mt-8 rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+      Mantenimiento
+    </h2>
+    <p class="mb-3 text-xs text-neutral-400">
+      Si Bbeat empieza a fallar de manera rara (cache zombi del service worker,
+      versión vieja del frontend…), borra el caché y refresca:
+    </p>
+    <button
+      onclick={async () => {
+        try {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for (const r of regs) await r.unregister();
+          }
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          }
+        } finally {
+          location.reload();
+        }
+      }}
+      class="rounded-md border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-sm text-amber-200 hover:bg-amber-950/50"
+    >
+      🧹 Limpiar caché y recargar
+    </button>
+  </section>
 </div>
