@@ -195,11 +195,72 @@ def delete_job(job_id: int) -> bool:
         return True
 
 
+def retry_all_failed() -> int:
+    """Reencola todos los jobs en estado failed. Devuelve cuántos se reintentaron."""
+    n = 0
+    with session_scope() as s:
+        rows = s.exec(select(Job).where(Job.status == "failed")).all()
+        for j in rows:
+            j.status = "pending"
+            j.error = None
+            j.started_at = None
+            j.completed_at = None
+            s.add(j)
+            n += 1
+    if n:
+        wake()
+    return n
+
+
+def clear_jobs(status: Optional[str] = None) -> int:
+    """Borra jobs por estado (o todos si status=None). Nunca borra running."""
+    n = 0
+    with session_scope() as s:
+        stmt = select(Job)
+        if status:
+            stmt = stmt.where(Job.status == status)
+        rows = s.exec(stmt).all()
+        for j in rows:
+            if j.status == "running":
+                continue
+            s.delete(j)
+            n += 1
+    return n
+
+
+def job_stats() -> dict:
+    """Resumen de la cola por estado."""
+    out = {"pending": 0, "running": 0, "done": 0, "failed": 0, "total": 0}
+    with session_scope() as s:
+        for j in s.exec(select(Job)).all():
+            out["total"] += 1
+            if j.status in out:
+                out[j.status] += 1
+    return out
+
+
 # ─── Worker loop ───────────────────────────────────────────────
+
+
+def _recover_stale_running_jobs() -> int:
+    """Tras un reinicio, no hay worker procesando 'running' — los reencolamos."""
+    n = 0
+    with session_scope() as s:
+        rows = s.exec(select(Job).where(Job.status == "running")).all()
+        for j in rows:
+            j.status = "pending"
+            j.started_at = None
+            j.error = "reanudado tras reinicio"
+            s.add(j)
+            n += 1
+    if n:
+        log.info("recuperados %d jobs running zombi", n)
+    return n
 
 
 async def _worker_loop() -> None:
     log.info("worker arrancado")
+    _recover_stale_running_jobs()
     ev = _get_wake_event()
     while True:
         # Coger el siguiente pendiente

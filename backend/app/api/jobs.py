@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query
 
 from app.services import jobs as jobs_svc
 
@@ -8,7 +10,28 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 @router.get("")
 def list_jobs(limit: int = 100) -> dict:
     items = jobs_svc.list_jobs(limit=limit)
-    return {"total": len(items), "items": items}
+    return {
+        "total": len(items),
+        "items": items,
+        "stats": jobs_svc.job_stats(),
+    }
+
+
+@router.get("/stats")
+def stats() -> dict:
+    return jobs_svc.job_stats()
+
+
+@router.post("/retry-failed")
+def retry_failed() -> dict:
+    n = jobs_svc.retry_all_failed()
+    return {"retried": n}
+
+
+@router.delete("")
+def clear_jobs(status: Optional[str] = Query(None, description="opcional: filtra por estado")) -> dict:
+    deleted = jobs_svc.clear_jobs(status)
+    return {"deleted": deleted}
 
 
 @router.post("/{job_id}/retry")

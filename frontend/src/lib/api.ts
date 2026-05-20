@@ -83,6 +83,29 @@ export type IngestResult = {
   skipped_track_ids: string[];
 };
 
+export type IngestPreview = {
+  kind: 'track' | 'album' | 'playlist';
+  name: string;
+  total_tracks: number;
+  tracks: {
+    spotify_id: string;
+    title: string;
+    artists: string[];
+    album: string;
+    duration_ms: number;
+    cover_url: string | null;
+    track_number: number;
+  }[];
+};
+
+export type JobStats = {
+  pending: number;
+  running: number;
+  done: number;
+  failed: number;
+  total: number;
+};
+
 export type SpotifyAuthStatus = {
   cookies_configured: boolean;
   cookies_path: string;
@@ -111,6 +134,12 @@ export const api = {
   scanStatus: () => json<ScanState>('/api/library/scan/status'),
 
   // ── Ingesta Spotify ──
+  previewIngest: (url: string) =>
+    json<IngestPreview>('/api/ingest/preview', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url })
+    }),
   ingest: (url: string) =>
     json<IngestResult>('/api/ingest', {
       method: 'POST',
@@ -118,9 +147,15 @@ export const api = {
       body: JSON.stringify({ url })
     }),
   listJobs: (limit = 100) =>
-    json<{ total: number; items: Job[] }>(`/api/jobs?limit=${limit}`),
+    json<{ total: number; items: Job[]; stats: JobStats }>(`/api/jobs?limit=${limit}`),
+  jobStats: () => json<JobStats>('/api/jobs/stats'),
   retryJob: (id: number) => json<{ ok: boolean }>(`/api/jobs/${id}/retry`, { method: 'POST' }),
+  retryFailed: () => json<{ retried: number }>('/api/jobs/retry-failed', { method: 'POST' }),
   deleteJob: (id: number) => json<{ ok: boolean }>(`/api/jobs/${id}`, { method: 'DELETE' }),
+  clearJobs: (status?: 'failed' | 'done' | 'pending') => {
+    const q = status ? `?status=${status}` : '';
+    return json<{ deleted: number }>(`/api/jobs${q}`, { method: 'DELETE' });
+  },
 
   // ── Cookies Spotify (Votify) ──
   spotifyAuthStatus: () => json<SpotifyAuthStatus>('/api/auth/spotify/status'),

@@ -23,6 +23,10 @@ URL_PATTERN = re.compile(
 TRACK_URI_RE = re.compile(r"spotify:track:([a-zA-Z0-9]+)")
 
 
+class IngestError(Exception):
+    """Error de ingesta que debe mostrarse al usuario como 4xx."""
+
+
 @dataclass
 class TrackMeta:
     spotify_id: str
@@ -77,6 +81,17 @@ def parse_url(url: str) -> tuple[str, str]:
     if not m:
         raise ValueError(f"URL de Spotify no reconocida: {url!r}")
     return m.group(1), m.group(2)
+
+
+def normalize_url(url: str) -> str:
+    """Devuelve la URL canónica que SpotifyScraper acepta.
+
+    - Quita prefijos regionales `/intl-XX/`
+    - Quita query params (`?si=...`)
+    - Reconstruye desde el (kind, id) parseado
+    """
+    kind, spotify_id = parse_url(url)
+    return f"https://open.spotify.com/{kind}/{spotify_id}"
 
 
 def _pick_cover_url(images: list[dict], target: int = 640) -> Optional[str]:
@@ -172,33 +187,50 @@ def _track_meta_from_track_endpoint(
 
 def resolve_url(url: str) -> ResolveResult:
     kind, spotify_id = parse_url(url)
+    clean_url = normalize_url(url)
     client = get_client()
 
-    if kind == "track":
-        track = client.get_track_info(url)
-        meta = _track_meta_from_track_endpoint(track, source_url=url, source_kind="track")
-        return ResolveResult(kind="track", name=meta.title, tracks=[meta])
+    try:
+        if kind == "track":
+            track = client.get_track_info(clean_url)
+            meta = _track_meta_from_track_endpoint(track, source_url=clean_url, source_kind="track")
+            return ResolveResult(kind="track", name=meta.title, tracks=[meta])
 
-    if kind == "album":
-        album = client.get_album_info(url)
-        album_artist = ", ".join(a.get("name", "") for a in album.get("artists") or [] if a.get("name"))
-        tracks = [
-            _track_from_album_item(it, album, album_artist, url)
-            for it in album.get("tracks") or []
-        ]
-        return ResolveResult(kind="album", name=album.get("name") or "Unknown Album", tracks=tracks)
+        if kind == "album":
+            album = client.get_album_info(clean_url)
+            album_artist = ", ".join(
+                a.get("name", "") for a in album.get("artists") or [] if a.get("name")
+            )
+            tracks = [
+                _track_from_album_item(it, album, album_artist, clean_url)
+                for it in album.get("tracks") or []
+            ]
+            return ResolveResult(
+                kind="album",
+                name=album.get("name") or "Unknown Album",
+                tracks=tracks,
+            )
 
-    if kind == "playlist":
-        playlist = client.get_playlist_info(url)
-        tracks = [
-            _track_from_playlist_item(it, url)
-            for it in playlist.get("tracks") or []
-        ]
-        return ResolveResult(
-            kind="playlist",
-            name=playlist.get("name") or "Unknown Playlist",
-            tracks=tracks,
-        )
+        if kind == "playlist":
+            playlist = client.get_playlist_info(clean_url)
+            tracks = [
+                _track_from_playlist_item(it, clean_url)
+                for it in playlist.get("tracks") or []
+            ]
+            return ResolveResult(
+                kind="playlist",
+                name=playlist.get("name") or "Unknown Playlist",
+                tracks=tracks,
+            )
+    except Exception as e:
+        # SpotifyScraper lanza excepciones internas con texto crudo.
+        # Las traducimos a IngestError para que la API responda 422.
+        msg = str(e)
+        if "Failed to extract" in msg or "is not a Spotify" in msg or "not found" in msg.lower():
+            raise IngestError(
+                f"No se pudo resolver la URL — ¿es pública y existe? ({msg[:120]})"
+            ) from e
+        raise
 
     raise ValueError(f"Tipo desconocido: {kind}")
 

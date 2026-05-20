@@ -18,7 +18,9 @@ from app.services.spotify import TrackMeta
 log = logging.getLogger("bbeat.downloader")
 
 AUDIO_EXTS = {".ogg", ".opus", ".m4a", ".mp3", ".flac", ".webm", ".aac"}
-DURATION_TOLERANCE_MS = 5000
+# Tolerancia generosa: YouTube tiene versiones remix, extendidas, etc.
+# Si ninguna pasa el filtro estricto, caemos al "más cercano en duración".
+DURATION_TOLERANCE_MS = 15000
 
 
 @dataclass
@@ -107,48 +109,86 @@ def download_with_votify(meta: TrackMeta) -> DownloadResult:
 
 
 def download_with_ytdlp(meta: TrackMeta) -> DownloadResult:
-    """Busca 'artista - título' en YouTube y descarga el mejor audio."""
+    """Búsqueda en YouTube en dos pasadas:
+    1. Resolver 5 candidatos sin descargar y elegir el más cercano en duración.
+    2. Descargar el ganador con extracción de audio.
+    Esto evita rechazar todo cuando ninguno cae en ±15s.
+    """
     out_dir = settings.data_dir / "downloads"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_tmpl = str(out_dir / f"ytdlp-{meta.spotify_id}.%(ext)s")
 
-    def _match(info_dict, *, incomplete=False):
-        # Filtra por duración: descarta resultados con duración fuera de tolerancia
-        if incomplete:
-            return None
-        dur = (info_dict.get("duration") or 0) * 1000
-        if meta.duration_ms > 0 and dur > 0:
-            if abs(dur - meta.duration_ms) > DURATION_TOLERANCE_MS:
-                return "duración fuera de tolerancia"
-        return None
+    log.info("yt-dlp ▶ %s (objetivo %ds)", meta.search_query, meta.duration_ms // 1000)
 
-    ydl_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": out_tmpl,
-        "default_search": "ytsearch3",  # busca 3 candidatos y se queda con el primero que pase el match
-        "noplaylist": True,
+    # ─── Pasada 1: extraer info sin descargar ───
+    resolve_opts = {
         "quiet": True,
         "no_warnings": True,
-        "match_filter": _match,
-        "postprocessors": [
-            {"key": "FFmpegExtractAudio", "preferredcodec": "m4a"},
-        ],
+        "skip_download": True,
+        "noplaylist": True,
+        "extract_flat": False,
+        "default_search": "ytsearch5",
+        "socket_timeout": 30,
+    }
+    try:
+        with YoutubeDL(resolve_opts) as ydl:
+            info = ydl.extract_info(f"ytsearch5:{meta.search_query}", download=False)
+    except Exception as e:
+        return DownloadResult(None, "yt-dlp", f"resolve: {str(e)[:400]}")
+
+    entries = (info or {}).get("entries") or []
+    if not entries:
+        return DownloadResult(None, "yt-dlp", "sin resultados en YouTube")
+
+    target = meta.duration_ms / 1000 or 0
+    scored: list[tuple[float, dict]] = []
+    for e in entries:
+        if not e:
+            continue
+        dur = e.get("duration") or 0
+        if dur <= 0:
+            continue
+        # Penalizar fuertemente vídeos largos (mezclas) y muy cortos (clips)
+        diff = abs(dur - target) if target else 9999
+        scored.append((diff, e))
+
+    if not scored:
+        return DownloadResult(None, "yt-dlp", "sin candidatos con duración")
+
+    scored.sort(key=lambda x: x[0])
+    best_diff, best = scored[0]
+    if target and best_diff > DURATION_TOLERANCE_MS / 1000:
+        log.warning(
+            "yt-dlp: mejor match a %.1fs del objetivo (>%ds tolerancia). Lo cojo igual.",
+            best_diff,
+            DURATION_TOLERANCE_MS // 1000,
+        )
+
+    video_url = best.get("webpage_url") or best.get("url")
+    if not video_url:
+        return DownloadResult(None, "yt-dlp", "sin URL en el candidato ganador")
+
+    # ─── Pasada 2: descargar el ganador ───
+    out_tmpl = str(out_dir / f"ytdlp-{meta.spotify_id}.%(ext)s")
+    download_opts = {
+        "format": "bestaudio/best",
+        "outtmpl": out_tmpl,
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
         "concurrent_fragment_downloads": 1,
         "socket_timeout": 30,
     }
-
-    query = f"ytsearch1:{meta.search_query}"
-    log.info("yt-dlp ▶ %s", meta.search_query)
     try:
-        with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([query])
+        with YoutubeDL(download_opts) as ydl:
+            ydl.download([video_url])
     except Exception as e:
-        return DownloadResult(None, "yt-dlp", str(e)[:500])
+        return DownloadResult(None, "yt-dlp", f"download: {str(e)[:400]}")
 
     candidates = sorted(out_dir.glob(f"ytdlp-{meta.spotify_id}.*"))
     audio = [p for p in candidates if p.suffix.lower() in AUDIO_EXTS]
     if not audio:
-        return DownloadResult(None, "yt-dlp", "no audio output")
+        return DownloadResult(None, "yt-dlp", "no audio output tras descarga")
     return DownloadResult(audio[0], "yt-dlp")
 
 

@@ -1,165 +1,395 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
-  import { api, formatDuration, type Job } from '$lib/api';
+  import { onMount } from 'svelte';
+  import {
+    api,
+    formatDuration,
+    type IngestPreview,
+    type Job,
+    type SpotifyAuthStatus
+  } from '$lib/api';
+  import { jobs } from '$lib/jobs.svelte';
 
   let url = $state('');
-  let submitting = $state(false);
-  let lastResult = $state<string | null>(null);
-  let error = $state<string | null>(null);
+  let busy = $state(false);
+  let preview = $state<IngestPreview | null>(null);
+  let previewError = $state<string | null>(null);
+  let lastImportMsg = $state<string | null>(null);
+  let auth = $state<SpotifyAuthStatus | null>(null);
+  let expanded = $state<Record<string, boolean>>({});
 
-  let jobs = $state<Job[]>([]);
-  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  onMount(async () => {
+    auth = await api.spotifyAuthStatus().catch(() => null);
+    await jobs.refresh();
+  });
 
-  const hasActiveJobs = $derived(jobs.some((j) => j.status === 'pending' || j.status === 'running'));
-
-  async function refresh() {
+  async function onPreview() {
+    if (!url.trim() || busy) return;
+    busy = true;
+    preview = null;
+    previewError = null;
+    lastImportMsg = null;
     try {
-      const r = await api.listJobs(100);
-      jobs = r.items;
+      preview = await api.previewIngest(url.trim());
     } catch (e) {
-      console.warn('listJobs failed', e);
+      previewError = e instanceof Error ? e.message : String(e);
+    } finally {
+      busy = false;
     }
   }
 
-  function schedule() {
-    if (pollTimer) clearTimeout(pollTimer);
-    const ms = hasActiveJobs ? 1500 : 5000;
-    pollTimer = setTimeout(async () => {
-      await refresh();
-      schedule();
-    }, ms);
-  }
-
-  async function submit() {
-    if (!url.trim() || submitting) return;
-    submitting = true;
-    error = null;
-    lastResult = null;
+  async function onImport() {
+    if (!preview || busy) return;
+    busy = true;
     try {
       const r = await api.ingest(url.trim());
-      const skipped = r.skipped_track_ids.length;
-      lastResult = `${r.kind === 'track' ? 'Pista' : r.kind === 'album' ? 'Álbum' : 'Playlist'}: "${r.name}". ${r.created_job_ids.length} jobs nuevos${skipped ? `, ${skipped} duplicados ignorados` : ''}.`;
+      const sk = r.skipped_track_ids.length;
+      lastImportMsg = `Encolado: ${r.created_job_ids.length} ${r.created_job_ids.length === 1 ? 'pista' : 'pistas'}${sk ? ` (${sk} ya estaban)` : ''}.`;
+      preview = null;
       url = '';
-      await refresh();
+      await jobs.refresh();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      previewError = e instanceof Error ? e.message : String(e);
     } finally {
-      submitting = false;
+      busy = false;
+    }
+  }
+
+  async function onPaste(e: ClipboardEvent) {
+    const text = e.clipboardData?.getData('text') ?? '';
+    if (text.includes('open.spotify.com') || text.startsWith('spotify:')) {
+      // Auto-preview tras pegar una URL detectable
+      setTimeout(() => {
+        if (url === text || url.trim() === text.trim()) onPreview();
+      }, 50);
     }
   }
 
   async function retry(id: number) {
     await api.retryJob(id);
-    await refresh();
+    await jobs.refresh();
   }
-
   async function remove(id: number) {
     await api.deleteJob(id);
-    await refresh();
+    await jobs.refresh();
+  }
+  async function retryAllFailed() {
+    await api.retryFailed();
+    await jobs.refresh();
+  }
+  async function clearFailed() {
+    if (!confirm('¿Borrar todos los jobs fallidos?')) return;
+    await api.clearJobs('failed');
+    await jobs.refresh();
+  }
+  async function clearDone() {
+    if (!confirm('¿Borrar todos los jobs completados del historial?')) return;
+    await api.clearJobs('done');
+    await jobs.refresh();
   }
 
-  onMount(async () => {
-    await refresh();
-    schedule();
+  // Agrupar jobs por source_url
+  type Group = {
+    key: string;
+    kind: string;
+    name: string;
+    cover_url: string | null;
+    items: Job[];
+    counts: { pending: number; running: number; done: number; failed: number };
+  };
+
+  const groups = $derived.by<Group[]>(() => {
+    const byUrl = new Map<string, Job[]>();
+    for (const j of jobs.items) {
+      const arr = byUrl.get(j.source_url) ?? [];
+      arr.push(j);
+      byUrl.set(j.source_url, arr);
+    }
+    const out: Group[] = [];
+    for (const [key, items] of byUrl) {
+      const first = items[0];
+      // Para álbum/playlist usamos el album/source. Para track usamos el título.
+      const name =
+        first.source_kind === 'album'
+          ? first.album || 'Álbum'
+          : first.source_kind === 'playlist'
+            ? 'Playlist'
+            : first.title || 'Pista';
+      const counts = {
+        pending: items.filter((j) => j.status === 'pending').length,
+        running: items.filter((j) => j.status === 'running').length,
+        done: items.filter((j) => j.status === 'done').length,
+        failed: items.filter((j) => j.status === 'failed').length
+      };
+      const cover = items.find((j) => j.cover_url)?.cover_url ?? null;
+      out.push({ key, kind: first.source_kind, name, cover_url: cover, items, counts });
+    }
+    // Más recientes arriba (último created_at del grupo)
+    out.sort((a, b) => {
+      const aT = Math.max(...a.items.map((i) => Date.parse(i.created_at || '0')));
+      const bT = Math.max(...b.items.map((i) => Date.parse(i.created_at || '0')));
+      return bT - aT;
+    });
+    return out;
   });
 
-  onDestroy(() => {
-    if (pollTimer) clearTimeout(pollTimer);
-  });
+  function kindLabel(k: string): string {
+    return { track: 'Pista', album: 'Álbum', playlist: 'Playlist' }[k] || k;
+  }
 
   function statusColor(s: Job['status']): string {
-    if (s === 'done') return 'text-emerald-400';
-    if (s === 'running') return 'text-sky-400';
-    if (s === 'failed') return 'text-red-400';
-    return 'text-neutral-400';
+    return {
+      pending: 'text-neutral-400',
+      running: 'text-sky-400',
+      done: 'text-emerald-400',
+      failed: 'text-red-400'
+    }[s];
   }
 
-  function statusLabel(s: Job['status']): string {
-    return { pending: '⏱ en cola', running: '⟳ descargando', done: '✓ listo', failed: '✗ fallo' }[s];
+  function statusIcon(s: Job['status']): string {
+    return { pending: '⏱', running: '⟳', done: '✓', failed: '✗' }[s];
   }
 </script>
 
 <div class="mx-auto max-w-2xl px-4 pt-6">
-  <h1 class="mb-2 text-2xl font-bold">Importar desde Spotify</h1>
-  <p class="mb-4 text-sm text-neutral-500">
-    Pega una URL de track, álbum o playlist. Bbeat resolverá la metadata y
-    descargará el audio.
-  </p>
+  <header class="mb-5 flex flex-wrap items-baseline justify-between gap-2">
+    <h1 class="text-2xl font-bold">Importar desde Spotify</h1>
+    {#if auth}
+      <a
+        href="/settings"
+        class="inline-flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900 px-3 py-1 text-xs hover:bg-neutral-800"
+      >
+        {#if auth.cookies_configured}
+          <span class="size-2 rounded-full bg-emerald-500"></span>
+          <span>Votify · alta calidad</span>
+        {:else}
+          <span class="size-2 rounded-full bg-amber-500"></span>
+          <span>yt-dlp · sin cookies</span>
+        {/if}
+      </a>
+    {/if}
+  </header>
 
-  <form onsubmit={(e) => { e.preventDefault(); submit(); }} class="flex flex-col gap-2 sm:flex-row">
-    <input
-      type="url"
-      bind:value={url}
-      placeholder="https://open.spotify.com/track/..."
-      autocomplete="off"
-      inputmode="url"
-      class="flex-1 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
-    />
-    <button
-      type="submit"
-      disabled={submitting || !url.trim()}
-      class="rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
-    >
-      {submitting ? 'Resolviendo…' : 'Importar'}
-    </button>
+  <!-- URL input -->
+  <form onsubmit={(e) => { e.preventDefault(); onPreview(); }} class="space-y-2">
+    <div class="relative">
+      <input
+        type="url"
+        bind:value={url}
+        onpaste={onPaste}
+        placeholder="https://open.spotify.com/track/..."
+        autocomplete="off"
+        inputmode="url"
+        class="w-full rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2.5 pr-24 text-sm placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+      />
+      <button
+        type="submit"
+        disabled={busy || !url.trim()}
+        class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded bg-neutral-800 px-3 py-1.5 text-xs font-medium hover:bg-neutral-700 disabled:opacity-50"
+      >
+        {busy && !preview ? '…' : 'Examinar'}
+      </button>
+    </div>
+    <p class="text-xs text-neutral-500">
+      Acepta URLs de pista, álbum o playlist. Acepta también el formato <code class="bg-neutral-900 px-1">spotify:...</code>
+    </p>
   </form>
 
-  {#if error}
-    <p class="mt-3 rounded-md border border-red-900/50 bg-red-950/40 p-3 text-sm text-red-300">⚠️ {error}</p>
-  {/if}
-  {#if lastResult}
-    <p class="mt-3 rounded-md border border-emerald-900/50 bg-emerald-950/30 p-3 text-sm text-emerald-200">{lastResult}</p>
+  {#if previewError}
+    <div class="mt-3 rounded-md border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
+      ⚠️ {previewError}
+    </div>
   {/if}
 
-  <section class="mt-8">
-    <header class="mb-3 flex items-baseline justify-between">
-      <h2 class="text-sm font-semibold uppercase tracking-wider text-neutral-500">Cola de jobs</h2>
-      {#if hasActiveJobs}
-        <span class="text-xs text-sky-400">{jobs.filter((j) => j.status === 'running' || j.status === 'pending').length} activos</span>
+  {#if lastImportMsg}
+    <div class="mt-3 rounded-md border border-emerald-900/50 bg-emerald-950/30 p-3 text-sm text-emerald-300">
+      ✓ {lastImportMsg}
+    </div>
+  {/if}
+
+  {#if preview}
+    <section class="mt-4 overflow-hidden rounded-lg border border-emerald-900/40 bg-neutral-900">
+      <div class="flex items-start gap-3 p-4">
+        {#if preview.tracks[0]?.cover_url}
+          <img src={preview.tracks[0].cover_url} alt="" class="size-20 flex-none rounded object-cover" />
+        {:else}
+          <div class="grid size-20 flex-none place-items-center rounded bg-neutral-800 text-2xl">🎵</div>
+        {/if}
+        <div class="min-w-0 flex-1">
+          <div class="text-xs uppercase tracking-wider text-neutral-500">
+            {kindLabel(preview.kind)}
+          </div>
+          <h2 class="text-lg font-semibold leading-tight">{preview.name}</h2>
+          <p class="mt-1 text-xs text-neutral-400">
+            {preview.total_tracks} {preview.total_tracks === 1 ? 'pista' : 'pistas'}
+            {#if preview.tracks[0]?.artists.length}
+              · {preview.tracks[0].artists.join(', ')}
+            {/if}
+          </p>
+          <button
+            onclick={onImport}
+            disabled={busy}
+            class="mt-3 rounded-md bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
+          >
+            {busy ? 'Encolando…' : `Importar ${preview.total_tracks} ${preview.total_tracks === 1 ? 'pista' : 'pistas'}`}
+          </button>
+        </div>
+      </div>
+      {#if preview.tracks.length > 1}
+        <details class="border-t border-neutral-800">
+          <summary class="cursor-pointer px-4 py-2 text-xs text-neutral-400 hover:bg-neutral-950">
+            Ver tracklist
+          </summary>
+          <ul class="divide-y divide-neutral-800 text-sm">
+            {#each preview.tracks.slice(0, 50) as t}
+              <li class="flex items-center justify-between px-4 py-1.5">
+                <span class="truncate">
+                  <span class="mr-2 text-xs text-neutral-500">{String(t.track_number).padStart(2, '0')}</span>
+                  {t.title}
+                </span>
+                <span class="font-mono text-xs text-neutral-500">{formatDuration(t.duration_ms)}</span>
+              </li>
+            {/each}
+            {#if preview.tracks.length > 50}
+              <li class="px-4 py-2 text-center text-xs text-neutral-500">
+                + {preview.tracks.length - 50} más…
+              </li>
+            {/if}
+          </ul>
+        </details>
       {/if}
+    </section>
+  {/if}
+
+  <!-- Cola -->
+  <section class="mt-10">
+    <header class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-neutral-500">
+        Cola de descarga
+      </h2>
+      <div class="flex flex-wrap gap-1.5 text-xs">
+        {#if jobs.stats.failed > 0}
+          <button
+            onclick={retryAllFailed}
+            class="rounded border border-neutral-800 px-2 py-1 hover:bg-neutral-800"
+          >↻ reintentar {jobs.stats.failed} fallidos</button>
+          <button
+            onclick={clearFailed}
+            class="rounded border border-neutral-800 px-2 py-1 hover:bg-neutral-800"
+          >× borrar fallidos</button>
+        {/if}
+        {#if jobs.stats.done > 0}
+          <button
+            onclick={clearDone}
+            class="rounded border border-neutral-800 px-2 py-1 text-neutral-500 hover:bg-neutral-800"
+          >limpiar historial</button>
+        {/if}
+      </div>
     </header>
 
-    {#if jobs.length === 0}
-      <p class="text-sm text-neutral-500">Aún no has importado nada.</p>
+    <!-- Stats bar -->
+    <div class="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs">
+      <span class="text-neutral-400">Total: <b class="text-neutral-200">{jobs.stats.total}</b></span>
+      {#if jobs.stats.pending > 0}<span class="text-neutral-400">⏱ {jobs.stats.pending}</span>{/if}
+      {#if jobs.stats.running > 0}<span class="text-sky-400">⟳ {jobs.stats.running}</span>{/if}
+      {#if jobs.stats.done > 0}<span class="text-emerald-400">✓ {jobs.stats.done}</span>{/if}
+      {#if jobs.stats.failed > 0}<span class="text-red-400">✗ {jobs.stats.failed}</span>{/if}
+      {#if jobs.active > 0}
+        <span class="ml-auto inline-flex items-center gap-1 text-sky-400">
+          <span class="size-1.5 animate-pulse rounded-full bg-sky-400"></span>
+          descargando…
+        </span>
+      {/if}
+    </div>
+
+    {#if groups.length === 0}
+      <div class="rounded-md border border-dashed border-neutral-800 p-8 text-center">
+        <p class="text-sm text-neutral-400">Sin importaciones todavía.</p>
+        <p class="mt-2 text-xs text-neutral-600">
+          Prueba con una URL de Spotify, por ejemplo un álbum o playlist público.
+        </p>
+      </div>
     {:else}
-      <ul class="divide-y divide-neutral-900 rounded-md border border-neutral-900">
-        {#each jobs as job}
-          <li class="flex items-center gap-3 p-3">
-            {#if job.cover_url}
-              <img src={job.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
-            {:else}
-              <div class="size-10 flex-none rounded bg-neutral-800"></div>
+      <ul class="space-y-2">
+        {#each groups as g (g.key)}
+          {@const total = g.items.length}
+          {@const isOpen = expanded[g.key] ?? false}
+          <li class="overflow-hidden rounded-md border border-neutral-800 bg-neutral-900">
+            <button
+              type="button"
+              onclick={() => (expanded[g.key] = !isOpen)}
+              class="flex w-full items-center gap-3 p-3 text-left hover:bg-neutral-800/50"
+            >
+              {#if g.cover_url}
+                <img src={g.cover_url} alt="" class="size-12 flex-none rounded object-cover" />
+              {:else}
+                <div class="grid size-12 flex-none place-items-center rounded bg-neutral-800 text-lg">
+                  {g.kind === 'album' ? '◉' : g.kind === 'playlist' ? '☰' : '♪'}
+                </div>
+              {/if}
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-xs uppercase text-neutral-500">{kindLabel(g.kind)}</span>
+                  <span class="truncate text-sm font-medium">{g.name}</span>
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                  {@const pct = total > 0 ? Math.round((g.counts.done / total) * 100) : 0}
+                  <span class="block h-1 w-20 overflow-hidden rounded-full bg-neutral-800">
+                    <span class="block h-full bg-emerald-500" style:width="{pct}%"></span>
+                  </span>
+                  <span class="text-neutral-500">{g.counts.done}/{total}</span>
+                  {#if g.counts.running > 0}
+                    <span class="text-sky-400">⟳ {g.counts.running}</span>
+                  {/if}
+                  {#if g.counts.failed > 0}
+                    <span class="text-red-400">✗ {g.counts.failed}</span>
+                  {/if}
+                </div>
+              </div>
+              <span class="text-neutral-500">{isOpen ? '▾' : '▸'}</span>
+            </button>
+
+            {#if isOpen}
+              <ul class="divide-y divide-neutral-800 border-t border-neutral-800 bg-neutral-950">
+                {#each g.items as job (job.id)}
+                  <li class="flex items-center gap-3 px-3 py-2">
+                    <span
+                      class="w-5 flex-none text-center font-mono text-xs {statusColor(job.status)}"
+                      class:animate-spin={job.status === 'running'}
+                    >{statusIcon(job.status)}</span>
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate text-sm">{job.title}</div>
+                      <div class="truncate text-xs text-neutral-500">
+                        {job.artist}
+                        {#if job.backend_used} · {job.backend_used}{/if}
+                        {#if job.duration_ms} · {formatDuration(job.duration_ms)}{/if}
+                      </div>
+                      {#if job.error}
+                        <div
+                          class="mt-0.5 truncate text-xs text-red-400/80"
+                          title={job.error}
+                        >{job.error}</div>
+                      {/if}
+                    </div>
+                    <div class="flex flex-none gap-1">
+                      {#if job.status === 'failed'}
+                        <button
+                          onclick={() => retry(job.id)}
+                          class="rounded border border-neutral-800 px-2 py-1 text-xs hover:bg-neutral-800"
+                          title="Reintentar"
+                        >↻</button>
+                      {/if}
+                      {#if job.status !== 'running'}
+                        <button
+                          onclick={() => remove(job.id)}
+                          class="rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-800 hover:text-red-400"
+                          title="Eliminar"
+                        >×</button>
+                      {/if}
+                    </div>
+                  </li>
+                {/each}
+              </ul>
             {/if}
-            <div class="min-w-0 flex-1">
-              <div class="flex items-baseline gap-2">
-                <span class="truncate text-sm font-medium">{job.title || job.spotify_track_id}</span>
-                <span class="flex-none text-xs {statusColor(job.status)}">{statusLabel(job.status)}</span>
-              </div>
-              <div class="truncate text-xs text-neutral-500">
-                {job.artist}{#if job.album} · {job.album}{/if}
-                {#if job.backend_used} · {job.backend_used}{/if}
-                {#if job.duration_ms} · {formatDuration(job.duration_ms)}{/if}
-              </div>
-              {#if job.error}
-                <div class="mt-1 truncate text-xs text-red-400" title={job.error}>{job.error}</div>
-              {/if}
-            </div>
-            <div class="flex flex-none gap-1">
-              {#if job.status === 'failed'}
-                <button
-                  onclick={() => retry(job.id)}
-                  class="rounded border border-neutral-800 px-2 py-1 text-xs hover:bg-neutral-900"
-                  title="Reintentar"
-                >↻</button>
-              {/if}
-              {#if job.status !== 'running'}
-                <button
-                  onclick={() => remove(job.id)}
-                  class="rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-900 hover:text-red-400"
-                  title="Eliminar de la cola"
-                >×</button>
-              {/if}
-            </div>
           </li>
         {/each}
       </ul>
