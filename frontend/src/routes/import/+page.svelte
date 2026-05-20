@@ -332,9 +332,11 @@
                   <span class="truncate text-sm font-medium">{g.name}</span>
                 </div>
                 <div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                  {@const pct = total > 0 ? Math.round((g.counts.done / total) * 100) : 0}
                   <span class="block h-1 w-20 overflow-hidden rounded-full bg-neutral-800">
-                    <span class="block h-full bg-emerald-500" style:width="{pct}%"></span>
+                    <span
+                      class="block h-full bg-emerald-500"
+                      style:width="{total > 0 ? Math.round((g.counts.done / total) * 100) : 0}%"
+                    ></span>
                   </span>
                   <span class="text-neutral-500">{g.counts.done}/{total}</span>
                   {#if g.counts.running > 0}
