@@ -308,11 +308,13 @@ def process_job(job_id: int) -> None:
                 job.result_track_id = track_id
                 job.completed_at = datetime.utcnow()
                 s.add(job)
-            # Setear external_id + AlbumTrack para el álbum original
+            # Setear external_id + source_url + AlbumTrack para el álbum original
             if job and track_id:
                 t = s.get(Track, track_id)
                 if t:
                     t.external_id = job.spotify_track_id
+                    if dl_result.source_url:
+                        t.source_url = dl_result.source_url
                     s.add(t)
                     if t.album_id:
                         _link_track_to_album(s, t.id, t.album_id, t.track_number)

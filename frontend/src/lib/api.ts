@@ -12,6 +12,7 @@ export type Track = {
   duration_ms: number | null;
   file_format: string | null;
   stream_url: string;
+  source_url: string | null;
 };
 
 export type Album = {

@@ -42,6 +42,7 @@ def _migrate_schema() -> None:
         ("albums", "owner_id", "INTEGER"),
         ("albums", "is_public", "INTEGER DEFAULT 0"),
         ("tracks", "external_id", "TEXT"),
+        ("tracks", "source_url", "TEXT"),
     ]
     with engine.begin() as conn:
         for table, col, type_decl in columns_to_add:

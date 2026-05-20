@@ -35,10 +35,17 @@ class DownloadResult:
     file_path: Optional[Path]
     backend: str
     error: Optional[str] = None
+    source_url: Optional[str] = None  # URL del vídeo/track de donde se descargó
 
     @property
     def success(self) -> bool:
         return self.file_path is not None and self.error is None
+
+
+def _norm_text(s: str) -> str:
+    """Normaliza para comparación: lowercase, sin signos, espacios colapsados."""
+    import re as _re
+    return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", (s or "").lower())).strip()
 
 
 def cookies_path() -> Path:
@@ -157,18 +164,65 @@ def download_with_ytdlp(
     if not entries:
         return DownloadResult(None, "yt-dlp", "sin resultados en YouTube")
 
-    # Con extract_flat=in_playlist las entries traen solo {id, title, duration, url}.
-    # Eso basta para ordenar por duración. Si duration falta, lo dejamos al final.
-    target = meta.duration_ms / 1000 or 0
-    scored: list[tuple[float, dict]] = []
+    # Scoring multi-factor: cuanto menor el score, mejor candidato.
+    target_secs = meta.duration_ms / 1000 if meta.duration_ms else 0
+    artist_norm = _norm_text(meta.primary_artist)
+    title_norm = _norm_text(meta.title)
+    title_words = set(title_norm.split())
+
+    scored: list[tuple[float, dict, str]] = []
     for e in entries:
+        score = 0.0
+        reasons: list[str] = []
+
+        # 1. Duración (peso: 1 punto por segundo de diferencia)
         dur = e.get("duration") or 0
-        # tolerancia "sin duración" → último de la lista
-        diff = abs(dur - target) if target and dur > 0 else 1e9
-        scored.append((diff, e))
+        if target_secs and dur > 0:
+            d_diff = abs(dur - target_secs)
+            score += d_diff
+            if d_diff <= 3:
+                reasons.append(f"dur✓({d_diff:.0f}s)")
+            elif d_diff > 15:
+                score += 20  # penalización extra si duración muy distinta
+        else:
+            score += 50  # sin duración → penalizar
+
+        # 2. Canal/uploader oficial: "- Topic" es upload automático del sello
+        uploader = _norm_text(e.get("uploader") or e.get("channel") or "")
+        if "- topic" in uploader or " topic" in uploader:
+            score -= 40
+            reasons.append("topic")
+        # 3. Match del artista en el uploader
+        if artist_norm and artist_norm in uploader:
+            score -= 25
+            reasons.append("artist✓")
+
+        # 4. Penalización por palabras peligrosas en el título
+        cand_title = _norm_text(e.get("title") or "")
+        BAD_KEYWORDS = (
+            "cover", "tribute", "instrumental", "karaoke", "lyric video",
+            "live", "concert", "8 hours", "1 hour", "loop", "extended",
+            "reaction", "review",
+        )
+        for kw in BAD_KEYWORDS:
+            if kw in cand_title and kw not in title_norm:
+                score += 30
+                reasons.append(f"-{kw}")
+
+        # 5. Bonus por overlap de palabras del título original (max -20)
+        cand_words = set(cand_title.split())
+        if title_words and cand_words:
+            overlap = len(title_words & cand_words) / max(len(title_words), 1)
+            score -= overlap * 20
+            if overlap >= 0.8:
+                reasons.append("title✓")
+
+        scored.append((score, e, ",".join(reasons)))
 
     scored.sort(key=lambda x: x[0])
-    log.info("yt-dlp: %d candidatos, intento desde el más cercano…", len(scored))
+    log.info("yt-dlp: %d candidatos", len(scored))
+    for rank, (s, e, r) in enumerate(scored[:5], 1):
+        log.info("  #%d score=%+.1f %s · %s", rank, s, r, (e.get("title") or "")[:60])
 
     # ─── Pasada 2: descargar candidato a candidato hasta que uno funcione ───
     out_tmpl = str(out_dir / f"ytdlp-{meta.spotify_id}.%(ext)s")
@@ -188,20 +242,14 @@ def download_with_ytdlp(
         download_opts["progress_hooks"] = [hook]
 
     last_err: Optional[str] = None
-    for diff, cand in scored[:5]:  # probamos hasta 5
+    for sc, cand, _ in scored[:5]:  # probamos hasta 5
         video_url = cand.get("webpage_url") or cand.get("url")
         cand_id = cand.get("id", "?")
         if not video_url and cand_id and cand_id != "?":
             video_url = f"https://www.youtube.com/watch?v={cand_id}"
         if not video_url:
             continue
-        if target and diff != 1e9:
-            log.info(
-                "intento %s (diff %.1fs): %s",
-                cand_id,
-                diff,
-                cand.get("title", "")[:60],
-            )
+        log.info("descarga intento %s (score %+.1f)", cand_id, sc)
         try:
             with YoutubeDL(download_opts) as ydl:
                 ydl.download([video_url])
@@ -211,12 +259,11 @@ def download_with_ytdlp(
                 if p.suffix.lower() in AUDIO_EXTS
             ]
             if audio:
-                return DownloadResult(audio[0], "yt-dlp")
+                return DownloadResult(audio[0], "yt-dlp", source_url=video_url)
             last_err = "no audio output"
         except Exception as e:
             last_err = str(e)[:300]
             log.warning("candidato %s falló: %s", cand_id, last_err)
-            # Limpiar restos parciales del candidato fallido
             for p in out_dir.glob(f"ytdlp-{meta.spotify_id}.*"):
                 try:
                     p.unlink()
@@ -302,7 +349,7 @@ def download_with_ytdlp_direct(
     audio = [p for p in candidates if p.suffix.lower() in AUDIO_EXTS]
     if not audio:
         return DownloadResult(None, "yt-dlp", "no audio output tras descarga directa")
-    return DownloadResult(audio[0], "yt-dlp")
+    return DownloadResult(audio[0], "yt-dlp", source_url=target_url)
 
 
 # ─── Estrategia: dispatch por fuente ───────────────────────────

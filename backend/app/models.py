@@ -61,6 +61,8 @@ class Track(SQLModel, table=True):
     duration_ms: Optional[int] = Field(default=None)
     # Identificador externo del provider para dedup (spotify_id raw, yt:..., sc:...)
     external_id: Optional[str] = Field(default=None, index=True)
+    # URL exacta del vídeo/track del que se descargó (para verificar match)
+    source_url: Optional[str] = Field(default=None)
 
     file_path: str = Field(unique=True, index=True)
     file_size: Optional[int] = Field(default=None)

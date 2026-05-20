@@ -84,6 +84,22 @@
       >Mover de álbum</button>
     </div>
 
+    {#if track.source_url}
+      <div class="mb-3 rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs">
+        <div class="text-neutral-500">Fuente</div>
+        <a
+          href={track.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="block truncate text-emerald-400 hover:underline"
+          title={track.source_url}
+        >{track.source_url}</a>
+        <p class="mt-1 text-[10px] text-neutral-600">
+          ¿No es la pista correcta? Bórrala y vuelve a importarla.
+        </p>
+      </div>
+    {/if}
+
     {#if mode === 'edit'}
       <div class="space-y-2 text-sm">
         <label class="block">

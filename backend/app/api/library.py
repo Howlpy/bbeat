@@ -75,6 +75,7 @@ def list_tracks(
             "duration_ms": track.duration_ms,
             "file_format": track.file_format,
             "stream_url": f"/api/library/stream/{track.id}",
+            "source_url": track.source_url,
         })
 
     return {"total": total, "limit": limit, "offset": offset, "items": items}
@@ -274,6 +275,7 @@ def search(
             "duration_ms": track.duration_ms,
             "file_format": track.file_format,
             "stream_url": f"/api/library/stream/{track.id}",
+            "source_url": track.source_url,
         })
     return {"query": q, "total": len(items), "items": items}
 
