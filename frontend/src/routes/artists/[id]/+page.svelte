@@ -32,7 +32,7 @@
       <h1 class="text-2xl font-bold">{artist.name}</h1>
       <p class="text-xs text-neutral-500">{artist.album_count} álbumes · {artist.track_count} pistas</p>
     </header>
-    <TrackList {tracks} />
+    <TrackList bind:tracks />
   {:else}
     <p class="text-neutral-500">Cargando…</p>
   {/if}

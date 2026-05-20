@@ -194,6 +194,71 @@ export const api = {
       { method: 'POST', body: fd }
     );
   },
+
+  // ── Edición / borrado ──
+  deleteTrack: (id: number) =>
+    json<{ ok: boolean }>(`/api/library/tracks/${id}`, { method: 'DELETE' }),
+  editTrack: (
+    id: number,
+    body: {
+      title?: string;
+      artist?: string;
+      album?: string;
+      track_number?: number;
+      disc_number?: number;
+      year?: number;
+      target_album_id?: number;
+    }
+  ) =>
+    json<{ ok: boolean }>(`/api/library/tracks/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    }),
+  deleteAlbum: (id: number) =>
+    json<{ deleted: boolean; tracks_deleted: number }>(`/api/library/albums/${id}`, {
+      method: 'DELETE'
+    }),
+  editAlbum: (id: number, body: { title?: string; year?: number }) =>
+    json<{ ok: boolean }>(`/api/library/albums/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    }),
+
+  // ── Búsqueda ──
+  search: (q: string, limit = 50) =>
+    json<{ query: string; total: number; items: Track[] }>(
+      `/api/library/search?q=${encodeURIComponent(q)}&limit=${limit}`
+    ),
+
+  // ── Letras ──
+  lyrics: (trackId: number) =>
+    json<{
+      found: boolean;
+      plain: string | null;
+      synced: string | null;
+      source: string;
+      track_name?: string;
+      artist_name?: string;
+    }>(`/api/library/tracks/${trackId}/lyrics`, { timeoutMs: 15_000 }),
+
+  // ── Upload local ──
+  uploadTrack: async (
+    file: File,
+    opts: { album?: string; artist?: string; year?: number; target_album_id?: number } = {}
+  ) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (opts.album) fd.append('album', opts.album);
+    if (opts.artist) fd.append('artist', opts.artist);
+    if (opts.year !== undefined) fd.append('year', String(opts.year));
+    if (opts.target_album_id !== undefined) fd.append('target_album_id', String(opts.target_album_id));
+    return json<{ ok: boolean; track_id: number; title: string; artist: string; album: string }>(
+      '/api/library/upload',
+      { method: 'POST', body: fd, timeoutMs: 120_000 }
+    );
+  },
   listJobs: (limit = 100) =>
     json<{ total: number; items: Job[]; stats: JobStats }>(`/api/jobs?limit=${limit}`),
   jobStats: () => json<JobStats>('/api/jobs/stats'),

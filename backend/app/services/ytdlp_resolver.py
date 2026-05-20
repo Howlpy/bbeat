@@ -20,6 +20,44 @@ def _provider_prefix(kind: SourceKind) -> str:
     return {"youtube": "yt", "soundcloud": "sc"}.get(kind, "url")
 
 
+def _normalize_for_compare(s: str) -> str:
+    import re as _re
+    return _re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def _split_artist_title(raw_title: str, artist: str) -> tuple[str, str]:
+    """Si el título viene como 'Artista - Canción' (o variantes con — / · / |)
+    y el artista detectado coincide con la primera parte, devolvemos solo
+    la canción. Si no podemos partirlo con confianza, devolvemos tal cual.
+    """
+    import re as _re
+    # Quitar sufijos típicos de YouTube
+    cleaned = _re.sub(
+        r"\s*[\(\[](?:official\s*(?:video|music\s*video|audio)|lyrics?|hd|4k\s*remaster(?:ed)?|remaster(?:ed)?\s*\d{4}|video\s*oficial)\s*[\)\]]\s*$",
+        "",
+        raw_title,
+        flags=_re.IGNORECASE,
+    ).strip()
+
+    # Probar separadores comunes
+    for sep in [" - ", " – ", " — ", " · ", " | ", " // "]:
+        if sep in cleaned:
+            left, _, right = cleaned.partition(sep)
+            left_norm = _normalize_for_compare(left)
+            artist_norm = _normalize_for_compare(artist)
+            # Si el lado izquierdo coincide aproximadamente con el artista, quedarnos con el derecho
+            if left_norm and artist_norm and (
+                left_norm == artist_norm
+                or left_norm in artist_norm
+                or artist_norm in left_norm
+            ):
+                return right.strip(), artist
+            # Si no coincide, probablemente el formato es "Artista - Título"
+            # pero con un artista distinto al uploader. Cogemos derecho como título.
+            return right.strip(), left.strip()
+    return cleaned, artist
+
+
 def _track_meta_from_entry(
     entry: dict,
     idx: int,
@@ -29,15 +67,18 @@ def _track_meta_from_entry(
     fallback_album: str = "",
 ) -> TrackMeta:
     """Convierte un entry de yt-dlp a TrackMeta."""
-    title = entry.get("title") or entry.get("alt_title") or "Unknown"
+    raw_title = entry.get("title") or entry.get("alt_title") or "Unknown"
     # Como "artista" usamos uploader/channel/artist
-    artist = (
+    raw_artist = (
         entry.get("artist")
         or entry.get("uploader")
         or entry.get("channel")
         or "Unknown Artist"
     )
-    track_id = entry.get("id") or entry.get("display_id") or title
+    title, artist = _split_artist_title(raw_title, raw_artist)
+    # Limpieza adicional: quitar "- Topic" del final del artista (canal auto-generado)
+    artist = artist.replace(" - Topic", "").strip()
+    track_id = entry.get("id") or entry.get("display_id") or raw_title
     prefix = _provider_prefix(source_kind)
 
     # Spotify devuelve cover en album.images; aquí el thumbnail viene plano

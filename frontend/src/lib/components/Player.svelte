@@ -2,10 +2,12 @@
   import { onMount } from 'svelte';
   import { player } from '$lib/player.svelte';
   import { formatDuration } from '$lib/api';
+  import LyricsPanel from './LyricsPanel.svelte';
 
   let audioEl: HTMLAudioElement;
   let volumeOpen = $state(false);
   let volumePanel = $state<HTMLDivElement | null>(null);
+  let lyricsOpen = $state(false);
 
   onMount(() => {
     player.attach(audioEl);
@@ -99,6 +101,14 @@
           class="grid size-9 place-items-center rounded text-neutral-300 hover:bg-neutral-800"
         >⏭</button>
 
+        <!-- Letras -->
+        <button
+          aria-label="Letras"
+          onclick={() => (lyricsOpen = true)}
+          class="grid size-9 place-items-center rounded text-neutral-300 hover:bg-neutral-800"
+          title="Letras"
+        >♪</button>
+
         <!-- Volumen -->
         <div class="relative" bind:this={volumePanel}>
           <button
@@ -136,4 +146,8 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if lyricsOpen}
+  <LyricsPanel onclose={() => (lyricsOpen = false)} />
 {/if}

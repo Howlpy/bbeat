@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { api, type Track, type Album } from '$lib/api';
@@ -14,6 +15,10 @@
   let uploading = $state(false);
   let coverMsg = $state<string | null>(null);
   let coverNonce = $state(0);
+  let editing = $state(false);
+  let editTitle = $state('');
+  let editYear = $state('');
+  let savingEdit = $state(false);
 
   async function load() {
     try {
@@ -34,6 +39,46 @@
     if (tracks.length) player.playTracks(tracks, 0);
   }
 
+  function startEdit() {
+    if (!album) return;
+    editTitle = album.title;
+    editYear = album.year ? String(album.year) : '';
+    editing = true;
+  }
+
+  async function saveEdit() {
+    if (!album) return;
+    savingEdit = true;
+    try {
+      await api.editAlbum(album.id, {
+        title: editTitle.trim() || undefined,
+        year: editYear ? Number(editYear) : undefined
+      });
+      editing = false;
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      savingEdit = false;
+    }
+  }
+
+  async function deleteAlbum() {
+    if (!album) return;
+    if (
+      !confirm(
+        `¿Borrar el álbum "${album.title}" y sus ${album.track_count} pistas? Se eliminan los ficheros del disco.`
+      )
+    )
+      return;
+    try {
+      await api.deleteAlbum(album.id);
+      goto('/albums');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function onCoverUpload(e: Event) {
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -43,7 +88,7 @@
     try {
       const r = await api.uploadAlbumCover(album.id, file);
       coverMsg = `Carátula actualizada en ${r.tracks_updated} ${r.tracks_updated === 1 ? 'pista' : 'pistas'}.`;
-      coverNonce++; // force <img> refresh
+      coverNonce++;
       await load();
     } catch (err) {
       coverMsg = err instanceof Error ? err.message : String(err);
@@ -85,21 +130,64 @@
         </label>
       </div>
       <div class="min-w-0 flex-1">
-        <h1 class="text-2xl font-bold">{album.title}</h1>
-        <div class="text-sm text-neutral-400">
-          {album.artist_name}{#if album.year} · {album.year}{/if} · {album.track_count} pistas
-        </div>
-        <button
-          onclick={playAll}
-          class="mt-3 rounded-md bg-emerald-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
-        >▶ Reproducir álbum</button>
+        {#if !editing}
+          <h1 class="text-2xl font-bold">{album.title}</h1>
+          <div class="text-sm text-neutral-400">
+            {album.artist_name}{#if album.year} · {album.year}{/if} · {album.track_count} pistas
+          </div>
+          <div class="mt-3 flex flex-wrap gap-1.5">
+            <button
+              onclick={playAll}
+              class="rounded-md bg-emerald-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
+            >▶ Reproducir</button>
+            <button
+              onclick={startEdit}
+              class="rounded-md border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-800"
+            >✎ Editar</button>
+            <button
+              onclick={deleteAlbum}
+              class="rounded-md border border-red-900/50 px-3 py-1.5 text-sm text-red-300 hover:bg-red-950/40"
+            >🗑 Borrar</button>
+          </div>
+        {:else}
+          <div class="space-y-2">
+            <label class="block">
+              <span class="text-xs text-neutral-400">Título</span>
+              <input
+                bind:value={editTitle}
+                class="mt-1 w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+            </label>
+            <label class="block">
+              <span class="text-xs text-neutral-400">Año</span>
+              <input
+                type="number"
+                bind:value={editYear}
+                min="1900"
+                max="2100"
+                class="mt-1 w-32 rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+            </label>
+            <div class="flex gap-2">
+              <button
+                onclick={() => (editing = false)}
+                class="rounded border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-800"
+              >Cancelar</button>
+              <button
+                onclick={saveEdit}
+                disabled={savingEdit}
+                class="rounded bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
+              >{savingEdit ? 'Guardando…' : 'Guardar'}</button>
+            </div>
+          </div>
+        {/if}
         {#if coverMsg}
           <p class="mt-2 text-xs text-emerald-400">{coverMsg}</p>
         {/if}
       </div>
     </div>
 
-    <TrackList {tracks} showAlbum={false} />
+    <TrackList bind:tracks showAlbum={false} onchanged={load} />
   {:else}
     <p class="text-neutral-500">Cargando…</p>
   {/if}

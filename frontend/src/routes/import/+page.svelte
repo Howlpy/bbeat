@@ -11,6 +11,9 @@
     type SpotifyAuthStatus
   } from '$lib/api';
   import { jobs } from '$lib/jobs.svelte';
+  import LocalUpload from '$lib/components/LocalUpload.svelte';
+
+  let tab = $state<'url' | 'file'>('url');
 
   let url = $state('');
   let busy = $state(false);
@@ -218,6 +221,21 @@
     {/if}
   </header>
 
+  <!-- Tabs -->
+  <div class="mb-4 flex gap-1 rounded-md border border-neutral-800 bg-neutral-900 p-1 text-sm">
+    <button
+      onclick={() => (tab = 'url')}
+      class="flex-1 rounded px-3 py-1.5"
+      class:bg-neutral-800={tab === 'url'}
+    >URL (Spotify · YouTube · SoundCloud)</button>
+    <button
+      onclick={() => (tab = 'file')}
+      class="flex-1 rounded px-3 py-1.5"
+      class:bg-neutral-800={tab === 'file'}
+    >Ficheros locales</button>
+  </div>
+
+  {#if tab === 'url'}
   <!-- Source pills -->
   <div class="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
     <span class="text-neutral-500">Fuentes:</span>
@@ -432,6 +450,10 @@
         </details>
       {/if}
     </section>
+  {/if}
+
+  {:else}
+    <LocalUpload albums={albums} onuploaded={() => refreshAlbums()} />
   {/if}
 
   <!-- Cola -->
