@@ -6,9 +6,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from yt_dlp import YoutubeDL
 
@@ -16,6 +17,11 @@ from app.config import settings
 from app.services.spotify import TrackMeta
 
 log = logging.getLogger("bbeat.downloader")
+
+# Callback que el caller (worker) inyecta para reportar progreso a la BD.
+# Recibe (percent: int, stage: str). Es sincrono y debe ser barato (la BD
+# se actualiza throttled dentro).
+ProgressCb = Callable[[int, str], None]
 
 AUDIO_EXTS = {".ogg", ".opus", ".m4a", ".mp3", ".flac", ".webm", ".aac"}
 # Tolerancia generosa: YouTube tiene versiones remix, extendidas, etc.
@@ -108,7 +114,9 @@ def download_with_votify(meta: TrackMeta) -> DownloadResult:
 # ─── yt-dlp ────────────────────────────────────────────────────
 
 
-def download_with_ytdlp(meta: TrackMeta) -> DownloadResult:
+def download_with_ytdlp(
+    meta: TrackMeta, progress_cb: Optional[ProgressCb] = None
+) -> DownloadResult:
     """Búsqueda en YouTube en dos pasadas:
     1. Resolver 5 candidatos sin descargar y elegir el más cercano en duración.
     2. Descargar el ganador con extracción de audio.
@@ -118,6 +126,8 @@ def download_with_ytdlp(meta: TrackMeta) -> DownloadResult:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     log.info("yt-dlp ▶ %s (objetivo %ds)", meta.search_query, meta.duration_ms // 1000)
+    if progress_cb:
+        progress_cb(0, "buscando")
 
     # ─── Pasada 1: extraer info sin descargar ───
     resolve_opts = {
@@ -179,6 +189,9 @@ def download_with_ytdlp(meta: TrackMeta) -> DownloadResult:
         "concurrent_fragment_downloads": 1,
         "socket_timeout": 30,
     }
+    hook = _build_ytdlp_progress_hook(progress_cb)
+    if hook:
+        download_opts["progress_hooks"] = [hook]
     try:
         with YoutubeDL(download_opts) as ydl:
             ydl.download([video_url])
@@ -195,7 +208,36 @@ def download_with_ytdlp(meta: TrackMeta) -> DownloadResult:
 # ─── yt-dlp directo (para YouTube/SoundCloud, sin búsqueda) ───
 
 
-def download_with_ytdlp_direct(meta: TrackMeta) -> DownloadResult:
+def _build_ytdlp_progress_hook(progress_cb: Optional[ProgressCb]):
+    """Crea un hook de progreso throttled (max 1 update por segundo)."""
+    if progress_cb is None:
+        return None
+    state = {"last_pct": -1, "last_t": 0.0}
+
+    def hook(d: dict) -> None:
+        try:
+            status = d.get("status")
+            if status == "downloading":
+                total = d.get("total_bytes") or d.get("total_bytes_estimate")
+                done = d.get("downloaded_bytes") or 0
+                pct = int(done * 100 / total) if total else 0
+                pct = max(0, min(99, pct))  # 100 lo dejamos para "finished"
+                now = time.monotonic()
+                if pct - state["last_pct"] >= 3 or (now - state["last_t"]) >= 0.5:
+                    state["last_pct"] = pct
+                    state["last_t"] = now
+                    progress_cb(pct, "descargando")
+            elif status == "finished":
+                progress_cb(95, "convirtiendo")
+        except Exception:
+            pass
+
+    return hook
+
+
+def download_with_ytdlp_direct(
+    meta: TrackMeta, progress_cb: Optional[ProgressCb] = None
+) -> DownloadResult:
     """Descarga directa desde meta.source_url, sin buscar.
 
     Para YouTube/SoundCloud el usuario ya nos dio la URL exacta,
@@ -216,8 +258,14 @@ def download_with_ytdlp_direct(meta: TrackMeta) -> DownloadResult:
         "concurrent_fragment_downloads": 1,
         "socket_timeout": 30,
     }
+    hook = _build_ytdlp_progress_hook(progress_cb)
+    if hook:
+        opts["progress_hooks"] = [hook]
+
     target_url = meta.source_url
     log.info("yt-dlp directo ▶ %s", target_url)
+    if progress_cb:
+        progress_cb(0, "preparando")
     try:
         with YoutubeDL(opts) as ydl:
             ydl.download([target_url])
@@ -234,7 +282,9 @@ def download_with_ytdlp_direct(meta: TrackMeta) -> DownloadResult:
 # ─── Estrategia: dispatch por fuente ───────────────────────────
 
 
-def download(meta: TrackMeta) -> DownloadResult:
+def download(
+    meta: TrackMeta, progress_cb: Optional[ProgressCb] = None
+) -> DownloadResult:
     """Elige backend según el ID/source.
 
     - `yt:...` o `sc:...` → descarga directa desde la URL original.
@@ -242,7 +292,7 @@ def download(meta: TrackMeta) -> DownloadResult:
     """
     sid = meta.spotify_id or ""
     if sid.startswith("yt:") or sid.startswith("sc:"):
-        return download_with_ytdlp_direct(meta)
+        return download_with_ytdlp_direct(meta, progress_cb)
 
     # Camino Spotify
     primary = settings.download_backend
@@ -257,14 +307,14 @@ def download(meta: TrackMeta) -> DownloadResult:
         if not settings.fallback_ytdlp:
             r.error = "; ".join(tried)
             return r
-        r = download_with_ytdlp(meta)
+        r = download_with_ytdlp(meta, progress_cb)
         tried.append(f"yt-dlp: {r.error or 'ok'}")
         if not r.success:
             r.error = "; ".join(tried)
         return r
 
     # primary == 'yt-dlp'
-    r = download_with_ytdlp(meta)
+    r = download_with_ytdlp(meta, progress_cb)
     if r.success or not settings.fallback_ytdlp:
         return r
     r2 = download_with_votify(meta)

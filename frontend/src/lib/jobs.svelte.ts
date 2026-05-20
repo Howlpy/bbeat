@@ -29,7 +29,9 @@ class JobsStore {
     if (this.timer) return;
     const loop = async () => {
       await this.refresh();
-      const ms = this.active > 0 ? 1200 : 6000;
+      // 700ms cuando hay jobs corriendo (para ver el progreso fluido),
+      // 6s en idle para ahorrar tráfico.
+      const ms = this.stats.running > 0 ? 700 : this.active > 0 ? 1500 : 6000;
       this.timer = setTimeout(loop, ms);
     };
     loop();

@@ -168,6 +168,20 @@ def _load_meta_from_job(job: Job) -> spotify.TrackMeta:
     )
 
 
+def _update_job_progress(job_id: int, pct: int, stage: str) -> None:
+    """Helper para el progress_hook. Escribe directo a BD."""
+    try:
+        with session_scope() as s:
+            job = s.get(Job, job_id)
+            if not job or job.status != "running":
+                return
+            job.progress = pct
+            job.stage = stage
+            s.add(job)
+    except Exception:
+        pass
+
+
 def process_job(job_id: int) -> None:
     """Ejecuta el pipeline completo para un job. Síncrono (bloqueante)."""
     with session_scope() as s:
@@ -176,6 +190,8 @@ def process_job(job_id: int) -> None:
             return
         job.status = "running"
         job.started_at = datetime.utcnow()
+        job.progress = 0
+        job.stage = "iniciando"
         job.error = None
         s.add(job)
 
@@ -184,12 +200,18 @@ def process_job(job_id: int) -> None:
         if meta is None:
             return
 
-        dl_result = downloader.download(meta)
+        _update_job_progress(job_id, 5, "preparando")
+
+        def progress_cb(pct: int, stage: str) -> None:
+            _update_job_progress(job_id, pct, stage)
+
+        dl_result = downloader.download(meta, progress_cb=progress_cb)
         if not dl_result.success:
             _mark_failed(job_id, dl_result.backend, dl_result.error or "download failed")
             return
 
-        # Organize
+        # Organize (tags + cover)
+        _update_job_progress(job_id, 97, "etiquetando")
         try:
             final_path = organizer.organize(dl_result.file_path, meta)
         except Exception as e:
@@ -198,12 +220,15 @@ def process_job(job_id: int) -> None:
             return
 
         # Index en BD
+        _update_job_progress(job_id, 99, "indexando")
         track_id = scanner.index_file(final_path)
 
         with session_scope() as s:
             job = s.get(Job, job_id)
             if job:
                 job.status = "done"
+                job.progress = 100
+                job.stage = None
                 job.backend_used = dl_result.backend
                 job.result_track_id = track_id
                 job.completed_at = datetime.utcnow()
@@ -379,6 +404,8 @@ def _job_to_dict(j: Job) -> dict:
         "year": j.year,
         "cover_url": j.cover_url,
         "status": j.status,
+        "progress": j.progress,
+        "stage": j.stage,
         "backend_used": j.backend_used,
         "error": j.error,
         "result_track_id": j.result_track_id,

@@ -23,6 +23,30 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
+    _migrate_schema()
+
+
+def _migrate_schema() -> None:
+    """Migraciones idempotentes (añadir columnas a tablas existentes).
+
+    SQLModel.create_all() solo crea tablas que no existen — no toca tablas
+    ya creadas con un esquema antiguo. Para añadir columnas nuevas hacemos
+    ALTER TABLE manual; SQLite lo ignora si la columna ya existe (capturamos
+    el error).
+    """
+    columns_to_add = [
+        ("jobs", "progress", "INTEGER DEFAULT 0"),
+        ("jobs", "stage", "TEXT"),
+    ]
+    with engine.begin() as conn:
+        for table, col, type_decl in columns_to_add:
+            try:
+                conn.exec_driver_sql(
+                    f"ALTER TABLE {table} ADD COLUMN {col} {type_decl}"
+                )
+            except Exception:
+                # Columna ya existente, ignoramos
+                pass
 
 
 @contextmanager

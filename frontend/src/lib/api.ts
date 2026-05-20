@@ -67,6 +67,8 @@ export type Job = {
   duration_ms: number | null;
   cover_url: string | null;
   status: 'pending' | 'running' | 'done' | 'failed';
+  progress: number;          // 0-100
+  stage: string | null;      // "descargando", "convirtiendo", "etiquetando"…
   backend_used: 'votify' | 'yt-dlp' | null;
   error: string | null;
   result_track_id: number | null;

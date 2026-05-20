@@ -269,6 +269,23 @@
     </div>
   {/if}
 
+  {#if busy && !preview && !previewError}
+    <section class="mt-4 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+      <div class="flex items-start gap-3 p-4">
+        <div class="size-20 flex-none animate-pulse rounded bg-neutral-800"></div>
+        <div class="min-w-0 flex-1 space-y-2 pt-1">
+          <div class="h-3 w-24 animate-pulse rounded bg-neutral-800"></div>
+          <div class="h-5 w-3/4 animate-pulse rounded bg-neutral-800"></div>
+          <div class="h-3 w-1/2 animate-pulse rounded bg-neutral-800"></div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 border-t border-neutral-800 bg-neutral-950 px-4 py-2.5 text-xs text-sky-400">
+        <span class="size-1.5 animate-pulse rounded-full bg-sky-400"></span>
+        Examinando URL…
+      </div>
+    </section>
+  {/if}
+
   {#if preview}
     {@const srcInfo = sourceLabel(preview.source)}
     <section class="mt-4 overflow-hidden rounded-lg border border-emerald-900/40 bg-neutral-900">
@@ -510,39 +527,59 @@
             {#if isOpen}
               <ul class="divide-y divide-neutral-800 border-t border-neutral-800 bg-neutral-950">
                 {#each g.items as job (job.id)}
-                  <li class="flex items-center gap-3 px-3 py-2">
-                    <span
-                      class="w-5 flex-none text-center font-mono text-xs {statusColor(job.status)}"
-                      class:animate-spin={job.status === 'running'}
-                    >{statusIcon(job.status)}</span>
-                    <div class="min-w-0 flex-1">
-                      <div class="truncate text-sm">{job.title}</div>
-                      <div class="truncate text-xs text-neutral-500">
-                        {job.artist}
-                        {#if job.album} · {job.album}{/if}
-                        {#if job.backend_used} · {job.backend_used}{/if}
-                        {#if job.duration_ms} · {formatDuration(job.duration_ms)}{/if}
+                  <li class="px-3 py-2">
+                    <div class="flex items-center gap-3">
+                      <span
+                        class="w-5 flex-none text-center font-mono text-xs {statusColor(job.status)}"
+                        class:animate-spin={job.status === 'running'}
+                      >{statusIcon(job.status)}</span>
+                      <div class="min-w-0 flex-1">
+                        <div class="truncate text-sm">{job.title}</div>
+                        <div class="truncate text-xs text-neutral-500">
+                          {job.artist}
+                          {#if job.album} · {job.album}{/if}
+                          {#if job.backend_used} · {job.backend_used}{/if}
+                          {#if job.duration_ms} · {formatDuration(job.duration_ms)}{/if}
+                        </div>
+                        {#if job.error}
+                          <div class="mt-0.5 truncate text-xs text-red-400/80" title={job.error}>{job.error}</div>
+                        {/if}
                       </div>
-                      {#if job.error}
-                        <div class="mt-0.5 truncate text-xs text-red-400/80" title={job.error}>{job.error}</div>
-                      {/if}
+                      <div class="flex flex-none gap-1">
+                        {#if job.status === 'failed'}
+                          <button
+                            onclick={() => retry(job.id)}
+                            class="rounded border border-neutral-800 px-2 py-1 text-xs hover:bg-neutral-800"
+                            title="Reintentar"
+                          >↻</button>
+                        {/if}
+                        {#if job.status !== 'running'}
+                          <button
+                            onclick={() => remove(job.id)}
+                            class="rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-800 hover:text-red-400"
+                            title="Eliminar"
+                          >×</button>
+                        {/if}
+                      </div>
                     </div>
-                    <div class="flex flex-none gap-1">
-                      {#if job.status === 'failed'}
-                        <button
-                          onclick={() => retry(job.id)}
-                          class="rounded border border-neutral-800 px-2 py-1 text-xs hover:bg-neutral-800"
-                          title="Reintentar"
-                        >↻</button>
-                      {/if}
-                      {#if job.status !== 'running'}
-                        <button
-                          onclick={() => remove(job.id)}
-                          class="rounded border border-neutral-800 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-800 hover:text-red-400"
-                          title="Eliminar"
-                        >×</button>
-                      {/if}
-                    </div>
+                    {#if job.status === 'running'}
+                      <div class="mt-1.5 ml-8 flex items-center gap-2 text-[10px] text-sky-300">
+                        <span class="relative block h-1 flex-1 overflow-hidden rounded-full bg-neutral-800">
+                          <span
+                            class="block h-full bg-sky-400 transition-all duration-500"
+                            style:width="{Math.max(2, job.progress)}%"
+                          ></span>
+                          <!-- Stripe indeterminado encima cuando estamos atascados en 95% (convirtiendo) -->
+                          {#if job.progress >= 90 && job.progress < 100}
+                            <span class="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-sky-300/20 to-transparent"></span>
+                          {/if}
+                        </span>
+                        <span class="w-9 text-right font-mono">{job.progress}%</span>
+                        {#if job.stage}
+                          <span class="text-neutral-500">· {job.stage}</span>
+                        {/if}
+                      </div>
+                    {/if}
                   </li>
                 {/each}
               </ul>

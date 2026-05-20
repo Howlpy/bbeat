@@ -95,6 +95,8 @@ class Job(SQLModel, table=True):
     # Estado
     status: str = Field(default="pending", index=True)
     # pending | running | done | failed | skipped (ya existía)
+    progress: int = Field(default=0)            # 0-100, solo válido mientras running
+    stage: Optional[str] = Field(default=None)  # descarga | tags | etc.
     backend_used: Optional[str] = Field(default=None)  # votify | yt-dlp
     error: Optional[str] = Field(default=None)
     result_track_id: Optional[int] = Field(
