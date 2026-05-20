@@ -14,6 +14,8 @@ class PlayerState {
 
   /** Recuerda si el usuario tenía la pista en play cuando la pestaña pasa a background. */
   private wantsPlay = false;
+  /** Activo durante una transición de pista para suprimir el pause espurio. */
+  private switching = false;
 
   attach(el: HTMLAudioElement) {
     this.audio = el;
@@ -34,6 +36,10 @@ class PlayerState {
       this.setPlaybackState('playing');
     });
     el.addEventListener('pause', () => {
+      // Cuando estamos cambiando de pista, el <audio> emite pause espurio
+      // entre el load() y el nuevo play(). Si lo dejamos pasar, Android
+      // ve playbackState='paused' un instante y descarta la notificación.
+      if (this.switching) return;
       this.isPlaying = false;
       this.setPlaybackState('paused');
     });
@@ -71,14 +77,27 @@ class PlayerState {
 
   private loadCurrent(autoplay: boolean) {
     if (!this.audio || !this.current) return;
-    this.audio.src = this.current.stream_url;
-    this.audio.load();
+    // Marca que estamos cambiando para suprimir el pause espurio del <audio>.
+    this.switching = true;
+    // Mantén playbackState='playing' en MediaSession durante la transición
+    // para que Android NO descarte la notificación.
+    this.setPlaybackState('playing');
     // metadata DEBE ir antes del .play() para que el OS enganche la sesión
     this.updateMediaSession();
+
+    this.audio.src = this.current.stream_url;
+    this.audio.load();
+
+    const done = () => {
+      this.switching = false;
+    };
     if (autoplay) {
-      this.audio.play().catch((err) => {
-        console.warn('autoplay rechazado:', err);
+      this.audio.play().then(done, (err) => {
+        console.warn('[bbeat] autoplay rechazado:', err);
+        done();
       });
+    } else {
+      done();
     }
   }
 
