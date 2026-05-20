@@ -11,10 +11,12 @@
     Lock,
     Pencil,
     Play,
+    Plus,
     Trash2
   } from 'lucide-svelte';
   import { api, type Track, type Album } from '$lib/api';
   import TrackList from '$lib/components/TrackList.svelte';
+  import AddTracksDialog from '$lib/components/AddTracksDialog.svelte';
   import { player } from '$lib/player.svelte';
 
   const albumId = $derived(Number(page.params.id));
@@ -30,6 +32,7 @@
   let editTitle = $state('');
   let editYear = $state('');
   let savingEdit = $state(false);
+  let addingTracks = $state(false);
 
   async function load() {
     try {
@@ -188,6 +191,10 @@
             </button>
             {#if album.is_mine}
               <button
+                onclick={() => (addingTracks = true)}
+                class="inline-flex items-center gap-1.5 rounded border border-cyan-700/40 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-300 transition hover:bg-cyan-500/20"
+              ><Plus size={14} /> Añadir pistas</button>
+              <button
                 onclick={togglePublic}
                 class="inline-flex items-center gap-1.5 rounded border border-slate-800 px-3 py-1.5 text-sm transition hover:bg-slate-800"
                 title={album.is_public ? 'Hacer privado' : 'Compartir con otros'}
@@ -247,11 +254,21 @@
     </div>
 
     {#if tracks.length === 0}
-      <p class="rounded border border-dashed border-slate-800 p-8 text-center text-sm text-slate-500">
-        Este álbum está vacío. Importa pistas desde
-        <a href="/import" class="text-cyan-400 underline">/import</a>
-        y selecciona "{album.title}" como destino.
-      </p>
+      <div class="rounded border border-dashed border-slate-800 p-8 text-center text-sm text-slate-500">
+        <p>Este álbum está vacío.</p>
+        <div class="mt-3 flex flex-wrap justify-center gap-2">
+          {#if album.is_mine}
+            <button
+              onclick={() => (addingTracks = true)}
+              class="inline-flex items-center gap-1.5 rounded bg-cyan-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+            ><Plus size={14} /> Añadir pistas existentes</button>
+          {/if}
+          <a
+            href="/import"
+            class="inline-flex items-center gap-1.5 rounded border border-slate-800 px-3 py-1.5 text-sm transition hover:bg-slate-800"
+          >Importar nuevas</a>
+        </div>
+      </div>
     {:else}
       <TrackList bind:tracks showAlbum={false} onchanged={load} />
     {/if}
@@ -259,3 +276,12 @@
     <p class="text-slate-500">Cargando…</p>
   {/if}
 </div>
+
+{#if addingTracks && album}
+  <AddTracksDialog
+    albumId={album.id}
+    excludeIds={tracks.map((t) => t.id)}
+    onclose={() => (addingTracks = false)}
+    onadded={() => load()}
+  />
+{/if}

@@ -175,6 +175,55 @@ def scan_status(_: User = Depends(auth_svc.get_current_user)) -> dict:
     return scanner.state.as_dict()
 
 
+class AddTracksIn(BaseModel):
+    track_ids: list[int]
+
+
+@router.post("/albums/{album_id}/tracks")
+def add_tracks_to_album(
+    album_id: int,
+    body: AddTracksIn,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Añade N pistas existentes a un álbum vía AlbumTrack (M:N). No descarga
+    nada. Útil para componer colecciones a partir de la biblioteca compartida.
+    """
+    from app.models import AlbumTrack
+
+    album = session.get(Album, album_id)
+    if album is None:
+        raise HTTPException(404, "álbum no encontrado")
+    if not access_svc.can_mutate_album(album, user):
+        raise HTTPException(403, "no es tuyo")
+
+    if not body.track_ids:
+        return {"added": 0, "already": 0, "denied": 0}
+
+    visible_ids = set(
+        session.exec(access_svc.visible_track_ids_subquery(user)).all()
+    )
+    added = 0
+    already = 0
+    denied = 0
+    for tid in body.track_ids:
+        if tid not in visible_ids:
+            denied += 1
+            continue
+        existing = session.exec(
+            select(AlbumTrack).where(
+                AlbumTrack.album_id == album_id, AlbumTrack.track_id == tid
+            )
+        ).first()
+        if existing:
+            already += 1
+            continue
+        session.add(AlbumTrack(album_id=album_id, track_id=tid))
+        added += 1
+
+    return {"added": added, "already": already, "denied": denied}
+
+
 @router.post("/albums/{album_id}/cover")
 async def upload_album_cover(
     album_id: int,
@@ -625,21 +674,45 @@ def library_stats(
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
+    """Stats con dos vistas:
+    - mine: lo que este user puede ver (sus álbumes + públicos).
+    - global: TODO lo que hay en la instancia, sin filtros.
+    """
+    # ─── mine ───
     visible_ids = access_svc.visible_track_ids_subquery(user)
-    n_tracks = session.exec(
+    mine_tracks = session.exec(
         select(func.count()).select_from(select(Track).where(Track.id.in_(visible_ids)).subquery())
     ).one()
-    visible_albums = access_svc.visible_album_ids(session, user)
-    n_albums = len(visible_albums)
-    n_artists = session.exec(
+    mine_albums = len(access_svc.visible_album_ids(session, user))
+    mine_artists = session.exec(
         select(func.count(func.distinct(Track.artist_id))).where(Track.id.in_(visible_ids))
     ).one()
-    total_bytes = session.exec(
+    mine_bytes = session.exec(
         select(func.coalesce(func.sum(Track.file_size), 0)).where(Track.id.in_(visible_ids))
     ).one()
+
+    # ─── global (sin filtros, todo el contenido del server) ───
+    g_tracks = session.exec(select(func.count(Track.id))).one()
+    g_albums = session.exec(select(func.count(Album.id))).one()
+    g_artists = session.exec(select(func.count(Artist.id))).one()
+    g_bytes = session.exec(select(func.coalesce(func.sum(Track.file_size), 0))).one()
+
     return {
-        "tracks": n_tracks,
-        "albums": n_albums,
-        "artists": n_artists,
-        "total_bytes": total_bytes,
+        "mine": {
+            "tracks": mine_tracks,
+            "albums": mine_albums,
+            "artists": mine_artists,
+            "total_bytes": mine_bytes,
+        },
+        "global": {
+            "tracks": g_tracks,
+            "albums": g_albums,
+            "artists": g_artists,
+            "total_bytes": g_bytes,
+        },
+        # Compatibilidad con clientes viejos: aplanamos las del user
+        "tracks": mine_tracks,
+        "albums": mine_albums,
+        "artists": mine_artists,
+        "total_bytes": mine_bytes,
     }

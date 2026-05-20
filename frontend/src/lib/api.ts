@@ -35,11 +35,16 @@ export type Artist = {
   track_count: number;
 };
 
-export type LibraryStats = {
+export type StatsBlock = {
   tracks: number;
   albums: number;
   artists: number;
   total_bytes: number;
+};
+
+export type LibraryStats = StatsBlock & {
+  mine: StatsBlock;
+  global: StatsBlock;
 };
 
 export type ScanState = {
@@ -264,6 +269,16 @@ export const api = {
       body: JSON.stringify({ url, overrides }),
       timeoutMs: 60_000
     }),
+  addTracksToAlbum: (albumId: number, trackIds: number[]) =>
+    json<{ added: number; already: number; denied: number }>(
+      `/api/library/albums/${albumId}/tracks`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ track_ids: trackIds })
+      }
+    ),
+
   uploadAlbumCover: async (albumId: number, file: File) => {
     const fd = new FormData();
     fd.append('file', file);

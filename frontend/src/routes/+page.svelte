@@ -114,44 +114,70 @@
       </a>
     {/if}
 
-    <!-- Stats -->
-    <section class="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <a
-        href="/library"
-        class="group rounded border border-slate-800 bg-slate-900 p-3 transition hover:border-cyan-700/50 hover:bg-slate-800/70"
-      >
-        <div class="mb-2 flex items-center gap-2 text-slate-500">
-          <Music2 size={14} />
-          <span class="text-xs uppercase tracking-wider">canciones</span>
+    <!-- Stats: mías (visibles) -->
+    <section class="mb-3">
+      <p class="mb-2 text-xs uppercase tracking-wider text-slate-500">Lo que ves tú</p>
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <a
+          href="/library"
+          class="rounded border border-slate-800 bg-slate-900 p-3 transition hover:border-cyan-700/50 hover:bg-slate-800/70"
+        >
+          <div class="mb-2 flex items-center gap-2 text-slate-500">
+            <Music2 size={14} />
+            <span class="text-xs uppercase tracking-wider">canciones</span>
+          </div>
+          <div class="text-2xl font-bold text-cyan-400">{stats.mine.tracks}</div>
+        </a>
+        <a
+          href="/albums"
+          class="rounded border border-slate-800 bg-slate-900 p-3 transition hover:border-cyan-700/50 hover:bg-slate-800/70"
+        >
+          <div class="mb-2 flex items-center gap-2 text-slate-500">
+            <Disc3 size={14} />
+            <span class="text-xs uppercase tracking-wider">álbumes</span>
+          </div>
+          <div class="text-2xl font-bold">{stats.mine.albums}</div>
+        </a>
+        <a
+          href="/artists"
+          class="rounded border border-slate-800 bg-slate-900 p-3 transition hover:border-cyan-700/50 hover:bg-slate-800/70"
+        >
+          <div class="mb-2 flex items-center gap-2 text-slate-500">
+            <Users size={14} />
+            <span class="text-xs uppercase tracking-wider">artistas</span>
+          </div>
+          <div class="text-2xl font-bold">{stats.mine.artists}</div>
+        </a>
+        <div class="rounded border border-slate-800 bg-slate-900 p-3">
+          <div class="mb-2 flex items-center gap-2 text-slate-500">
+            <HardDrive size={14} />
+            <span class="text-xs uppercase tracking-wider">tu espacio</span>
+          </div>
+          <div class="text-2xl font-bold">{formatBytes(stats.mine.total_bytes)}</div>
         </div>
-        <div class="text-2xl font-bold text-cyan-400">{stats.tracks}</div>
-      </a>
-      <a
-        href="/albums"
-        class="group rounded border border-slate-800 bg-slate-900 p-3 transition hover:border-cyan-700/50 hover:bg-slate-800/70"
-      >
-        <div class="mb-2 flex items-center gap-2 text-slate-500">
-          <Disc3 size={14} />
-          <span class="text-xs uppercase tracking-wider">álbumes</span>
+      </div>
+    </section>
+
+    <!-- Stats: total Bbeat -->
+    <section class="mb-6">
+      <p class="mb-2 text-xs uppercase tracking-wider text-slate-500">Total Bbeat</p>
+      <div class="grid grid-cols-4 gap-2 rounded border border-slate-800 bg-slate-900/50 p-3 text-center">
+        <div>
+          <div class="text-base font-semibold text-slate-200">{stats.global.tracks}</div>
+          <div class="text-[10px] uppercase tracking-wider text-slate-500">canciones</div>
         </div>
-        <div class="text-2xl font-bold">{stats.albums}</div>
-      </a>
-      <a
-        href="/artists"
-        class="group rounded border border-slate-800 bg-slate-900 p-3 transition hover:border-cyan-700/50 hover:bg-slate-800/70"
-      >
-        <div class="mb-2 flex items-center gap-2 text-slate-500">
-          <Users size={14} />
-          <span class="text-xs uppercase tracking-wider">artistas</span>
+        <div>
+          <div class="text-base font-semibold text-slate-200">{stats.global.albums}</div>
+          <div class="text-[10px] uppercase tracking-wider text-slate-500">álbumes</div>
         </div>
-        <div class="text-2xl font-bold">{stats.artists}</div>
-      </a>
-      <div class="rounded border border-slate-800 bg-slate-900 p-3">
-        <div class="mb-2 flex items-center gap-2 text-slate-500">
-          <HardDrive size={14} />
-          <span class="text-xs uppercase tracking-wider">en disco</span>
+        <div>
+          <div class="text-base font-semibold text-slate-200">{stats.global.artists}</div>
+          <div class="text-[10px] uppercase tracking-wider text-slate-500">artistas</div>
         </div>
-        <div class="text-2xl font-bold">{formatBytes(stats.total_bytes)}</div>
+        <div>
+          <div class="text-base font-semibold text-slate-200">{formatBytes(stats.global.total_bytes)}</div>
+          <div class="text-[10px] uppercase tracking-wider text-slate-500">en disco</div>
+        </div>
       </div>
     </section>
 
