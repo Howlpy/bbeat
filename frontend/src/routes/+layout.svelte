@@ -53,7 +53,7 @@
   <main class="min-h-screen">{@render children?.()}</main>
 {:else if !auth.initialized}
   <main class="grid min-h-screen place-items-center">
-    <p class="text-neutral-500">Cargando…</p>
+    <p class="text-slate-500">Cargando…</p>
   </main>
 {:else}
   <main class="min-h-screen {mainPadBottom}">

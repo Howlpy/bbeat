@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { Home, Music2, Disc3, Download, Settings, Shield, LogOut } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { jobs } from '$lib/jobs.svelte';
   import { auth } from '$lib/auth.svelte';
@@ -9,13 +10,11 @@
   let menuEl = $state<HTMLDivElement | null>(null);
 
   const items = $derived([
-    { href: '/', label: 'Inicio', icon: '⌂', badge: 0 },
-    { href: '/library', label: 'Pistas', icon: '♪', badge: 0 },
-    { href: '/albums', label: 'Álbumes', icon: '◉', badge: 0 },
-    { href: '/import', label: 'Importar', icon: '↓', badge: jobs.active },
-    ...(auth.user?.is_admin
-      ? [{ href: '/admin', label: 'Admin', icon: '⚙', badge: 0 }]
-      : [])
+    { href: '/', label: 'Inicio', Icon: Home, badge: 0 },
+    { href: '/library', label: 'Pistas', Icon: Music2, badge: 0 },
+    { href: '/albums', label: 'Álbumes', Icon: Disc3, badge: 0 },
+    { href: '/import', label: 'Importar', Icon: Download, badge: jobs.active },
+    ...(auth.user?.is_admin ? [{ href: '/admin', label: 'Admin', Icon: Shield, badge: 0 }] : [])
   ]);
 
   function isActive(href: string): boolean {
@@ -29,9 +28,7 @@
   }
 
   function onDocClick(e: MouseEvent) {
-    if (menuOpen && menuEl && !menuEl.contains(e.target as Node)) {
-      menuOpen = false;
-    }
+    if (menuOpen && menuEl && !menuEl.contains(e.target as Node)) menuOpen = false;
   }
 
   $effect(() => {
@@ -43,58 +40,59 @@
 </script>
 
 <nav
-  class="fixed inset-x-0 z-30 border-t border-neutral-800 bg-neutral-950/95 backdrop-blur"
+  class="fixed inset-x-0 z-30 border-t border-slate-800 bg-slate-950/95 backdrop-blur"
   style:bottom={player.current ? '78px' : '0'}
 >
   <div class="mx-auto flex max-w-5xl">
     {#each items as item}
+      {@const active = isActive(item.href)}
       <a
         href={item.href}
-        class="relative flex flex-1 flex-col items-center gap-0.5 py-2 text-xs"
-        class:text-emerald-400={isActive(item.href)}
-        class:text-neutral-500={!isActive(item.href)}
+        class="relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] transition-colors"
+        class:text-cyan-400={active}
+        class:text-slate-500={!active}
       >
-        <span class="text-lg leading-none">{item.icon}</span>
+        <item.Icon size={20} strokeWidth={active ? 2.5 : 2} />
         <span>{item.label}</span>
         {#if item.badge > 0}
-          <span
-            class="absolute right-1/4 top-1 min-w-[1.1rem] rounded-full bg-sky-500 px-1 text-center text-[10px] font-semibold text-white"
-          >{item.badge > 99 ? '99+' : item.badge}</span>
+          <span class="absolute right-[20%] top-1 min-w-[1.1rem] rounded-full bg-cyan-500 px-1 text-center text-[10px] font-semibold text-slate-950">
+            {item.badge > 99 ? '99+' : item.badge}
+          </span>
         {/if}
       </a>
     {/each}
 
-    <!-- Usuario / logout -->
     {#if auth.user}
       <div class="relative flex flex-1" bind:this={menuEl}>
         <button
           onclick={() => (menuOpen = !menuOpen)}
-          class="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs"
-          class:text-emerald-400={menuOpen}
-          class:text-neutral-500={!menuOpen}
+          class="flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px]"
+          class:text-cyan-400={menuOpen}
+          class:text-slate-500={!menuOpen}
         >
-          <span class="grid size-5 place-items-center rounded-full bg-neutral-800 text-[10px] font-bold text-emerald-400">
+          <span class="grid size-5 place-items-center rounded-full bg-slate-800 text-[10px] font-bold text-cyan-400">
             {auth.user.username[0]?.toUpperCase()}
           </span>
           <span class="max-w-[60px] truncate">{auth.user.username}</span>
         </button>
         {#if menuOpen}
-          <div class="absolute bottom-full right-2 mb-2 w-44 overflow-hidden rounded-md border border-neutral-800 bg-neutral-900 shadow-xl">
-            <div class="border-b border-neutral-800 px-3 py-2 text-xs text-neutral-400">
-              <div class="truncate">{auth.user.email}</div>
+          <div class="absolute bottom-full right-2 mb-2 w-48 overflow-hidden rounded border border-slate-800 bg-slate-900 shadow-xl">
+            <div class="border-b border-slate-800 px-3 py-2 text-xs">
+              <div class="truncate text-slate-300">{auth.user.username}</div>
+              <div class="truncate text-slate-500">{auth.user.email}</div>
               {#if auth.user.is_admin}
-                <div class="mt-0.5 text-amber-400">administrador</div>
+                <div class="mt-0.5 text-cyan-400">administrador</div>
               {/if}
             </div>
             <a
               href="/settings"
               onclick={() => (menuOpen = false)}
-              class="block px-3 py-2 text-sm hover:bg-neutral-800"
-            >⚙ Ajustes</a>
+              class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+            ><Settings size={16} /> Ajustes</a>
             <button
               onclick={logout}
-              class="block w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-neutral-800"
-            >↩ Salir</button>
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-400 hover:bg-slate-800"
+            ><LogOut size={16} /> Salir</button>
           </div>
         {/if}
       </div>

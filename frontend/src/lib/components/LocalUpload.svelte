@@ -79,10 +79,10 @@
   <label
     role="button"
     class="block cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition"
-    class:border-emerald-500={dragOver}
-    class:bg-emerald-500={dragOver}
+    class:border-cyan-500={dragOver}
+    class:bg-cyan-500={dragOver}
     class:bg-opacity-5={dragOver}
-    class:border-neutral-800={!dragOver}
+    class:border-slate-800={!dragOver}
     ondragover={(e) => { e.preventDefault(); dragOver = true; }}
     ondragleave={() => (dragOver = false)}
     ondrop={onDrop}
@@ -90,32 +90,32 @@
     <input type="file" multiple accept="audio/*" class="hidden" onchange={onPick} />
     <div class="text-2xl">📁</div>
     <p class="mt-2 text-sm">
-      Arrastra ficheros aquí o <span class="text-emerald-400 underline">elige del disco</span>
+      Arrastra ficheros aquí o <span class="text-cyan-400 underline">elige del disco</span>
     </p>
-    <p class="mt-1 text-xs text-neutral-500">mp3 · flac · ogg · opus · m4a · aac · wav</p>
+    <p class="mt-1 text-xs text-slate-500">mp3 · flac · ogg · opus · m4a · aac · wav</p>
   </label>
 
   {#if items.length > 0}
     <!-- Overrides -->
-    <div class="rounded-md border border-neutral-800 bg-neutral-900 p-3">
-      <p class="mb-2 text-xs uppercase tracking-wider text-neutral-500">Organizar como…</p>
+    <div class="rounded-md border border-slate-800 bg-slate-900 p-3">
+      <p class="mb-2 text-xs uppercase tracking-wider text-slate-500">Organizar como…</p>
       <div class="mb-2 flex gap-2 text-xs">
         <label
           class="flex-1 cursor-pointer rounded border px-3 py-1.5 text-center"
-          class:border-emerald-500={mode === 'new'}
-          class:bg-emerald-500={mode === 'new'}
-          class:text-neutral-950={mode === 'new'}
-          class:border-neutral-800={mode !== 'new'}
+          class:border-cyan-500={mode === 'new'}
+          class:bg-cyan-500={mode === 'new'}
+          class:text-slate-950={mode === 'new'}
+          class:border-slate-800={mode !== 'new'}
         >
           <input type="radio" bind:group={mode} value="new" class="sr-only" />
           Álbum nuevo / tags del fichero
         </label>
         <label
           class="flex-1 cursor-pointer rounded border px-3 py-1.5 text-center"
-          class:border-emerald-500={mode === 'existing'}
-          class:bg-emerald-500={mode === 'existing'}
-          class:text-neutral-950={mode === 'existing'}
-          class:border-neutral-800={mode !== 'existing'}
+          class:border-cyan-500={mode === 'existing'}
+          class:bg-cyan-500={mode === 'existing'}
+          class:text-slate-950={mode === 'existing'}
+          class:border-slate-800={mode !== 'existing'}
         >
           <input type="radio" bind:group={mode} value="existing" class="sr-only" />
           Añadir a existente
@@ -127,12 +127,12 @@
           <input
             bind:value={artistOv}
             placeholder="Artista (override)"
-            class="rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs focus:border-emerald-500 focus:outline-none"
+            class="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
           />
           <input
             bind:value={albumOv}
             placeholder="Álbum (override)"
-            class="rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs focus:border-emerald-500 focus:outline-none"
+            class="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
           />
           <input
             type="number"
@@ -140,16 +140,16 @@
             placeholder="Año"
             min="1900"
             max="2100"
-            class="col-span-2 rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs focus:border-emerald-500 focus:outline-none"
+            class="col-span-2 rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
           />
         </div>
-        <p class="mt-1 text-[10px] text-neutral-600">
+        <p class="mt-1 text-[10px] text-slate-600">
           Vacío = se usan los tags ID3/Vorbis del fichero tal cual.
         </p>
       {:else}
         <select
           bind:value={targetAlbumId}
-          class="w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs focus:border-emerald-500 focus:outline-none"
+          class="w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
         >
           <option value={null}>— seleccionar álbum —</option>
           {#each albums as a}
@@ -160,7 +160,7 @@
     </div>
 
     <!-- Listado -->
-    <ul class="divide-y divide-neutral-900 rounded-md border border-neutral-800">
+    <ul class="divide-y divide-slate-900 rounded-md border border-slate-800">
       {#each items as it, i}
         <li class="flex items-center gap-3 px-3 py-2">
           <span class="text-xs">
@@ -168,7 +168,7 @@
           </span>
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm">{it.file.name}</div>
-            <div class="text-xs text-neutral-500">{formatBytes(it.file.size)}</div>
+            <div class="text-xs text-slate-500">{formatBytes(it.file.size)}</div>
             {#if it.error}
               <div class="truncate text-xs text-red-400/80" title={it.error}>{it.error}</div>
             {/if}
@@ -176,7 +176,7 @@
           {#if it.status === 'pending'}
             <button
               onclick={() => removeItem(i)}
-              class="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-red-400"
+              class="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-red-400"
             >×</button>
           {/if}
         </li>
@@ -187,14 +187,14 @@
       <button
         onclick={uploadAll}
         disabled={uploading || (mode === 'existing' && !targetAlbumId)}
-        class="flex-1 rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
+        class="flex-1 rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
       >
         {uploading ? 'Subiendo…' : `Subir ${items.filter((x) => x.status !== 'done').length} ${items.length === 1 ? 'fichero' : 'ficheros'}`}
       </button>
       {#if items.some((x) => x.status === 'done')}
         <button
           onclick={clearDone}
-          class="rounded-md border border-neutral-800 px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-800"
+          class="rounded-md border border-slate-800 px-3 py-2 text-xs text-slate-500 hover:bg-slate-800"
         >limpiar completados</button>
       {/if}
     </div>

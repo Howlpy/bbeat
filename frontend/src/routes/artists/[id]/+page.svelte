@@ -30,10 +30,10 @@
   {:else if artist}
     <header class="mb-4">
       <h1 class="text-2xl font-bold">{artist.name}</h1>
-      <p class="text-xs text-neutral-500">{artist.album_count} álbumes · {artist.track_count} pistas</p>
+      <p class="text-xs text-slate-500">{artist.album_count} álbumes · {artist.track_count} pistas</p>
     </header>
     <TrackList bind:tracks />
   {:else}
-    <p class="text-neutral-500">Cargando…</p>
+    <p class="text-slate-500">Cargando…</p>
   {/if}
 </div>

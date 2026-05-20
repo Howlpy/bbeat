@@ -235,6 +235,74 @@ async def upload_album_cover(
     }
 
 
+@router.get("/recent")
+def recent(
+    limit: int = Query(12, ge=1, le=50),
+    kind: str = Query("both", regex="^(tracks|albums|both)$"),
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
+    """Últimas pistas/álbumes añadidos a la biblioteca del user."""
+    visible_ids = access_svc.visible_track_ids_subquery(user)
+    out: dict = {}
+    if kind in ("tracks", "both"):
+        stmt = (
+            select(Track, Artist, Album)
+            .join(Artist, Track.artist_id == Artist.id)
+            .outerjoin(Album, Track.album_id == Album.id)
+            .where(Track.id.in_(visible_ids))
+            .order_by(Track.created_at.desc())
+            .limit(limit)
+        )
+        out["tracks"] = [
+            {
+                "id": t.id,
+                "title": t.title,
+                "artist_id": ar.id,
+                "artist_name": ar.name,
+                "album_id": al.id if al else None,
+                "album_title": al.title if al else None,
+                "album_year": al.year if al else None,
+                "cover_url": f"/api/library/cover/{al.id}" if al and al.cover_path else None,
+                "track_number": t.track_number,
+                "disc_number": t.disc_number,
+                "duration_ms": t.duration_ms,
+                "file_format": t.file_format,
+                "stream_url": f"/api/library/stream/{t.id}",
+                "source_url": t.source_url,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+            }
+            for t, ar, al in session.exec(stmt).all()
+        ]
+    if kind in ("albums", "both"):
+        visible_albums = access_svc.visible_album_ids(session, user)
+        stmt = (
+            select(Album, Artist.name, func.count(AlbumTrack.track_id).label("tc"))
+            .join(Artist, Album.artist_id == Artist.id)
+            .outerjoin(AlbumTrack, AlbumTrack.album_id == Album.id)
+            .where(Album.id.in_(visible_albums))
+            .group_by(Album.id)
+            .order_by(Album.created_at.desc())
+            .limit(limit)
+        )
+        out["albums"] = [
+            {
+                "id": a.id,
+                "title": a.title,
+                "year": a.year,
+                "artist_id": a.artist_id,
+                "artist_name": an,
+                "track_count": tc,
+                "cover_url": f"/api/library/cover/{a.id}" if a.cover_path else None,
+                "owner_id": a.owner_id,
+                "is_public": a.is_public,
+                "is_mine": a.owner_id == user.id,
+            }
+            for a, an, tc in session.exec(stmt).all()
+        ]
+    return out
+
+
 @router.get("/search")
 def search(
     q: str = Query(..., min_length=1),

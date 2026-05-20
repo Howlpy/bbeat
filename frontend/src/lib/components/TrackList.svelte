@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { MoreVertical, Pencil, Trash2, Music2 } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { formatDuration, api, type Track, type Album } from '$lib/api';
   import EditTrackDialog from './EditTrackDialog.svelte';
@@ -57,52 +58,52 @@
 
 <svelte:window onclick={() => (menuFor = null)} />
 
-<ul class="divide-y divide-neutral-900">
+<ul class="divide-y divide-slate-900">
   {#each tracks as t, i (t.id)}
     {@const isCurrent = player.current?.id === t.id}
     <li>
       <div
-        class="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-neutral-900"
-        class:bg-neutral-900={isCurrent}
+        class="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-slate-900"
+        class:bg-slate-900={isCurrent}
       >
         <button onclick={() => play(i)} class="flex min-w-0 flex-1 items-center gap-3 text-left">
           {#if t.cover_url}
             <img src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
           {:else}
-            <div class="grid size-10 flex-none place-items-center rounded bg-neutral-800 text-neutral-600">
-              {t.track_number ?? '♪'}
+            <div class="grid size-10 flex-none place-items-center rounded bg-slate-800 text-slate-600">
+              <Music2 size={14} />
             </div>
           {/if}
           <div class="min-w-0 flex-1">
-            <div class="truncate text-sm" class:text-emerald-400={isCurrent}>{t.title}</div>
-            <div class="truncate text-xs text-neutral-500">
+            <div class="truncate text-sm" class:text-cyan-400={isCurrent}>{t.title}</div>
+            <div class="truncate text-xs text-slate-500">
               {t.artist_name}{#if showAlbum && t.album_title} · {t.album_title}{/if}
             </div>
           </div>
-          <span class="flex-none font-mono text-xs text-neutral-500">
+          <span class="flex-none font-mono text-xs text-slate-500">
             {formatDuration(t.duration_ms)}
           </span>
         </button>
         <div class="relative">
           <button
             onclick={(e) => toggleMenu(e, t.id)}
-            class="grid size-8 flex-none place-items-center rounded text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
+            class="grid size-8 flex-none place-items-center rounded text-slate-500 hover:bg-slate-800 hover:text-slate-200"
             aria-label="Más opciones"
-          >⋮</button>
+          ><MoreVertical size={16} /></button>
           {#if menuFor === t.id}
             <div
-              class="absolute right-0 top-9 z-20 w-36 overflow-hidden rounded-md border border-neutral-800 bg-neutral-900 text-sm shadow-xl"
+              class="absolute right-0 top-9 z-20 w-40 overflow-hidden rounded border border-slate-800 bg-slate-900 text-sm shadow-xl"
               onclick={(e) => e.stopPropagation()}
               role="menu"
             >
               <button
                 onclick={() => openEdit(t)}
-                class="block w-full px-3 py-2 text-left hover:bg-neutral-800"
-              >✎ Editar</button>
+                class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-800"
+              ><Pencil size={14} /> Editar</button>
               <button
                 onclick={() => deleteTrack(t)}
-                class="block w-full px-3 py-2 text-left text-red-400 hover:bg-neutral-800"
-              >🗑 Borrar</button>
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-red-400 hover:bg-slate-800"
+              ><Trash2 size={14} /> Borrar</button>
             </div>
           {/if}
         </div>

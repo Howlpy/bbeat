@@ -48,44 +48,44 @@
 <div class="mx-auto max-w-2xl px-4 pt-6">
   <h1 class="mb-4 text-2xl font-bold">Ajustes</h1>
 
-  <section class="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-neutral-500">Setup base</h2>
+  <section class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">Setup base</h2>
     {#if setupComplete === null}
-      <p class="text-neutral-500">Comprobando…</p>
+      <p class="text-slate-500">Comprobando…</p>
     {:else if setupComplete}
-      <p class="text-emerald-400">✓ Credenciales de Spotify Developer configuradas.</p>
+      <p class="text-cyan-400">✓ Credenciales de Spotify Developer configuradas.</p>
     {:else}
       <p class="text-amber-400">⚠ Faltan SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET en backend/.env</p>
     {/if}
   </section>
 
-  <section class="mt-6 rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+  <section class="mt-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
       Cookies de Spotify (para Votify)
     </h2>
-    <p class="mb-3 text-xs text-neutral-400">
+    <p class="mb-3 text-xs text-slate-400">
       Necesarias para descargar el audio directo de Spotify (alta calidad).
       Sin ellas, Bbeat usará yt-dlp como fallback automático.
     </p>
 
     {#if cookies}
       {#if cookies.cookies_configured}
-        <div class="mb-3 rounded border border-emerald-900/50 bg-emerald-950/30 p-3 text-sm">
-          <div class="text-emerald-400">✓ Cookies configuradas</div>
-          <div class="mt-1 text-xs text-neutral-500">
+        <div class="mb-3 rounded border border-cyan-900/50 bg-cyan-950/30 p-3 text-sm">
+          <div class="text-cyan-400">✓ Cookies configuradas</div>
+          <div class="mt-1 text-xs text-slate-500">
             {cookies.size ? formatBytes(cookies.size) : '—'}
             {#if cookies.mtime} · subidas {new Date(cookies.mtime * 1000).toLocaleString('es-ES')}{/if}
           </div>
         </div>
       {:else}
-        <div class="mb-3 rounded border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-400">
+        <div class="mb-3 rounded border border-slate-800 bg-slate-950 p-3 text-sm text-slate-400">
           Sin cookies. Bbeat usará yt-dlp.
         </div>
       {/if}
     {/if}
 
     <div class="flex flex-wrap items-center gap-2">
-      <label class="cursor-pointer rounded-md border border-neutral-800 px-3 py-2 text-sm hover:bg-neutral-800">
+      <label class="cursor-pointer rounded-md border border-slate-800 px-3 py-2 text-sm hover:bg-slate-800">
         <input
           bind:this={fileInput}
           type="file"
@@ -99,7 +99,7 @@
       {#if cookies?.cookies_configured}
         <button
           onclick={onDelete}
-          class="rounded-md border border-neutral-800 px-3 py-2 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-red-400"
+          class="rounded-md border border-slate-800 px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-red-400"
         >
           Borrar
         </button>
@@ -109,12 +109,12 @@
     {#if message}
       <p
         class="mt-3 text-xs"
-        class:text-emerald-400={message.kind === 'ok'}
+        class:text-cyan-400={message.kind === 'ok'}
         class:text-red-400={message.kind === 'err'}
       >{message.text}</p>
     {/if}
 
-    <details class="mt-4 text-xs text-neutral-500">
+    <details class="mt-4 text-xs text-slate-500">
       <summary class="cursor-pointer">¿Cómo exporto las cookies?</summary>
       <ol class="mt-2 list-decimal space-y-1 pl-5">
         <li>Inicia sesión en <code>open.spotify.com</code> con tu cuenta dedicada de Bbeat.</li>
@@ -125,17 +125,17 @@
     </details>
   </section>
 
-  <p class="mt-6 text-xs text-neutral-600">
+  <p class="mt-6 text-xs text-slate-600">
     Más opciones (formato de audio, calidad, plantilla de nombrado, host bind…)
     se podrán editar desde aquí en una fase próxima. Por ahora viven en
-    <code class="bg-neutral-900 px-1">backend/.env</code>.
+    <code class="bg-slate-900 px-1">backend/.env</code>.
   </p>
 
-  <section class="mt-8 rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+  <section class="mt-8 rounded-lg border border-slate-800 bg-slate-900 p-4">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
       Mantenimiento
     </h2>
-    <p class="mb-3 text-xs text-neutral-400">
+    <p class="mb-3 text-xs text-slate-400">
       Si Bbeat empieza a fallar de manera rara (cache zombi del service worker,
       versión vieja del frontend…), borra el caché y refresca:
     </p>

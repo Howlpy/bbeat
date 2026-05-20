@@ -122,10 +122,10 @@
             class="size-40 rounded-md object-cover"
           />
         {:else}
-          <div class="grid size-40 place-items-center rounded-md bg-neutral-800 text-5xl text-neutral-600">◉</div>
+          <div class="grid size-40 place-items-center rounded-md bg-slate-800 text-5xl text-slate-600">◉</div>
         {/if}
         <label
-          class="absolute bottom-1 right-1 cursor-pointer rounded-full bg-neutral-900/90 px-2 py-1 text-xs text-neutral-200 backdrop-blur hover:bg-neutral-800"
+          class="absolute bottom-1 right-1 cursor-pointer rounded-full bg-slate-900/90 px-2 py-1 text-xs text-slate-200 backdrop-blur hover:bg-slate-800"
           title="Cambiar carátula"
         >
           <input
@@ -146,26 +146,26 @@
             {#if album.is_public}
               <span class="rounded bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300" title="Compartido con todos los usuarios">🌍 compartido</span>
             {:else if album.is_mine}
-              <span class="rounded bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-400" title="Solo tú">🔒 privado</span>
+              <span class="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400" title="Solo tú">🔒 privado</span>
             {/if}
           </h1>
-          <div class="text-sm text-neutral-400">
+          <div class="text-sm text-slate-400">
             {album.artist_name}{#if album.year} · {album.year}{/if} · {album.track_count} pistas
           </div>
           <div class="mt-3 flex flex-wrap gap-1.5">
             <button
               onclick={playAll}
-              class="rounded-md bg-emerald-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
+              class="rounded-md bg-cyan-500 px-4 py-1.5 text-sm font-medium text-slate-950 hover:bg-cyan-400"
             >▶ Reproducir</button>
             {#if album.is_mine}
               <button
                 onclick={togglePublic}
-                class="rounded-md border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-800"
+                class="rounded-md border border-slate-800 px-3 py-1.5 text-sm hover:bg-slate-800"
                 title={album.is_public ? 'Hacer privado' : 'Compartir con otros'}
               >{album.is_public ? '🔒 Hacer privado' : '🌍 Compartir'}</button>
               <button
                 onclick={startEdit}
-                class="rounded-md border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-800"
+                class="rounded-md border border-slate-800 px-3 py-1.5 text-sm hover:bg-slate-800"
               >✎ Editar</button>
               <button
                 onclick={deleteAlbum}
@@ -176,43 +176,43 @@
         {:else}
           <div class="space-y-2">
             <label class="block">
-              <span class="text-xs text-neutral-400">Título</span>
+              <span class="text-xs text-slate-400">Título</span>
               <input
                 bind:value={editTitle}
-                class="mt-1 w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-sm focus:border-emerald-500 focus:outline-none"
+                class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
               />
             </label>
             <label class="block">
-              <span class="text-xs text-neutral-400">Año</span>
+              <span class="text-xs text-slate-400">Año</span>
               <input
                 type="number"
                 bind:value={editYear}
                 min="1900"
                 max="2100"
-                class="mt-1 w-32 rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-sm focus:border-emerald-500 focus:outline-none"
+                class="mt-1 w-32 rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
               />
             </label>
             <div class="flex gap-2">
               <button
                 onclick={() => (editing = false)}
-                class="rounded border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-800"
+                class="rounded border border-slate-800 px-3 py-1.5 text-sm hover:bg-slate-800"
               >Cancelar</button>
               <button
                 onclick={saveEdit}
                 disabled={savingEdit}
-                class="rounded bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
+                class="rounded bg-cyan-500 px-4 py-1.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
               >{savingEdit ? 'Guardando…' : 'Guardar'}</button>
             </div>
           </div>
         {/if}
         {#if coverMsg}
-          <p class="mt-2 text-xs text-emerald-400">{coverMsg}</p>
+          <p class="mt-2 text-xs text-cyan-400">{coverMsg}</p>
         {/if}
       </div>
     </div>
 
     <TrackList bind:tracks showAlbum={false} onchanged={load} />
   {:else}
-    <p class="text-neutral-500">Cargando…</p>
+    <p class="text-slate-500">Cargando…</p>
   {/if}
 </div>

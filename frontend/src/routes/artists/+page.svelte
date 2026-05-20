@@ -21,14 +21,14 @@
   {#if error}
     <p class="text-red-400">⚠️ {error}</p>
   {:else if artists.length === 0}
-    <p class="text-sm text-neutral-500">Sin artistas todavía.</p>
+    <p class="text-sm text-slate-500">Sin artistas todavía.</p>
   {:else}
-    <ul class="divide-y divide-neutral-900">
+    <ul class="divide-y divide-slate-900">
       {#each artists as artist}
         <li>
-          <a href="/artists/{artist.id}" class="flex items-center justify-between px-2 py-3 hover:bg-neutral-900">
+          <a href="/artists/{artist.id}" class="flex items-center justify-between px-2 py-3 hover:bg-slate-900">
             <div class="font-medium">{artist.name}</div>
-            <div class="text-xs text-neutral-500">
+            <div class="text-xs text-slate-500">
               {artist.album_count} álb · {artist.track_count} pistas
             </div>
           </a>

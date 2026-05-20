@@ -48,7 +48,7 @@
 <div class="mx-auto max-w-3xl px-4 pt-6">
   <header class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
     <h1 class="text-2xl font-bold">Canciones</h1>
-    <span class="text-xs text-neutral-500">{total} {query ? 'resultados' : 'en biblioteca'}</span>
+    <span class="text-xs text-slate-500">{total} {query ? 'resultados' : 'en biblioteca'}</span>
   </header>
 
   <div class="relative mb-4">
@@ -57,14 +57,14 @@
       bind:value={query}
       oninput={onQueryChange}
       placeholder="Buscar título, artista, álbum…"
-      class="w-full rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 pr-9 text-sm placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+      class="w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2 pr-9 text-sm placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
     />
     {#if searching}
       <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-sky-400">…</span>
     {:else if query}
       <button
         onclick={() => { query = ''; load(); }}
-        class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-500 hover:bg-neutral-800"
+        class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:bg-slate-800"
         aria-label="Limpiar"
       >✕</button>
     {/if}
@@ -73,7 +73,7 @@
   {#if error}
     <p class="text-red-400">⚠️ {error}</p>
   {:else if tracks.length === 0}
-    <p class="rounded-md border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
+    <p class="rounded-md border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">
       {query ? 'Sin resultados.' : 'Biblioteca vacía. Importa algo desde /import.'}
     </p>
   {:else}

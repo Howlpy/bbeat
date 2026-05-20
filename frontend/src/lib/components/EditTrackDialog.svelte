@@ -55,46 +55,46 @@
 
 <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onclick={onclose}>
   <div
-    class="w-full max-w-md rounded-t-xl border border-neutral-800 bg-neutral-900 p-5 shadow-xl sm:rounded-xl"
+    class="w-full max-w-md rounded-t-xl border border-slate-800 bg-slate-900 p-5 shadow-xl sm:rounded-xl"
     onclick={(e) => e.stopPropagation()}
     role="dialog"
   >
     <header class="mb-4 flex items-baseline justify-between">
       <h2 class="text-lg font-semibold">Editar pista</h2>
-      <button onclick={onclose} class="rounded p-1 text-neutral-500 hover:bg-neutral-800">✕</button>
+      <button onclick={onclose} class="rounded p-1 text-slate-500 hover:bg-slate-800">✕</button>
     </header>
 
     <div class="mb-3 flex gap-2 text-xs">
       <button
         onclick={() => (mode = 'edit')}
         class="flex-1 rounded border px-3 py-1.5"
-        class:border-emerald-500={mode === 'edit'}
-        class:bg-emerald-500={mode === 'edit'}
-        class:text-neutral-950={mode === 'edit'}
-        class:border-neutral-800={mode !== 'edit'}
+        class:border-cyan-500={mode === 'edit'}
+        class:bg-cyan-500={mode === 'edit'}
+        class:text-slate-950={mode === 'edit'}
+        class:border-slate-800={mode !== 'edit'}
       >Editar metadata</button>
       <button
         onclick={() => (mode = 'move')}
         class="flex-1 rounded border px-3 py-1.5"
-        class:border-emerald-500={mode === 'move'}
-        class:bg-emerald-500={mode === 'move'}
-        class:text-neutral-950={mode === 'move'}
-        class:border-neutral-800={mode !== 'move'}
+        class:border-cyan-500={mode === 'move'}
+        class:bg-cyan-500={mode === 'move'}
+        class:text-slate-950={mode === 'move'}
+        class:border-slate-800={mode !== 'move'}
         disabled={albums.length === 0}
       >Mover de álbum</button>
     </div>
 
     {#if track.source_url}
-      <div class="mb-3 rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs">
-        <div class="text-neutral-500">Fuente</div>
+      <div class="mb-3 rounded border border-slate-800 bg-slate-950 px-3 py-2 text-xs">
+        <div class="text-slate-500">Fuente</div>
         <a
           href={track.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          class="block truncate text-emerald-400 hover:underline"
+          class="block truncate text-cyan-400 hover:underline"
           title={track.source_url}
         >{track.source_url}</a>
-        <p class="mt-1 text-[10px] text-neutral-600">
+        <p class="mt-1 text-[10px] text-slate-600">
           ¿No es la pista correcta? Bórrala y vuelve a importarla.
         </p>
       </div>
@@ -103,54 +103,54 @@
     {#if mode === 'edit'}
       <div class="space-y-2 text-sm">
         <label class="block">
-          <span class="text-xs text-neutral-400">Título</span>
+          <span class="text-xs text-slate-400">Título</span>
           <input
             bind:value={title}
-            class="mt-1 w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 focus:border-emerald-500 focus:outline-none"
+            class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
           />
         </label>
         <label class="block">
-          <span class="text-xs text-neutral-400">Artista</span>
+          <span class="text-xs text-slate-400">Artista</span>
           <input
             bind:value={artist}
-            class="mt-1 w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 focus:border-emerald-500 focus:outline-none"
+            class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
           />
         </label>
         <label class="block">
-          <span class="text-xs text-neutral-400">Álbum</span>
+          <span class="text-xs text-slate-400">Álbum</span>
           <input
             bind:value={album}
-            class="mt-1 w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 focus:border-emerald-500 focus:outline-none"
+            class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
           />
         </label>
         <div class="flex gap-2">
           <label class="block flex-1">
-            <span class="text-xs text-neutral-400">Año</span>
+            <span class="text-xs text-slate-400">Año</span>
             <input
               type="number"
               bind:value={year}
               min="1900"
               max="2100"
-              class="mt-1 w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 focus:border-emerald-500 focus:outline-none"
+              class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
             />
           </label>
           <label class="block flex-1">
-            <span class="text-xs text-neutral-400">Nº pista</span>
+            <span class="text-xs text-slate-400">Nº pista</span>
             <input
               type="number"
               bind:value={trackNumber}
               min="1"
-              class="mt-1 w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 focus:border-emerald-500 focus:outline-none"
+              class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
             />
           </label>
         </div>
       </div>
     {:else}
       <label class="block text-sm">
-        <span class="text-xs text-neutral-400">Mover a álbum existente</span>
+        <span class="text-xs text-slate-400">Mover a álbum existente</span>
         <select
           bind:value={targetAlbumId}
-          class="mt-1 w-full rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 focus:border-emerald-500 focus:outline-none"
+          class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
         >
           <option value={null}>— selecciona —</option>
           {#each albums as a}
@@ -165,13 +165,13 @@
     {/if}
 
     <div class="mt-5 flex gap-2">
-      <button onclick={onclose} class="flex-1 rounded border border-neutral-800 px-4 py-2 text-sm hover:bg-neutral-800">
+      <button onclick={onclose} class="flex-1 rounded border border-slate-800 px-4 py-2 text-sm hover:bg-slate-800">
         Cancelar
       </button>
       <button
         onclick={save}
         disabled={saving || (mode === 'move' && !targetAlbumId)}
-        class="flex-1 rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
+        class="flex-1 rounded bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
       >
         {saving ? 'Guardando…' : 'Guardar'}
       </button>

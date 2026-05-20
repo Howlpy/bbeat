@@ -240,6 +240,8 @@ export const api = {
   albums: (scope: 'all' | 'mine' | 'public' = 'all') =>
     json<{ total: number; items: Album[] }>(`/api/library/albums?scope=${scope}`),
   artists: () => json<{ total: number; items: Artist[] }>('/api/library/artists'),
+  recent: (limit = 12) =>
+    json<{ tracks: Track[]; albums: Album[] }>(`/api/library/recent?limit=${limit}`),
 
   startScan: () => json<{ started: boolean; reason?: string; state: ScanState }>(
     '/api/library/scan',

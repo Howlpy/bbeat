@@ -86,29 +86,29 @@
   aria-label="Letras"
 >
   <div
-    class="absolute inset-x-0 bottom-0 top-12 flex flex-col rounded-t-xl border-t border-neutral-800 bg-neutral-950"
+    class="absolute inset-x-0 bottom-0 top-12 flex flex-col rounded-t-xl border-t border-slate-800 bg-slate-950"
     onclick={(e) => e.stopPropagation()}
   >
-    <header class="flex flex-none items-center justify-between border-b border-neutral-800 p-3">
+    <header class="flex flex-none items-center justify-between border-b border-slate-800 p-3">
       <div class="min-w-0">
-        <div class="text-xs text-neutral-500">Letras</div>
+        <div class="text-xs text-slate-500">Letras</div>
         {#if player.current}
           <div class="truncate text-sm font-semibold">{player.current.title}</div>
-          <div class="truncate text-xs text-neutral-400">{player.current.artist_name}</div>
+          <div class="truncate text-xs text-slate-400">{player.current.artist_name}</div>
         {/if}
       </div>
-      <button onclick={onclose} class="rounded p-2 text-neutral-400 hover:bg-neutral-800">✕</button>
+      <button onclick={onclose} class="rounded p-2 text-slate-400 hover:bg-slate-800">✕</button>
     </header>
 
     <div bind:this={containerEl} class="flex-1 overflow-y-auto px-4 py-6">
       {#if loading}
-        <p class="text-center text-sm text-neutral-500">Buscando letras…</p>
+        <p class="text-center text-sm text-slate-500">Buscando letras…</p>
       {:else if error}
         <p class="rounded-md border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">⚠️ {error}</p>
       {:else if notFound}
-        <p class="text-center text-sm text-neutral-500">
+        <p class="text-center text-sm text-slate-500">
           LRCLIB no tiene letras para esta pista.<br />
-          <span class="text-xs text-neutral-600">(prueba con un título limpio sin "Official Video" etc.)</span>
+          <span class="text-xs text-slate-600">(prueba con un título limpio sin "Official Video" etc.)</span>
         </p>
       {:else if synced}
         <div class="mx-auto max-w-md space-y-3 py-12 text-center">
@@ -116,15 +116,15 @@
             <p
               data-idx={i}
               class="text-base transition-all duration-300"
-              class:text-emerald-400={i === currentLineIdx}
+              class:text-cyan-400={i === currentLineIdx}
               class:text-2xl={i === currentLineIdx}
               class:font-semibold={i === currentLineIdx}
-              class:text-neutral-500={i !== currentLineIdx}
+              class:text-slate-500={i !== currentLineIdx}
             >{line.text || '♪'}</p>
           {/each}
         </div>
       {:else if plain}
-        <pre class="mx-auto max-w-md whitespace-pre-wrap text-sm leading-relaxed text-neutral-300">{plain}</pre>
+        <pre class="mx-auto max-w-md whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{plain}</pre>
       {/if}
     </div>
   </div>
