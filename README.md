@@ -4,10 +4,11 @@ Servidor de música personal self-hosted. Webapp responsive, mobile-first, que d
 
 Pegas una URL de Spotify, YouTube o SoundCloud y Bbeat:
 
-1. Extrae metadata (título, artista, álbum, carátula).
-2. Descarga el audio (Votify si tienes cookies, yt-dlp como fallback).
+1. Extrae metadata sin auth (título, artista, álbum, carátula).
+2. Descarga el audio (yt-dlp por defecto; Votify si subes cookies de cuenta Premium).
 3. Etiqueta y organiza el fichero en `Artista/Álbum/NN - Título.ext`.
 4. Lo indexa y lo deja listo para reproducir.
+5. Si la pista ya existe en la biblioteca (mismo source ID), no la vuelve a descargar — solo la enlaza al álbum del usuario.
 
 Pensado para uso personal o entre amigos en una instancia compartida. No es una alternativa a Spotify pública: es para tu música, en tu servidor.
 
@@ -19,19 +20,23 @@ Listo para uso real. Probado en producción privada en `bbeat.howl.wtf`.
 
 | Pieza | Estado |
 |---|---|
-| Reproductor de biblioteca con Media Session API | listo |
+| Reproductor con Media Session API (controles en lockscreen) | listo |
+| Pantalla "Now Playing" full-screen con letras sincronizadas | listo |
 | Ingesta Spotify (SpotifyScraper, sin Premium ni dev app) | listo |
 | Ingesta YouTube y SoundCloud (yt-dlp directo) | listo |
 | Multi-fuente con overrides de álbum/artista | listo |
-| Auth + admin (registrar/banear/promover) | listo |
+| Auth con JWT + admin (registrar/banear/promover) | listo |
 | Álbumes con dueño y visibilidad pública/privada | listo |
+| Crear álbumes vacíos y añadirles pistas existentes con búsqueda | listo |
 | Dedup automático (un track, varios álbumes vía M:N) | listo |
-| Búsqueda en biblioteca | listo |
-| Letras vía LRCLIB con sincronización | listo |
-| Subir ficheros locales (drag & drop) | listo |
+| Búsqueda en biblioteca + filtros mine/public/all | listo |
+| Letras vía LRCLIB con sincronización en NowPlaying | listo |
+| Subir ficheros locales (drag & drop multi-archivo) | listo |
 | Editar/borrar pistas y álbumes desde UI | listo |
+| Carátulas custom por álbum (re-embebe en todos los tracks) | listo |
+| Stats dual (lo que ves tú vs total de la instancia) | listo |
 | PWA instalable, audio en background | listo |
-| Cookies de Votify para descarga en alta calidad | roto upstream (ver nota) |
+| Votify (descarga directa de Spotify) | requiere Premium (ver nota) |
 
 ## Stack
 
@@ -109,8 +114,9 @@ Todas las variables viven en `backend/.env` (ver `.env.example`). Las más relev
 | Variable | Default | Notas |
 |---|---|---|
 | `BBEAT_HOST` / `BBEAT_PORT` | `0.0.0.0:8787` | Bind del servidor |
+| `BBEAT_DEBUG` | `false` | `true` activa autoreload (no usar en prod) |
 | `BBEAT_MUSIC_DIR` | `../data/music` | Dónde se guardan los .m4a/.mp3/.ogg |
-| `BBEAT_DOWNLOAD_BACKEND` | `votify` | `votify` o `yt-dlp` (votify cae a yt-dlp si no hay cookies) |
+| `BBEAT_DOWNLOAD_BACKEND` | `yt-dlp` | `yt-dlp` o `votify` (Votify requiere Premium en cookies) |
 | `BBEAT_AUDIO_FORMAT` | `ogg` | `ogg`, `mp3` o `flac` (FLAC requiere Spotify Premium en cookies) |
 | `BBEAT_MAX_CONCURRENT_JOBS` | `1` | Cuidado con la RAM si lo subes |
 
@@ -170,15 +176,27 @@ Para uso normal en auriculares/altavoces no audiophile, la diferencia es imperce
 
 ## Por qué no usamos la API pública de Spotify
 
-Desde noviembre 2024, Spotify exige Premium en la cuenta dueña del developer app para llamar a cualquier endpoint, incluso `search`. Bbeat usa **SpotifyScraper** (scraping de `open.spotify.com`) para obtener metadata sin credenciales. El audio viene de Votify (sesión privada con cookies, funciona con cuenta gratuita) o yt-dlp como fallback.
+Desde noviembre 2024, Spotify exige Premium en la cuenta dueña del developer app para llamar a cualquier endpoint, incluso `search`. Bbeat usa **SpotifyScraper** (scraping de `open.spotify.com`) para obtener metadata sin credenciales. El audio viene de yt-dlp (YouTube Music como fuente) o, si tienes Premium, de Votify (sesión privada con cookies).
+
+## Exponer Bbeat a internet (opcional)
+
+Si quieres que tus colegas puedan usarlo desde fuera de tu LAN, lo más simple:
+
+1. **DNS**: en tu proveedor (ej. Cloudflare), un record `A` apuntando a tu IP pública con proxy activado (nube naranja).
+2. **Router**: port forward `WAN 80 → LAN <ip-server>:8787` (en modo Cloudflare Flexible, CF habla HTTP al origen por el puerto 80).
+3. **Cloudflare → SSL/TLS**: modo **Flexible** + Always Use HTTPS activado.
+
+Bbeat ya trae auth: el primer usuario registrado es admin auto y desde `/admin` puedes banear o promover cuentas. Tus amigos se registran ellos mismos. Para mayor seguridad considera **Cloudflare Tunnel + Access** (ningún puerto abierto en tu router, magic-link por email).
 
 ## Roadmap
 
 - Importar playlists locales (M3U)
-- Múltiples cookies de Spotify (una por usuario)
+- Múltiples cookies de Spotify (una por usuario, para que cada uno use su Premium)
 - Rate limiting + protección DDoS para instancias públicas
-- Soporte de Subsonic API (compatibilidad con clientes como Symfonium)
-- Recomendaciones / discovery
+- Soporte de Subsonic API (compatibilidad con clientes como Symfonium / DSub)
+- Historial de reproducción + recomendaciones tipo "más escuchadas"
+- Mover pistas entre álbumes en bulk (drag&drop o multi-select)
+- Importar listas de Apple Music / Deezer / YouTube playlists
 
 ## Licencia
 
