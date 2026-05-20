@@ -1,14 +1,34 @@
 import type { Track } from './api';
 
+const VOLUME_KEY = "bbeat:volume";
+const MUTED_KEY = "bbeat:muted";
+
+
+function readPersistedVolume(): number {
+  if (typeof localStorage === "undefined") return 1;
+  const raw = localStorage.getItem(VOLUME_KEY);
+  if (raw === null) return 1;
+  const v = parseFloat(raw);
+  return isFinite(v) ? Math.max(0, Math.min(1, v)) : 1;
+}
+
+function readPersistedMuted(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(MUTED_KEY) === "1";
+}
+
+
 class PlayerState {
   queue = $state<Track[]>([]);
   index = $state(0);
   isPlaying = $state(false);
   position = $state(0);
   duration = $state(0);
-  volume = $state(1);
+  volume = $state(readPersistedVolume());
+  muted = $state(readPersistedMuted());
 
   current = $derived<Track | null>(this.queue[this.index] ?? null);
+  effectiveVolume = $derived(this.muted ? 0 : this.volume);
 
   audio: HTMLAudioElement | null = null;
 
@@ -19,7 +39,7 @@ class PlayerState {
 
   attach(el: HTMLAudioElement) {
     this.audio = el;
-    el.volume = this.volume;
+    el.volume = this.effectiveVolume;
 
     el.addEventListener('timeupdate', () => {
       this.position = el.currentTime;
@@ -139,7 +159,29 @@ class PlayerState {
 
   setVolume(v: number) {
     this.volume = Math.max(0, Math.min(1, v));
-    if (this.audio) this.audio.volume = this.volume;
+    this.muted = false;
+    this.persistVolume();
+    this.applyVolume();
+  }
+
+  toggleMute() {
+    this.muted = !this.muted;
+    this.persistVolume();
+    this.applyVolume();
+  }
+
+  private applyVolume() {
+    if (this.audio) this.audio.volume = this.effectiveVolume;
+  }
+
+  private persistVolume() {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(VOLUME_KEY, this.volume.toFixed(3));
+      localStorage.setItem(MUTED_KEY, this.muted ? "1" : "0");
+    } catch {
+      // ignorar quota errors
+    }
   }
 
   // ─── Media Session API ────────────────────────────────────────

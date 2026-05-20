@@ -1,12 +1,14 @@
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.config import settings
 from app.db import get_session
 from app.models import Album, Artist, Track
-from app.services import scanner
+from app.services import organizer, scanner
 
 router = APIRouter(prefix="/library", tags=["library"])
 
@@ -119,6 +121,63 @@ def trigger_scan(background: BackgroundTasks) -> dict:
 @router.get("/scan/status")
 def scan_status() -> dict:
     return scanner.state.as_dict()
+
+
+@router.post("/albums/{album_id}/cover")
+async def upload_album_cover(
+    album_id: int,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Sube una nueva carátula para un álbum y la re-embebe en todos sus tracks."""
+    album = session.get(Album, album_id)
+    if album is None:
+        raise HTTPException(404, "album not found")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, "fichero vacío")
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(400, "demasiado grande (>10MB)")
+
+    # Detectar tipo
+    if content[:3] == b"\xff\xd8\xff":
+        ext = ".jpg"
+    elif content[:4] == b"\x89PNG":
+        ext = ".png"
+    else:
+        raise HTTPException(400, "solo JPG o PNG")
+
+    settings.covers_dir.mkdir(parents=True, exist_ok=True)
+    cover_path = settings.covers_dir / f"{album_id}{ext}"
+    cover_path.write_bytes(content)
+
+    # Actualiza BD
+    album.cover_path = cover_path.name
+    session.add(album)
+    session.flush()
+
+    # Re-embebe en todos los tracks del álbum
+    tracks = session.exec(select(Track).where(Track.album_id == album_id)).all()
+    embedded = 0
+    failed = 0
+    for t in tracks:
+        track_file = settings.music_dir / t.file_path
+        if not track_file.is_file():
+            failed += 1
+            continue
+        try:
+            organizer.embed_cover(track_file, content)
+            embedded += 1
+        except Exception:
+            failed += 1
+
+    return {
+        "ok": True,
+        "cover_url": f"/api/library/cover/{album_id}",
+        "tracks_updated": embedded,
+        "tracks_failed": failed,
+    }
 
 
 @router.get("/stats")

@@ -6,13 +6,25 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+from dataclasses import dataclass
+
 from sqlmodel import select
 
 from app.db import session_scope
-from app.models import Job
-from app.services import downloader, organizer, scanner, spotify
+from app.models import Album, Artist, Job
+from app.services import downloader, organizer, scanner, sources, spotify, ytdlp_resolver
 
 log = logging.getLogger("bbeat.jobs")
+
+
+@dataclass
+class IngestOverrides:
+    album: Optional[str] = None
+    artist: Optional[str] = None
+    album_artist: Optional[str] = None
+    year: Optional[int] = None
+    cover_url: Optional[str] = None
+    target_album_id: Optional[int] = None
 
 
 _wake_event: Optional[asyncio.Event] = None
@@ -35,14 +47,63 @@ def wake() -> None:
 # ─── Creación de jobs desde URL ────────────────────────────────
 
 
-def create_jobs_from_url(url: str) -> dict:
-    """Resuelve la URL con Spotipy y crea N Jobs en BD. Devuelve resumen."""
-    result = spotify.resolve_url(url)
+def _resolve_any(url: str):
+    """Despacha la URL al resolver correcto según la plataforma detectada."""
+    source = sources.detect(url)
+    if source == "spotify":
+        return spotify.resolve_url(url), source
+    if source in ("youtube", "soundcloud"):
+        return ytdlp_resolver.resolve_url(url, source), source
+    raise ValueError(
+        "URL no soportada. Acepto enlaces de Spotify, YouTube o SoundCloud."
+    )
+
+
+def _apply_overrides(
+    meta: spotify.TrackMeta, ov: Optional[IngestOverrides]
+) -> spotify.TrackMeta:
+    if ov is None:
+        return meta
+
+    # target_album_id: si el usuario eligió un álbum existente, cogemos su info
+    if ov.target_album_id:
+        with session_scope() as s:
+            album = s.get(Album, ov.target_album_id)
+            if album:
+                meta.album = album.title
+                artist = s.get(Artist, album.artist_id)
+                if artist:
+                    meta.album_artist = artist.name
+                    if not meta.artists:
+                        meta.artists = [artist.name]
+                if album.year:
+                    meta.year = album.year
+
+    # Overrides explícitos pisan a target_album_id
+    if ov.album is not None:
+        meta.album = ov.album
+    if ov.album_artist is not None:
+        meta.album_artist = ov.album_artist
+    if ov.artist is not None:
+        meta.artists = [ov.artist] + [a for a in meta.artists if a != ov.artist]
+    if ov.year is not None:
+        meta.year = ov.year
+    if ov.cover_url is not None:
+        meta.cover_url = ov.cover_url
+    return meta
+
+
+def create_jobs_from_url(
+    url: str, overrides: Optional[IngestOverrides] = None
+) -> dict:
+    """Resuelve la URL y crea N Jobs en BD."""
+    result, source = _resolve_any(url)
     created: list[int] = []
     skipped: list[str] = []
 
     with session_scope() as session:
         for meta in result.tracks:
+            _apply_overrides(meta, overrides)
             existing = session.exec(
                 select(Job).where(Job.spotify_track_id == meta.spotify_id)
             ).first()
@@ -72,6 +133,7 @@ def create_jobs_from_url(url: str) -> dict:
 
     wake()
     return {
+        "source": source,
         "kind": result.kind,
         "name": result.name,
         "total_tracks": len(result.tracks),
@@ -86,6 +148,8 @@ def create_jobs_from_url(url: str) -> dict:
 def _load_meta_from_job(job: Job) -> spotify.TrackMeta:
     """Reconstruye TrackMeta desde el Job (info ya capturada al crearlo)."""
     artists = [a.strip() for a in (job.artists_csv or job.artist or "").split(",") if a.strip()]
+    # source_kind del Job es 'track'|'album'|'playlist'; el provider real está en
+    # el prefijo del ID o se infiere de la URL.
     return spotify.TrackMeta(
         spotify_id=job.spotify_track_id,
         title=job.title,

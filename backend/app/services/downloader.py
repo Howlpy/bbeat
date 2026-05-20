@@ -192,10 +192,59 @@ def download_with_ytdlp(meta: TrackMeta) -> DownloadResult:
     return DownloadResult(audio[0], "yt-dlp")
 
 
-# ─── Estrategia: primario + fallback ───────────────────────────
+# ─── yt-dlp directo (para YouTube/SoundCloud, sin búsqueda) ───
+
+
+def download_with_ytdlp_direct(meta: TrackMeta) -> DownloadResult:
+    """Descarga directa desde meta.source_url, sin buscar.
+
+    Para YouTube/SoundCloud el usuario ya nos dio la URL exacta,
+    no hay que adivinar nada.
+    """
+    out_dir = settings.data_dir / "downloads"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe_id = meta.spotify_id.replace(":", "_").replace("/", "_")
+    out_tmpl = str(out_dir / f"direct-{safe_id}.%(ext)s")
+
+    opts = {
+        "format": "bestaudio/best",
+        "outtmpl": out_tmpl,
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
+        "concurrent_fragment_downloads": 1,
+        "socket_timeout": 30,
+    }
+    target_url = meta.source_url
+    log.info("yt-dlp directo ▶ %s", target_url)
+    try:
+        with YoutubeDL(opts) as ydl:
+            ydl.download([target_url])
+    except Exception as e:
+        return DownloadResult(None, "yt-dlp", f"direct: {str(e)[:400]}")
+
+    candidates = sorted(out_dir.glob(f"direct-{safe_id}.*"))
+    audio = [p for p in candidates if p.suffix.lower() in AUDIO_EXTS]
+    if not audio:
+        return DownloadResult(None, "yt-dlp", "no audio output tras descarga directa")
+    return DownloadResult(audio[0], "yt-dlp")
+
+
+# ─── Estrategia: dispatch por fuente ───────────────────────────
 
 
 def download(meta: TrackMeta) -> DownloadResult:
+    """Elige backend según el ID/source.
+
+    - `yt:...` o `sc:...` → descarga directa desde la URL original.
+    - Spotify (ID raw) → Votify primario (si hay cookies), fallback yt-dlp por búsqueda.
+    """
+    sid = meta.spotify_id or ""
+    if sid.startswith("yt:") or sid.startswith("sc:"):
+        return download_with_ytdlp_direct(meta)
+
+    # Camino Spotify
     primary = settings.download_backend
     tried: list[str] = []
 

@@ -83,7 +83,10 @@ export type IngestResult = {
   skipped_track_ids: string[];
 };
 
+export type Source = 'spotify' | 'youtube' | 'soundcloud' | 'unknown';
+
 export type IngestPreview = {
+  source: Source;
   kind: 'track' | 'album' | 'playlist';
   name: string;
   total_tracks: number;
@@ -96,6 +99,15 @@ export type IngestPreview = {
     cover_url: string | null;
     track_number: number;
   }[];
+};
+
+export type IngestOverrides = {
+  album?: string;
+  artist?: string;
+  album_artist?: string;
+  year?: number;
+  cover_url?: string;
+  target_album_id?: number;
 };
 
 export type JobStats = {
@@ -133,19 +145,27 @@ export const api = {
   ),
   scanStatus: () => json<ScanState>('/api/library/scan/status'),
 
-  // ── Ingesta Spotify ──
+  // ── Ingesta (Spotify / YouTube / SoundCloud) ──
   previewIngest: (url: string) =>
     json<IngestPreview>('/api/ingest/preview', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ url })
     }),
-  ingest: (url: string) =>
-    json<IngestResult>('/api/ingest', {
+  ingest: (url: string, overrides?: IngestOverrides) =>
+    json<IngestResult & { source?: Source }>('/api/ingest', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url, overrides })
     }),
+  uploadAlbumCover: async (albumId: number, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return json<{ ok: boolean; cover_url: string; tracks_updated: number }>(
+      `/api/library/albums/${albumId}/cover`,
+      { method: 'POST', body: fd }
+    );
+  },
   listJobs: (limit = 100) =>
     json<{ total: number; items: Job[]; stats: JobStats }>(`/api/jobs?limit=${limit}`),
   jobStats: () => json<JobStats>('/api/jobs/stats'),
