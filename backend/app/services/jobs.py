@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from sqlmodel import select
 
 from app.db import session_scope
-from app.models import Album, Artist, Job, Track
-from app.services import downloader, organizer, scanner, sources, spotify, ytdlp_resolver
+from app.models import Album, AlbumTrack, Artist, Job, Track
+from app.services import downloader, library as library_svc, organizer, scanner, sources, spotify, ytdlp_resolver
 
 log = logging.getLogger("bbeat.jobs")
 
@@ -93,26 +93,95 @@ def _apply_overrides(
     return meta
 
 
+def _resolve_target_album(
+    session, overrides: Optional[IngestOverrides], user_id: Optional[int], meta: spotify.TrackMeta
+) -> Optional[int]:
+    """Determina el álbum destino para una pista a partir de los overrides.
+
+    - target_album_id: usa ese (si el user es dueño o admin).
+    - overrides.album: crea-o-busca un álbum con ese nombre owned por user_id.
+    - Si no hay overrides ni álbum natural: None (queda fuera de cualquier
+      colección user-managed, solo va al álbum natural del scanner).
+    """
+    if overrides and overrides.target_album_id:
+        return overrides.target_album_id
+    if overrides and overrides.album and user_id:
+        # crear/obtener album propio
+        artist_name = overrides.album_artist or overrides.artist or meta.album_artist or meta.primary_artist
+        artist = library_svc._get_or_create_artist(session, artist_name)
+        year = overrides.year if overrides.year is not None else meta.year
+        album = library_svc._get_or_create_album(session, overrides.album, artist.id, year)
+        if album.owner_id is None:
+            album.owner_id = user_id
+            session.add(album)
+        return album.id
+    return None
+
+
+def _link_track_to_album(session, track_id: int, album_id: int, position: Optional[int]) -> bool:
+    """Crea AlbumTrack si no existe. Devuelve True si añadió."""
+    existing = session.exec(
+        select(AlbumTrack).where(
+            AlbumTrack.album_id == album_id,
+            AlbumTrack.track_id == track_id,
+        )
+    ).first()
+    if existing:
+        return False
+    session.add(AlbumTrack(album_id=album_id, track_id=track_id, position=position))
+    return True
+
+
 def create_jobs_from_url(
     url: str,
     overrides: Optional[IngestOverrides] = None,
     user_id: Optional[int] = None,
 ) -> dict:
-    """Resuelve la URL y crea N Jobs en BD."""
+    """Resuelve la URL y crea Jobs en BD, con dedup: si la pista ya existe
+    en la biblioteca, simplemente la añade al álbum destino del user."""
     result, source = _resolve_any(url)
     created: list[int] = []
+    deduped: list[dict] = []
     skipped: list[str] = []
-    target_album_id = overrides.target_album_id if overrides else None
 
     with session_scope() as session:
         for meta in result.tracks:
             _apply_overrides(meta, overrides)
+
+            # Dedup: ¿ya tenemos esta pista descargada?
+            existing_track = session.exec(
+                select(Track).where(Track.external_id == meta.spotify_id)
+            ).first()
+
+            if existing_track:
+                target = _resolve_target_album(session, overrides, user_id, meta)
+                added_to = None
+                if target:
+                    if _link_track_to_album(session, existing_track.id, target, meta.track_number):
+                        added_to = target
+                deduped.append({
+                    "spotify_id": meta.spotify_id,
+                    "title": meta.title,
+                    "track_id": existing_track.id,
+                    "added_to_album_id": added_to,
+                })
+                continue
+
+            # ¿Ya hay un job idéntico pendiente o en curso?
             existing = session.exec(
                 select(Job).where(Job.spotify_track_id == meta.spotify_id)
             ).first()
-            if existing and existing.status in ("pending", "running", "done"):
+            if existing and existing.status in ("pending", "running"):
                 skipped.append(meta.spotify_id)
                 continue
+            # Si el job antiguo era 'done' o 'failed' lo borramos para no chocar con el unique
+            if existing:
+                session.delete(existing)
+                session.flush()
+
+            # Determinar target album para que el worker lo enganche al terminar
+            target_for_job = _resolve_target_album(session, overrides, user_id, meta)
+
             job = Job(
                 source_url=url,
                 source_kind=result.kind,
@@ -129,7 +198,7 @@ def create_jobs_from_url(
                 year=meta.year,
                 cover_url=meta.cover_url,
                 user_id=user_id,
-                target_album_id=target_album_id,
+                target_album_id=target_for_job,
                 status="pending",
             )
             session.add(job)
@@ -143,6 +212,7 @@ def create_jobs_from_url(
         "name": result.name,
         "total_tracks": len(result.tracks),
         "created_job_ids": created,
+        "deduped": deduped,
         "skipped_track_ids": skipped,
     }
 
@@ -238,14 +308,21 @@ def process_job(job_id: int) -> None:
                 job.result_track_id = track_id
                 job.completed_at = datetime.utcnow()
                 s.add(job)
-            # Asignar owner del álbum recién creado al usuario que disparó el job
-            if job and track_id and job.user_id:
+            # Setear external_id + AlbumTrack para el álbum original
+            if job and track_id:
                 t = s.get(Track, track_id)
-                if t and t.album_id:
-                    a = s.get(Album, t.album_id)
-                    if a and a.owner_id is None:
-                        a.owner_id = job.user_id
-                        s.add(a)
+                if t:
+                    t.external_id = job.spotify_track_id
+                    s.add(t)
+                    if t.album_id:
+                        _link_track_to_album(s, t.id, t.album_id, t.track_number)
+                        a = s.get(Album, t.album_id)
+                        if a and a.owner_id is None and job.user_id:
+                            a.owner_id = job.user_id
+                            s.add(a)
+                    # Y enlazar al álbum destino si el user pidió uno custom
+                    if job.target_album_id and job.target_album_id != t.album_id:
+                        _link_track_to_album(s, t.id, job.target_album_id, t.track_number)
         log.info("job %s OK · %s · %s", job_id, dl_result.backend, final_path.name)
     except Exception as e:
         log.exception("job %s: error inesperado", job_id)

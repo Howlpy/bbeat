@@ -140,11 +140,19 @@ export type Job = {
   completed_at: string | null;
 };
 
+export type DedupItem = {
+  spotify_id: string;
+  title: string;
+  track_id: number;
+  added_to_album_id: number | null;
+};
+
 export type IngestResult = {
   kind: 'track' | 'album' | 'playlist';
   name: string;
   total_tracks: number;
   created_job_ids: number[];
+  deduped: DedupItem[];
   skipped_track_ids: string[];
 };
 

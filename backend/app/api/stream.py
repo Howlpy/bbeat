@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from app.config import settings
 from app.db import get_session
 from app.models import Album, Track, User
+from app.services import access as access_svc
 from app.services import auth as auth_svc
 
 router = APIRouter(prefix="/library", tags=["stream"])
@@ -76,11 +77,8 @@ def stream_track(
     track = session.get(Track, track_id)
     if track is None:
         raise HTTPException(404, "track not found")
-    # Visibilidad
-    if track.album_id:
-        album = session.get(Album, track.album_id)
-        if album and not user.is_admin and not (album.is_public or album.owner_id == user.id):
-            raise HTTPException(403, "no tienes acceso")
+    if not access_svc.can_access_track(session, track.id, user):
+        raise HTTPException(403, "no tienes acceso")
 
     path = (settings.music_dir / track.file_path).resolve()
     if not path.is_file():

@@ -59,6 +59,8 @@ class Track(SQLModel, table=True):
     track_number: Optional[int] = Field(default=None)
     disc_number: Optional[int] = Field(default=None)
     duration_ms: Optional[int] = Field(default=None)
+    # Identificador externo del provider para dedup (spotify_id raw, yt:..., sc:...)
+    external_id: Optional[str] = Field(default=None, index=True)
 
     file_path: str = Field(unique=True, index=True)
     file_size: Optional[int] = Field(default=None)
@@ -71,6 +73,20 @@ class Track(SQLModel, table=True):
 
     artist: Optional[Artist] = Relationship(back_populates="tracks")
     album: Optional[Album] = Relationship(back_populates="tracks")
+
+
+class AlbumTrack(SQLModel, table=True):
+    """Asociación M:N entre álbumes y pistas.
+
+    Permite que una misma pista (un único fichero en disco) pertenezca a varios
+    álbumes — por ejemplo, el álbum "original" + un álbum de colección de un user.
+    """
+    __tablename__ = "album_tracks"
+
+    album_id: int = Field(foreign_key="albums.id", primary_key=True)
+    track_id: int = Field(foreign_key="tracks.id", primary_key=True)
+    position: Optional[int] = Field(default=None)  # número de orden en el álbum
+    added_at: datetime = Field(default_factory=_now)
 
 
 class Setting(SQLModel, table=True):

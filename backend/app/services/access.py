@@ -1,11 +1,4 @@
-"""Filtros de visibilidad por usuario.
-
-Reglas:
-- Admin: ve todo, puede modificar todo.
-- Usuario regular: ve sus álbumes + álbumes is_public=True. Solo modifica los suyos.
-- Tracks: visibles si su álbum es visible.
-- Tracks sin album_id (raros): visibles para todos (legacy/uploads sueltos).
-"""
+"""Filtros de visibilidad por usuario, conscientes de AlbumTrack (M:N)."""
 from __future__ import annotations
 
 from typing import Optional
@@ -13,39 +6,44 @@ from typing import Optional
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
-from app.models import Album, Track, User
+from app.models import Album, AlbumTrack, Track, User
 
 
-def visible_album_ids(session: Session, user: Optional[User]) -> set[int]:
-    """IDs de álbumes que el usuario puede ver. None=todos."""
+def visible_album_ids(session: Session, user: Optional[User]) -> list[int]:
+    """IDs de álbumes que el usuario puede ver. Admin → todos."""
     if user is None:
-        return set()
+        return []
     if user.is_admin:
-        ids = session.exec(select(Album.id)).all()
-        return set(ids)
-    ids = session.exec(
-        select(Album.id).where(or_(Album.owner_id == user.id, Album.is_public == True))  # noqa: E712
-    ).all()
-    return set(ids)
-
-
-def visibility_filter_for_tracks(user: Optional[User]):
-    """Condición SQL para filtrar tracks por visibilidad.
-
-    Devuelve una expresión que se puede pasar a .where(). Admin → True trivial.
-    """
-    if user and user.is_admin:
-        return True
-    # Track sin album → visible para todos
-    # Track con album → debe ser del user o público
-    if user is None:
-        # No auth, solo álbumes públicos
-        return or_(Track.album_id == None, Album.is_public == True)  # noqa: E712, E711
-    return or_(
-        Track.album_id == None,  # noqa: E711
-        Album.is_public == True,  # noqa: E712
-        Album.owner_id == user.id,
+        return list(session.exec(select(Album.id)).all())
+    return list(
+        session.exec(
+            select(Album.id).where(
+                or_(Album.owner_id == user.id, Album.is_public == True)  # noqa: E712
+            )
+        ).all()
     )
+
+
+def visible_track_ids_subquery(user: Optional[User]):
+    """Subquery (select de track_id) con todos los tracks que el user puede ver.
+
+    Un track es visible si pertenece (vía AlbumTrack) a algún álbum visible,
+    o si no tiene álbum asignado (legacy).
+    """
+    if user is None:
+        return None
+    if user.is_admin:
+        # admin → todos los track ids (cualquier track)
+        return select(Track.id)
+    # IDs de álbumes visibles
+    visible_albs = select(Album.id).where(
+        or_(Album.owner_id == user.id, Album.is_public == True)  # noqa: E712
+    )
+    # tracks que están en al menos un álbum visible
+    via_membership = select(AlbumTrack.track_id).where(AlbumTrack.album_id.in_(visible_albs))
+    # tracks huérfanos (sin album_id)
+    orphan = select(Track.id).where(Track.album_id == None)  # noqa: E711
+    return via_membership.union(orphan)
 
 
 def can_mutate_album(album: Album, user: User) -> bool:
@@ -60,3 +58,24 @@ def can_mutate_track(album: Optional[Album], user: User) -> bool:
     if album is None:
         return True  # track huérfano lo edita cualquiera autenticado
     return album.owner_id == user.id
+
+
+def can_access_track(session: Session, track_id: int, user: User) -> bool:
+    """¿El user tiene acceso de lectura/stream a este track?"""
+    if user.is_admin:
+        return True
+    # cualquier álbum visible que contenga el track
+    q = (
+        select(Album.id)
+        .join(AlbumTrack, AlbumTrack.album_id == Album.id)
+        .where(AlbumTrack.track_id == track_id)
+        .where(or_(Album.owner_id == user.id, Album.is_public == True))  # noqa: E712
+        .limit(1)
+    )
+    if session.exec(q).first():
+        return True
+    # huérfano
+    t = session.get(Track, track_id)
+    if t and t.album_id is None:
+        return True
+    return False

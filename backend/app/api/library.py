@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import get_session
-from app.models import Album, Artist, Track, User
+from app.models import Album, AlbumTrack, Artist, Track, User
 from app.services import access as access_svc
 from app.services import auth as auth_svc
 from app.services import library as library_svc
@@ -29,23 +29,31 @@ def list_tracks(
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
+    visible_ids = access_svc.visible_track_ids_subquery(user)
     stmt = (
         select(Track, Artist, Album)
         .join(Artist, Track.artist_id == Artist.id)
         .outerjoin(Album, Track.album_id == Album.id)
-        .where(access_svc.visibility_filter_for_tracks(user))
+        .where(Track.id.in_(visible_ids))
     )
     if artist_id is not None:
         stmt = stmt.where(Track.artist_id == artist_id)
     if album_id is not None:
-        stmt = stmt.where(Track.album_id == album_id)
+        # Vía AlbumTrack (M:N): incluye tracks que pertenecen al álbum aunque
+        # su album_id "primario" sea otro.
+        in_album_subq = select(AlbumTrack.track_id).where(AlbumTrack.album_id == album_id)
+        stmt = stmt.where(Track.id.in_(in_album_subq))
 
     count_stmt = (
         select(func.count(Track.id))
         .select_from(Track)
-        .outerjoin(Album, Track.album_id == Album.id)
-        .where(access_svc.visibility_filter_for_tracks(user))
+        .where(Track.id.in_(visible_ids))
     )
+    if album_id is not None:
+        in_album_subq = select(AlbumTrack.track_id).where(AlbumTrack.album_id == album_id)
+        count_stmt = count_stmt.where(Track.id.in_(in_album_subq))
+    if artist_id is not None:
+        count_stmt = count_stmt.where(Track.artist_id == artist_id)
     total = session.exec(count_stmt).one()
 
     stmt = stmt.order_by(Album.title, Track.disc_number, Track.track_number, Track.title)
@@ -82,10 +90,10 @@ def list_albums(
         select(
             Album,
             Artist.name,
-            func.count(Track.id).label("track_count"),
+            func.count(AlbumTrack.track_id).label("track_count"),
         )
         .join(Artist, Album.artist_id == Artist.id)
-        .outerjoin(Track, Track.album_id == Album.id)
+        .outerjoin(AlbumTrack, AlbumTrack.album_id == Album.id)
         .group_by(Album.id)
         .order_by(Artist.name, Album.year, Album.title)
     )
@@ -235,11 +243,12 @@ def search(
 ) -> dict:
     """Búsqueda case-insensitive sobre title/artist/album."""
     qlike = f"%{q.strip().lower()}%"
+    visible_ids = access_svc.visible_track_ids_subquery(user)
     stmt = (
         select(Track, Artist, Album)
         .join(Artist, Track.artist_id == Artist.id)
         .outerjoin(Album, Track.album_id == Album.id)
-        .where(access_svc.visibility_filter_for_tracks(user))
+        .where(Track.id.in_(visible_ids))
         .where(
             or_(
                 func.lower(Track.title).like(qlike),
@@ -510,29 +519,18 @@ def library_stats(
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
-    visible_filter = access_svc.visibility_filter_for_tracks(user)
-    base = (
-        select(Track)
-        .outerjoin(Album, Track.album_id == Album.id)
-        .where(visible_filter)
-    )
-    n_tracks = session.exec(select(func.count()).select_from(base.subquery())).one()
+    visible_ids = access_svc.visible_track_ids_subquery(user)
+    n_tracks = session.exec(
+        select(func.count()).select_from(select(Track).where(Track.id.in_(visible_ids)).subquery())
+    ).one()
     visible_albums = access_svc.visible_album_ids(session, user)
     n_albums = len(visible_albums)
-    artist_q = (
-        select(func.count(func.distinct(Track.artist_id)))
-        .select_from(Track)
-        .outerjoin(Album, Track.album_id == Album.id)
-        .where(visible_filter)
-    )
-    n_artists = session.exec(artist_q).one()
-    bytes_q = (
-        select(func.coalesce(func.sum(Track.file_size), 0))
-        .select_from(Track)
-        .outerjoin(Album, Track.album_id == Album.id)
-        .where(visible_filter)
-    )
-    total_bytes = session.exec(bytes_q).one()
+    n_artists = session.exec(
+        select(func.count(func.distinct(Track.artist_id))).where(Track.id.in_(visible_ids))
+    ).one()
+    total_bytes = session.exec(
+        select(func.coalesce(func.sum(Track.file_size), 0)).where(Track.id.in_(visible_ids))
+    ).one()
     return {
         "tracks": n_tracks,
         "albums": n_albums,

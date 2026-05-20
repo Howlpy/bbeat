@@ -94,8 +94,21 @@
     }
     try {
       const r = await api.ingest(url.trim(), overrides);
+      const created = r.created_job_ids.length;
+      const dedupedCount = r.deduped.length;
+      const addedToAlbum = r.deduped.filter((d) => d.added_to_album_id !== null).length;
       const sk = r.skipped_track_ids.length;
-      lastImportMsg = `${r.created_job_ids.length} ${r.created_job_ids.length === 1 ? 'pista encolada' : 'pistas encoladas'}${sk ? ` (${sk} duplicadas ignoradas)` : ''}.`;
+      const parts: string[] = [];
+      if (created > 0) parts.push(`${created} ${created === 1 ? 'nueva descarga' : 'nuevas descargas'}`);
+      if (dedupedCount > 0) {
+        if (addedToAlbum > 0) {
+          parts.push(`${addedToAlbum} ya tenías${addedToAlbum > 1 ? 'mos' : 'mos'} → añadid${addedToAlbum === 1 ? 'a' : 'as'} a tu álbum`);
+        } else {
+          parts.push(`${dedupedCount} ya en biblioteca`);
+        }
+      }
+      if (sk > 0) parts.push(`${sk} ignoradas (job duplicado)`);
+      lastImportMsg = parts.length ? parts.join(' · ') : 'Sin cambios.';
       preview = null;
       url = '';
       await jobs.refresh();
