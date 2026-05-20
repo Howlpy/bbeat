@@ -117,7 +117,7 @@
       <div class="relative flex-none">
         {#if album.cover_url}
           <img
-            src="{album.cover_url}?v={coverNonce}"
+            src="{album.cover_url}{album.cover_url.includes('?') ? '&' : '?'}v={coverNonce}"
             alt=""
             class="size-40 rounded-md object-cover"
           />
