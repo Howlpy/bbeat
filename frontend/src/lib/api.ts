@@ -56,6 +56,40 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type Job = {
+  id: number;
+  source_url: string;
+  source_kind: 'track' | 'album' | 'playlist';
+  spotify_track_id: string;
+  title: string;
+  artist: string;
+  album: string;
+  duration_ms: number | null;
+  cover_url: string | null;
+  status: 'pending' | 'running' | 'done' | 'failed';
+  backend_used: 'votify' | 'yt-dlp' | null;
+  error: string | null;
+  result_track_id: number | null;
+  created_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export type IngestResult = {
+  kind: 'track' | 'album' | 'playlist';
+  name: string;
+  total_tracks: number;
+  created_job_ids: number[];
+  skipped_track_ids: string[];
+};
+
+export type SpotifyAuthStatus = {
+  cookies_configured: boolean;
+  cookies_path: string;
+  size?: number;
+  mtime?: number;
+};
+
 export const api = {
   health: () => json<{ status: string; version: string; setup_complete: boolean }>('/api/health'),
   stats: () => json<LibraryStats>('/api/library/stats'),
@@ -74,7 +108,31 @@ export const api = {
     '/api/library/scan',
     { method: 'POST' }
   ),
-  scanStatus: () => json<ScanState>('/api/library/scan/status')
+  scanStatus: () => json<ScanState>('/api/library/scan/status'),
+
+  // ── Ingesta Spotify ──
+  ingest: (url: string) =>
+    json<IngestResult>('/api/ingest', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url })
+    }),
+  listJobs: (limit = 100) =>
+    json<{ total: number; items: Job[] }>(`/api/jobs?limit=${limit}`),
+  retryJob: (id: number) => json<{ ok: boolean }>(`/api/jobs/${id}/retry`, { method: 'POST' }),
+  deleteJob: (id: number) => json<{ ok: boolean }>(`/api/jobs/${id}`, { method: 'DELETE' }),
+
+  // ── Cookies Spotify (Votify) ──
+  spotifyAuthStatus: () => json<SpotifyAuthStatus>('/api/auth/spotify/status'),
+  uploadCookies: async (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return json<{ ok: boolean; size: number }>('/api/auth/spotify/cookies', {
+      method: 'POST',
+      body: fd
+    });
+  },
+  deleteCookies: () => json<{ ok: boolean }>('/api/auth/spotify/cookies', { method: 'DELETE' })
 };
 
 export function formatDuration(ms: number | null): string {

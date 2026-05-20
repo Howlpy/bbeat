@@ -7,6 +7,8 @@ python-multipart==0.0.20
 httpx==0.28.1
 aiofiles==24.1.0
 
-spotipy==2.24.0
+spotifyscraper==2.1.5
 mutagen==1.47.0
-yt-dlp==2025.1.15
+yt-dlp==2026.3.17
+votify==1.9.9
+Pillow==12.2.0

@@ -239,6 +239,23 @@ def _index_one(session: Session, path: Path) -> str:
     return "skipped"
 
 
+def index_file(path: Path) -> Optional[int]:
+    """Indexa un único fichero (tras descarga). Devuelve track_id o None."""
+    if not path.is_file() or path.suffix.lower() not in AUDIO_EXTS:
+        return None
+    with session_scope() as session:
+        try:
+            _index_one(session, path)
+        except Exception as e:
+            log.warning("index_file falló %s: %s", path, e)
+            return None
+        rel = str(path.relative_to(settings.music_dir))
+        from app.models import Track  # local import para evitar ciclos
+        from sqlmodel import select
+        tr = session.exec(select(Track).where(Track.file_path == rel)).first()
+        return tr.id if tr else None
+
+
 def scan_library() -> dict:
     """Escaneo completo de settings.music_dir. Reentrante: no corre dos a la vez."""
     if state.running:

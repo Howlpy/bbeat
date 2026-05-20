@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     secrets_dir: Path = Field(BACKEND_ROOT.parent / "data" / "secrets", alias="BBEAT_SECRETS_DIR")
     db_path: Path = Field(BACKEND_ROOT.parent / "data" / "library.db", alias="BBEAT_DB_PATH")
 
+    # Deprecated: ya no se usan. Se mantienen como opcionales por compatibilidad
+    # con .env antiguos. Bbeat ahora resuelve metadata vía SpotifyScraper (sin auth).
     spotify_client_id: str = Field("", alias="SPOTIFY_CLIENT_ID")
     spotify_client_secret: str = Field("", alias="SPOTIFY_CLIENT_SECRET")
 
@@ -42,7 +44,9 @@ class Settings(BaseSettings):
 
     @property
     def setup_complete(self) -> bool:
-        return bool(self.spotify_client_id and self.spotify_client_secret)
+        # SpotifyScraper no requiere credenciales; consideramos el setup completo
+        # si los directorios base existen y son escribibles.
+        return self.music_dir.exists() and self.data_dir.exists()
 
     def ensure_dirs(self) -> None:
         for d in (self.data_dir, self.music_dir, self.covers_dir, self.secrets_dir):

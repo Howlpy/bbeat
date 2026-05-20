@@ -4,9 +4,9 @@
 
   const items = [
     { href: '/', label: 'Inicio', icon: '⌂' },
-    { href: '/library', label: 'Canciones', icon: '♪' },
+    { href: '/library', label: 'Pistas', icon: '♪' },
     { href: '/albums', label: 'Álbumes', icon: '◉' },
-    { href: '/artists', label: 'Artistas', icon: '♟' },
+    { href: '/import', label: 'Importar', icon: '↓' },
     { href: '/settings', label: 'Ajustes', icon: '⚙' }
   ];
 

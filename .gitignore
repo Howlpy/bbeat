@@ -8,6 +8,7 @@ data/secrets/
 data/music/
 data/covers/
 data/logs/
+data/downloads/
 data/library.db
 data/library.db-journal
 data/library.db-wal
@@ -42,6 +43,10 @@ node_modules/
 .cache/
 frontend/build/
 frontend/.svelte-kit/
+
+# ─── Cachés de herramientas ────────────────────────────────────
+**/.cache/
+backend/.cache
 
 # ─── IDE / OS ───────────────────────────────────────────────────
 .vscode/

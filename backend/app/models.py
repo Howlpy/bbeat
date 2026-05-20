@@ -66,3 +66,41 @@ class Setting(SQLModel, table=True):
     key: str = Field(primary_key=True)
     value: str = Field(default="")
     updated_at: datetime = Field(default_factory=_now)
+
+
+class Job(SQLModel, table=True):
+    """Trabajo de ingesta: una pista a descargar desde una URL de Spotify."""
+    __tablename__ = "jobs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    # Origen: la URL/colección que el usuario pegó. Misma para todos
+    # los tracks de una playlist/álbum, así puedo agruparlos en UI.
+    source_url: str = Field(index=True)
+    source_kind: str = Field(default="track")  # track | album | playlist
+
+    # Metadata Spotify resuelta (capturada al CREAR el job, no se re-fetchea)
+    spotify_track_id: str = Field(unique=True, index=True)
+    title: str = ""
+    artist: str = ""           # primer artista para display
+    artists_csv: str = ""      # todos los artistas separados por ", "
+    album_artist: str = ""
+    album: str = ""
+    track_number: int = Field(default=1)
+    disc_number: int = Field(default=1)
+    total_tracks: int = Field(default=1)
+    duration_ms: Optional[int] = Field(default=None)
+    year: Optional[int] = Field(default=None)
+    cover_url: Optional[str] = Field(default=None)
+
+    # Estado
+    status: str = Field(default="pending", index=True)
+    # pending | running | done | failed | skipped (ya existía)
+    backend_used: Optional[str] = Field(default=None)  # votify | yt-dlp
+    error: Optional[str] = Field(default=None)
+    result_track_id: Optional[int] = Field(
+        default=None, foreign_key="tracks.id"
+    )
+
+    created_at: datetime = Field(default_factory=_now)
+    started_at: Optional[datetime] = Field(default=None)
+    completed_at: Optional[datetime] = Field(default=None)
