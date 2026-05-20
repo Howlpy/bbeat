@@ -118,9 +118,10 @@ def download_with_ytdlp(
     meta: TrackMeta, progress_cb: Optional[ProgressCb] = None
 ) -> DownloadResult:
     """Búsqueda en YouTube en dos pasadas:
-    1. Resolver 5 candidatos sin descargar y elegir el más cercano en duración.
-    2. Descargar el ganador con extracción de audio.
-    Esto evita rechazar todo cuando ninguno cae en ±15s.
+    1. Resolver hasta 8 candidatos (con tolerancia a fallos) y ordenarlos por
+       cercanía de duración.
+    2. Intentar descargar el mejor; si falla por "no disponible" o similar,
+       reintenta con el siguiente, etc.
     """
     out_dir = settings.data_dir / "downloads"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -130,54 +131,43 @@ def download_with_ytdlp(
         progress_cb(0, "buscando")
 
     # ─── Pasada 1: extraer info sin descargar ───
+    # ignoreerrors=True para que si UN candidato falla, no aborte todo el batch.
+    # player_client web+android: si "web" da "not available", "android" suele funcionar.
     resolve_opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
         "noplaylist": True,
-        "extract_flat": False,
-        "default_search": "ytsearch5",
+        "extract_flat": "in_playlist",  # solo lista IDs, no metadata profunda (más rápido)
+        "default_search": "ytsearch8",
         "socket_timeout": 30,
+        "ignoreerrors": True,
+        "extractor_args": {"youtube": {"player_client": ["web", "android"]}},
     }
     try:
         with YoutubeDL(resolve_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch5:{meta.search_query}", download=False)
+            info = ydl.extract_info(f"ytsearch8:{meta.search_query}", download=False)
     except Exception as e:
         return DownloadResult(None, "yt-dlp", f"resolve: {str(e)[:400]}")
 
-    entries = (info or {}).get("entries") or []
+    entries = [e for e in ((info or {}).get("entries") or []) if e]
     if not entries:
         return DownloadResult(None, "yt-dlp", "sin resultados en YouTube")
 
+    # Con extract_flat=in_playlist las entries traen solo {id, title, duration, url}.
+    # Eso basta para ordenar por duración. Si duration falta, lo dejamos al final.
     target = meta.duration_ms / 1000 or 0
     scored: list[tuple[float, dict]] = []
     for e in entries:
-        if not e:
-            continue
         dur = e.get("duration") or 0
-        if dur <= 0:
-            continue
-        # Penalizar fuertemente vídeos largos (mezclas) y muy cortos (clips)
-        diff = abs(dur - target) if target else 9999
+        # tolerancia "sin duración" → último de la lista
+        diff = abs(dur - target) if target and dur > 0 else 1e9
         scored.append((diff, e))
 
-    if not scored:
-        return DownloadResult(None, "yt-dlp", "sin candidatos con duración")
-
     scored.sort(key=lambda x: x[0])
-    best_diff, best = scored[0]
-    if target and best_diff > DURATION_TOLERANCE_MS / 1000:
-        log.warning(
-            "yt-dlp: mejor match a %.1fs del objetivo (>%ds tolerancia). Lo cojo igual.",
-            best_diff,
-            DURATION_TOLERANCE_MS // 1000,
-        )
+    log.info("yt-dlp: %d candidatos, intento desde el más cercano…", len(scored))
 
-    video_url = best.get("webpage_url") or best.get("url")
-    if not video_url:
-        return DownloadResult(None, "yt-dlp", "sin URL en el candidato ganador")
-
-    # ─── Pasada 2: descargar el ganador ───
+    # ─── Pasada 2: descargar candidato a candidato hasta que uno funcione ───
     out_tmpl = str(out_dir / f"ytdlp-{meta.spotify_id}.%(ext)s")
     download_opts = {
         "format": "bestaudio/best",
@@ -188,21 +178,54 @@ def download_with_ytdlp(
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
         "concurrent_fragment_downloads": 1,
         "socket_timeout": 30,
+        "extractor_args": {"youtube": {"player_client": ["web", "android"]}},
     }
     hook = _build_ytdlp_progress_hook(progress_cb)
     if hook:
         download_opts["progress_hooks"] = [hook]
-    try:
-        with YoutubeDL(download_opts) as ydl:
-            ydl.download([video_url])
-    except Exception as e:
-        return DownloadResult(None, "yt-dlp", f"download: {str(e)[:400]}")
 
-    candidates = sorted(out_dir.glob(f"ytdlp-{meta.spotify_id}.*"))
-    audio = [p for p in candidates if p.suffix.lower() in AUDIO_EXTS]
-    if not audio:
-        return DownloadResult(None, "yt-dlp", "no audio output tras descarga")
-    return DownloadResult(audio[0], "yt-dlp")
+    last_err: Optional[str] = None
+    for diff, cand in scored[:5]:  # probamos hasta 5
+        video_url = cand.get("webpage_url") or cand.get("url")
+        cand_id = cand.get("id", "?")
+        if not video_url and cand_id and cand_id != "?":
+            video_url = f"https://www.youtube.com/watch?v={cand_id}"
+        if not video_url:
+            continue
+        if target and diff != 1e9:
+            log.info(
+                "intento %s (diff %.1fs): %s",
+                cand_id,
+                diff,
+                cand.get("title", "")[:60],
+            )
+        try:
+            with YoutubeDL(download_opts) as ydl:
+                ydl.download([video_url])
+            audio = [
+                p
+                for p in sorted(out_dir.glob(f"ytdlp-{meta.spotify_id}.*"))
+                if p.suffix.lower() in AUDIO_EXTS
+            ]
+            if audio:
+                return DownloadResult(audio[0], "yt-dlp")
+            last_err = "no audio output"
+        except Exception as e:
+            last_err = str(e)[:300]
+            log.warning("candidato %s falló: %s", cand_id, last_err)
+            # Limpiar restos parciales del candidato fallido
+            for p in out_dir.glob(f"ytdlp-{meta.spotify_id}.*"):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+            continue
+
+    return DownloadResult(
+        None,
+        "yt-dlp",
+        f"todos los candidatos fallaron (último: {last_err or 'desconocido'})",
+    )
 
 
 # ─── yt-dlp directo (para YouTube/SoundCloud, sin búsqueda) ───
