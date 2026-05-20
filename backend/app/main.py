@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.api import auth, health, ingest, jobs, library, stream
+from app.api import users as users_api
 from app.config import settings
 from app.db import init_db
 from app.services import jobs as jobs_svc
@@ -46,6 +47,8 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router, prefix="/api")
+    app.include_router(users_api.router, prefix="/api")
+    app.include_router(users_api.admin_router, prefix="/api")
     app.include_router(library.router, prefix="/api")
     app.include_router(stream.router, prefix="/api")
     app.include_router(ingest.router, prefix="/api")

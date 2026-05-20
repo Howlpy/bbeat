@@ -63,6 +63,16 @@
     }
   }
 
+  async function togglePublic() {
+    if (!album) return;
+    try {
+      const r = await api.editAlbum(album.id, { is_public: !album.is_public });
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function deleteAlbum() {
     if (!album) return;
     if (
@@ -131,7 +141,14 @@
       </div>
       <div class="min-w-0 flex-1">
         {#if !editing}
-          <h1 class="text-2xl font-bold">{album.title}</h1>
+          <h1 class="flex items-center gap-2 text-2xl font-bold">
+            {album.title}
+            {#if album.is_public}
+              <span class="rounded bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300" title="Compartido con todos los usuarios">🌍 compartido</span>
+            {:else if album.is_mine}
+              <span class="rounded bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-400" title="Solo tú">🔒 privado</span>
+            {/if}
+          </h1>
           <div class="text-sm text-neutral-400">
             {album.artist_name}{#if album.year} · {album.year}{/if} · {album.track_count} pistas
           </div>
@@ -140,14 +157,21 @@
               onclick={playAll}
               class="rounded-md bg-emerald-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
             >▶ Reproducir</button>
-            <button
-              onclick={startEdit}
-              class="rounded-md border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-800"
-            >✎ Editar</button>
-            <button
-              onclick={deleteAlbum}
-              class="rounded-md border border-red-900/50 px-3 py-1.5 text-sm text-red-300 hover:bg-red-950/40"
-            >🗑 Borrar</button>
+            {#if album.is_mine}
+              <button
+                onclick={togglePublic}
+                class="rounded-md border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-800"
+                title={album.is_public ? 'Hacer privado' : 'Compartir con otros'}
+              >{album.is_public ? '🔒 Hacer privado' : '🌍 Compartir'}</button>
+              <button
+                onclick={startEdit}
+                class="rounded-md border border-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-800"
+              >✎ Editar</button>
+              <button
+                onclick={deleteAlbum}
+                class="rounded-md border border-red-900/50 px-3 py-1.5 text-sm text-red-300 hover:bg-red-950/40"
+              >🗑 Borrar</button>
+            {/if}
           </div>
         {:else}
           <div class="space-y-2">

@@ -37,6 +37,10 @@ def _migrate_schema() -> None:
     columns_to_add = [
         ("jobs", "progress", "INTEGER DEFAULT 0"),
         ("jobs", "stage", "TEXT"),
+        ("jobs", "user_id", "INTEGER"),
+        ("jobs", "target_album_id", "INTEGER"),
+        ("albums", "owner_id", "INTEGER"),
+        ("albums", "is_public", "INTEGER DEFAULT 0"),
     ]
     with engine.begin() as conn:
         for table, col, type_decl in columns_to_add:

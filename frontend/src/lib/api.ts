@@ -22,6 +22,9 @@ export type Album = {
   artist_name: string;
   track_count: number;
   cover_url: string | null;
+  owner_id?: number | null;
+  is_public?: boolean;
+  is_mine?: boolean;
 };
 
 export type Artist = {
@@ -50,12 +53,47 @@ export type ScanState = {
   errors: string[];
 };
 
-async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
-  const { timeoutMs = 30_000, ...fetchInit } = init ?? {};
+import { auth } from './auth.svelte';
+import { goto } from '$app/navigation';
+
+/** Añade ?token=XXX a URLs internas /api/library/cover|stream para que <img> y <audio>
+ * (que no pueden mandar Authorization header) puedan acceder. */
+function tokenizeUrls(node: any): any {
+  if (node === null || node === undefined) return node;
+  if (typeof node === 'string') {
+    if (auth.token && (node.startsWith('/api/library/stream/') || node.startsWith('/api/library/cover/'))) {
+      const sep = node.includes('?') ? '&' : '?';
+      return `${node}${sep}token=${encodeURIComponent(auth.token)}`;
+    }
+    return node;
+  }
+  if (Array.isArray(node)) return node.map(tokenizeUrls);
+  if (typeof node === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const k in node) out[k] = tokenizeUrls(node[k]);
+    return out;
+  }
+  return node;
+}
+
+async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; skipAuth?: boolean }): Promise<T> {
+  const { timeoutMs = 30_000, skipAuth = false, ...fetchInit } = init ?? {};
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  // Inyecta Authorization si tenemos token y no es un endpoint público
+  const headers = new Headers(fetchInit.headers as HeadersInit);
+  if (!skipAuth && auth.token) {
+    headers.set('Authorization', `Bearer ${auth.token}`);
+  }
   try {
-    const res = await fetch(url, { ...fetchInit, signal: ctrl.signal });
+    const res = await fetch(url, { ...fetchInit, headers, signal: ctrl.signal });
+    if (res.status === 401 && !skipAuth) {
+      // Token inválido/expirado → logout y redirect
+      auth.logout();
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        goto('/login');
+      }
+    }
     if (!res.ok) {
       let detail = '';
       try {
@@ -69,7 +107,8 @@ async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number })
       }
       throw new Error(`${res.status} ${res.statusText}${detail}`);
     }
-    return res.json() as Promise<T>;
+    const data = await res.json();
+    return tokenizeUrls(data) as T;
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
       throw new Error(`Tiempo agotado (${Math.round(timeoutMs / 1000)}s) — ${url}`);
@@ -152,7 +191,34 @@ export type SpotifyAuthStatus = {
 };
 
 export const api = {
-  health: () => json<{ status: string; version: string; setup_complete: boolean }>('/api/health'),
+  health: () => json<{ status: string; version: string; setup_complete: boolean }>('/api/health', { skipAuth: true }),
+
+  // ── Auth ──
+  register: (username: string, email: string, password: string) =>
+    json<{ token: string; user: import('./auth.svelte').AuthUser }>('/api/auth/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username, email, password }),
+      skipAuth: true
+    }),
+  login: (login: string, password: string) =>
+    json<{ token: string; user: import('./auth.svelte').AuthUser }>('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ login, password }),
+      skipAuth: true
+    }),
+  me: () => json<import('./auth.svelte').AuthUser>('/api/auth/me'),
+  listUsers: () =>
+    json<{ total: number; items: import('./auth.svelte').AuthUser[] }>('/api/admin/users'),
+  updateUser: (id: number, body: { is_active?: boolean; is_admin?: boolean }) =>
+    json<import('./auth.svelte').AuthUser>(`/api/admin/users/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    }),
+  deleteUser: (id: number) =>
+    json<{ ok: boolean }>(`/api/admin/users/${id}`, { method: 'DELETE' }),
   stats: () => json<LibraryStats>('/api/library/stats'),
 
   tracks: (params: { limit?: number; offset?: number; artist_id?: number; album_id?: number } = {}) => {
@@ -162,7 +228,8 @@ export const api = {
       `/api/library/tracks?${q.toString()}`
     );
   },
-  albums: () => json<{ total: number; items: Album[] }>('/api/library/albums'),
+  albums: (scope: 'all' | 'mine' | 'public' = 'all') =>
+    json<{ total: number; items: Album[] }>(`/api/library/albums?scope=${scope}`),
   artists: () => json<{ total: number; items: Artist[] }>('/api/library/artists'),
 
   startScan: () => json<{ started: boolean; reason?: string; state: ScanState }>(
@@ -219,8 +286,8 @@ export const api = {
     json<{ deleted: boolean; tracks_deleted: number }>(`/api/library/albums/${id}`, {
       method: 'DELETE'
     }),
-  editAlbum: (id: number, body: { title?: string; year?: number }) =>
-    json<{ ok: boolean }>(`/api/library/albums/${id}`, {
+  editAlbum: (id: number, body: { title?: string; year?: number; is_public?: boolean }) =>
+    json<{ ok: boolean; is_public?: boolean }>(`/api/library/albums/${id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)

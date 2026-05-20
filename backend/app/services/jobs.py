@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from sqlmodel import select
 
 from app.db import session_scope
-from app.models import Album, Artist, Job
+from app.models import Album, Artist, Job, Track
 from app.services import downloader, organizer, scanner, sources, spotify, ytdlp_resolver
 
 log = logging.getLogger("bbeat.jobs")
@@ -94,12 +94,15 @@ def _apply_overrides(
 
 
 def create_jobs_from_url(
-    url: str, overrides: Optional[IngestOverrides] = None
+    url: str,
+    overrides: Optional[IngestOverrides] = None,
+    user_id: Optional[int] = None,
 ) -> dict:
     """Resuelve la URL y crea N Jobs en BD."""
     result, source = _resolve_any(url)
     created: list[int] = []
     skipped: list[str] = []
+    target_album_id = overrides.target_album_id if overrides else None
 
     with session_scope() as session:
         for meta in result.tracks:
@@ -125,6 +128,8 @@ def create_jobs_from_url(
                 duration_ms=meta.duration_ms,
                 year=meta.year,
                 cover_url=meta.cover_url,
+                user_id=user_id,
+                target_album_id=target_album_id,
                 status="pending",
             )
             session.add(job)
@@ -233,6 +238,14 @@ def process_job(job_id: int) -> None:
                 job.result_track_id = track_id
                 job.completed_at = datetime.utcnow()
                 s.add(job)
+            # Asignar owner del álbum recién creado al usuario que disparó el job
+            if job and track_id and job.user_id:
+                t = s.get(Track, track_id)
+                if t and t.album_id:
+                    a = s.get(Album, t.album_id)
+                    if a and a.owner_id is None:
+                        a.owner_id = job.user_id
+                        s.add(a)
         log.info("job %s OK · %s · %s", job_id, dl_result.backend, final_path.name)
     except Exception as e:
         log.exception("job %s: error inesperado", job_id)
@@ -284,12 +297,14 @@ def delete_job(job_id: int) -> bool:
         return True
 
 
-def retry_all_failed() -> int:
-    """Reencola todos los jobs en estado failed. Devuelve cuántos se reintentaron."""
+def retry_all_failed(user_id: Optional[int] = None) -> int:
+    """Reencola todos los jobs en estado failed (opcionalmente de un user)."""
     n = 0
     with session_scope() as s:
-        rows = s.exec(select(Job).where(Job.status == "failed")).all()
-        for j in rows:
+        stmt = select(Job).where(Job.status == "failed")
+        if user_id is not None:
+            stmt = stmt.where(Job.user_id == user_id)
+        for j in s.exec(stmt).all():
             j.status = "pending"
             j.error = None
             j.started_at = None
@@ -301,15 +316,16 @@ def retry_all_failed() -> int:
     return n
 
 
-def clear_jobs(status: Optional[str] = None) -> int:
+def clear_jobs(status: Optional[str] = None, user_id: Optional[int] = None) -> int:
     """Borra jobs por estado (o todos si status=None). Nunca borra running."""
     n = 0
     with session_scope() as s:
         stmt = select(Job)
         if status:
             stmt = stmt.where(Job.status == status)
-        rows = s.exec(stmt).all()
-        for j in rows:
+        if user_id is not None:
+            stmt = stmt.where(Job.user_id == user_id)
+        for j in s.exec(stmt).all():
             if j.status == "running":
                 continue
             s.delete(j)
@@ -317,15 +333,29 @@ def clear_jobs(status: Optional[str] = None) -> int:
     return n
 
 
-def job_stats() -> dict:
-    """Resumen de la cola por estado."""
+def job_stats(user_id: Optional[int] = None) -> dict:
+    """Resumen de la cola por estado, opcionalmente filtrado por user."""
     out = {"pending": 0, "running": 0, "done": 0, "failed": 0, "total": 0}
     with session_scope() as s:
-        for j in s.exec(select(Job)).all():
+        stmt = select(Job)
+        if user_id is not None:
+            stmt = stmt.where(Job.user_id == user_id)
+        for j in s.exec(stmt).all():
             out["total"] += 1
             if j.status in out:
                 out[j.status] += 1
     return out
+
+
+def user_owns_job(job_id: int, user) -> bool:
+    """True si el user puede mutar este job (es suyo o es admin)."""
+    if user.is_admin:
+        return True
+    with session_scope() as s:
+        j = s.get(Job, job_id)
+        if not j:
+            return False
+        return j.user_id == user.id
 
 
 # ─── Worker loop ───────────────────────────────────────────────
@@ -409,6 +439,7 @@ def _job_to_dict(j: Job) -> dict:
         "backend_used": j.backend_used,
         "error": j.error,
         "result_track_id": j.result_track_id,
+        "user_id": j.user_id,
         "created_at": j.created_at.isoformat() if j.created_at else None,
         "started_at": j.started_at.isoformat() if j.started_at else None,
         "completed_at": j.completed_at.isoformat() if j.completed_at else None,

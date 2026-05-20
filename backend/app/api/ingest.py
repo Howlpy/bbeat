@@ -1,8 +1,10 @@
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.models import User
+from app.services import auth as auth_svc
 from app.services import jobs
 from app.services.jobs import IngestOverrides
 from app.services.spotify import IngestError
@@ -31,9 +33,16 @@ def _to_dataclass(ov: Optional[OverridesIn]) -> Optional[IngestOverrides]:
 
 
 @router.post("/ingest")
-def ingest(req: IngestRequest) -> dict:
+def ingest(
+    req: IngestRequest,
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
     try:
-        return jobs.create_jobs_from_url(req.url, overrides=_to_dataclass(req.overrides))
+        return jobs.create_jobs_from_url(
+            req.url,
+            overrides=_to_dataclass(req.overrides),
+            user_id=user.id,
+        )
     except ValueError as e:
         raise HTTPException(400, str(e))
     except IngestError as e:
@@ -45,7 +54,10 @@ def ingest(req: IngestRequest) -> dict:
 
 
 @router.post("/ingest/preview")
-def ingest_preview(req: IngestRequest) -> dict:
+def ingest_preview(
+    req: IngestRequest,
+    _: User = Depends(auth_svc.get_current_user),
+) -> dict:
     """Resuelve la URL sin crear jobs."""
     from app.services import sources, spotify, ytdlp_resolver
 

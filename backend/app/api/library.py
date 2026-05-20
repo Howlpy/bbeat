@@ -10,7 +10,9 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import get_session
-from app.models import Album, Artist, Track
+from app.models import Album, Artist, Track, User
+from app.services import access as access_svc
+from app.services import auth as auth_svc
 from app.services import library as library_svc
 from app.services import lyrics as lyrics_svc
 from app.services import organizer, scanner, spotify
@@ -25,18 +27,26 @@ def list_tracks(
     artist_id: Optional[int] = None,
     album_id: Optional[int] = None,
     session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
-    stmt = select(Track, Artist, Album).join(Artist, Track.artist_id == Artist.id).outerjoin(
-        Album, Track.album_id == Album.id
+    stmt = (
+        select(Track, Artist, Album)
+        .join(Artist, Track.artist_id == Artist.id)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(access_svc.visibility_filter_for_tracks(user))
     )
     if artist_id is not None:
         stmt = stmt.where(Track.artist_id == artist_id)
     if album_id is not None:
         stmt = stmt.where(Track.album_id == album_id)
 
-    total = session.exec(
-        select(func.count(Track.id)).select_from(Track)
-    ).one()
+    count_stmt = (
+        select(func.count(Track.id))
+        .select_from(Track)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(access_svc.visibility_filter_for_tracks(user))
+    )
+    total = session.exec(count_stmt).one()
 
     stmt = stmt.order_by(Album.title, Track.disc_number, Track.track_number, Track.title)
     stmt = stmt.limit(limit).offset(offset)
@@ -63,7 +73,11 @@ def list_tracks(
 
 
 @router.get("/albums")
-def list_albums(session: Session = Depends(get_session)) -> dict:
+def list_albums(
+    scope: str = Query("all", regex="^(all|mine|public)$"),
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
     stmt = (
         select(
             Album,
@@ -75,6 +89,15 @@ def list_albums(session: Session = Depends(get_session)) -> dict:
         .group_by(Album.id)
         .order_by(Artist.name, Album.year, Album.title)
     )
+    if user.is_admin and scope == "all":
+        pass
+    elif scope == "mine":
+        stmt = stmt.where(Album.owner_id == user.id)
+    elif scope == "public":
+        stmt = stmt.where(Album.is_public == True)  # noqa: E712
+    else:
+        # 'all' para no-admin = mis álbumes + públicos
+        stmt = stmt.where(or_(Album.owner_id == user.id, Album.is_public == True))  # noqa: E712
     items = [
         {
             "id": album.id,
@@ -84,6 +107,9 @@ def list_albums(session: Session = Depends(get_session)) -> dict:
             "artist_name": artist_name,
             "track_count": track_count,
             "cover_url": f"/api/library/cover/{album.id}" if album.cover_path else None,
+            "owner_id": album.owner_id,
+            "is_public": album.is_public,
+            "is_mine": album.owner_id == user.id,
         }
         for album, artist_name, track_count in session.exec(stmt).all()
     ]
@@ -91,16 +117,25 @@ def list_albums(session: Session = Depends(get_session)) -> dict:
 
 
 @router.get("/artists")
-def list_artists(session: Session = Depends(get_session)) -> dict:
+def list_artists(
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
+    visible = access_svc.visible_album_ids(session, user)
     stmt = (
         select(
             Artist,
             func.count(func.distinct(Album.id)).label("album_count"),
             func.count(func.distinct(Track.id)).label("track_count"),
         )
-        .outerjoin(Album, Album.artist_id == Artist.id)
-        .outerjoin(Track, Track.artist_id == Artist.id)
+        .outerjoin(Album, (Album.artist_id == Artist.id) & (Album.id.in_(visible)))
+        .outerjoin(
+            Track,
+            (Track.artist_id == Artist.id)
+            & ((Track.album_id == None) | (Track.album_id.in_(visible))),  # noqa: E711
+        )
         .group_by(Artist.id)
+        .having(func.count(Track.id) > 0)
         .order_by(Artist.name)
     )
     items = [
@@ -116,7 +151,10 @@ def list_artists(session: Session = Depends(get_session)) -> dict:
 
 
 @router.post("/scan")
-def trigger_scan(background: BackgroundTasks) -> dict:
+def trigger_scan(
+    background: BackgroundTasks,
+    _: User = Depends(auth_svc.require_admin),
+) -> dict:
     if scanner.state.running:
         return {"started": False, "reason": "already running", "state": scanner.state.as_dict()}
     background.add_task(scanner.scan_library)
@@ -124,7 +162,7 @@ def trigger_scan(background: BackgroundTasks) -> dict:
 
 
 @router.get("/scan/status")
-def scan_status() -> dict:
+def scan_status(_: User = Depends(auth_svc.get_current_user)) -> dict:
     return scanner.state.as_dict()
 
 
@@ -133,11 +171,14 @@ async def upload_album_cover(
     album_id: int,
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
     """Sube una nueva carátula para un álbum y la re-embebe en todos sus tracks."""
     album = session.get(Album, album_id)
     if album is None:
         raise HTTPException(404, "album not found")
+    if not access_svc.can_mutate_album(album, user):
+        raise HTTPException(403, "no es tuyo")
 
     content = await file.read()
     if not content:
@@ -190,6 +231,7 @@ def search(
     q: str = Query(..., min_length=1),
     limit: int = Query(50, ge=1, le=200),
     session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
     """Búsqueda case-insensitive sobre title/artist/album."""
     qlike = f"%{q.strip().lower()}%"
@@ -197,6 +239,7 @@ def search(
         select(Track, Artist, Album)
         .join(Artist, Track.artist_id == Artist.id)
         .outerjoin(Album, Track.album_id == Album.id)
+        .where(access_svc.visibility_filter_for_tracks(user))
         .where(
             or_(
                 func.lower(Track.title).like(qlike),
@@ -230,9 +273,18 @@ def search(
 
 
 @router.delete("/tracks/{track_id}")
-def delete_track(track_id: int) -> dict:
-    ok = library_svc.delete_track(track_id)
-    if not ok:
+def delete_track(
+    track_id: int,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    t = session.get(Track, track_id)
+    if not t:
+        raise HTTPException(404, "track no encontrado")
+    album = session.get(Album, t.album_id) if t.album_id else None
+    if not access_svc.can_mutate_track(album, user):
+        raise HTTPException(403, "no es tuyo")
+    if not library_svc.delete_track(track_id):
         raise HTTPException(404, "track no encontrado")
     return {"ok": True}
 
@@ -248,7 +300,25 @@ class EditTrackIn(BaseModel):
 
 
 @router.patch("/tracks/{track_id}")
-def edit_track(track_id: int, body: EditTrackIn) -> dict:
+def edit_track(
+    track_id: int,
+    body: EditTrackIn,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    t = session.get(Track, track_id)
+    if not t:
+        raise HTTPException(404, "track no encontrado")
+    album = session.get(Album, t.album_id) if t.album_id else None
+    if not access_svc.can_mutate_track(album, user):
+        raise HTTPException(403, "no es tuyo")
+    # Si quiere mover a otro álbum, verificar que sea suyo
+    if body.target_album_id:
+        target = session.get(Album, body.target_album_id)
+        if not target:
+            raise HTTPException(400, "álbum destino no existe")
+        if not access_svc.can_mutate_album(target, user):
+            raise HTTPException(403, "no eres dueño del álbum destino")
     res = library_svc.edit_track(track_id, **body.model_dump(exclude_none=True))
     if not res.get("ok"):
         raise HTTPException(400, res.get("reason", "error"))
@@ -256,7 +326,16 @@ def edit_track(track_id: int, body: EditTrackIn) -> dict:
 
 
 @router.delete("/albums/{album_id}")
-def delete_album(album_id: int) -> dict:
+def delete_album(
+    album_id: int,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    a = session.get(Album, album_id)
+    if not a:
+        raise HTTPException(404, "no encontrado")
+    if not access_svc.can_mutate_album(a, user):
+        raise HTTPException(403, "no es tuyo")
     res = library_svc.delete_album(album_id)
     if not res.get("deleted"):
         raise HTTPException(404, res.get("reason", "no encontrado"))
@@ -266,26 +345,51 @@ def delete_album(album_id: int) -> dict:
 class EditAlbumIn(BaseModel):
     title: Optional[str] = None
     year: Optional[int] = None
+    is_public: Optional[bool] = None
 
 
 @router.patch("/albums/{album_id}")
-def edit_album(album_id: int, body: EditAlbumIn) -> dict:
-    res = library_svc.edit_album(album_id, **body.model_dump(exclude_none=True))
-    if not res.get("ok"):
-        raise HTTPException(400, res.get("reason", "error"))
-    return res
+def edit_album(
+    album_id: int,
+    body: EditAlbumIn,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    a = session.get(Album, album_id)
+    if not a:
+        raise HTTPException(404, "no encontrado")
+    if not access_svc.can_mutate_album(a, user):
+        raise HTTPException(403, "no es tuyo")
+    # is_public lo gestionamos aquí, los demás campos vía library_svc.edit_album
+    if body.is_public is not None:
+        a.is_public = body.is_public
+        session.add(a)
+    edit_kwargs = body.model_dump(exclude_none=True)
+    edit_kwargs.pop("is_public", None)
+    if edit_kwargs:
+        res = library_svc.edit_album(album_id, **edit_kwargs)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("reason", "error"))
+    return {"ok": True, "is_public": a.is_public}
 
 
 # ─── Letras (LRCLIB) ──────────────────────────────────────────
 
 
 @router.get("/tracks/{track_id}/lyrics")
-def get_lyrics(track_id: int, session: Session = Depends(get_session)) -> dict:
+def get_lyrics(
+    track_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
     t = session.get(Track, track_id)
     if not t:
         raise HTTPException(404, "track no encontrado")
-    artist = session.get(Artist, t.artist_id)
+    # Visibilidad
     album = session.get(Album, t.album_id) if t.album_id else None
+    if album and not user.is_admin and not (album.is_public or album.owner_id == user.id):
+        raise HTTPException(403, "no tienes acceso")
+    artist = session.get(Artist, t.artist_id)
     return lyrics_svc.fetch_lyrics(
         artist=artist.name if artist else "",
         title=t.title,
@@ -304,6 +408,7 @@ async def upload_track(
     artist: Optional[str] = Form(None),
     year: Optional[int] = Form(None),
     target_album_id: Optional[int] = Form(None),
+    user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
     """Sube un fichero local y lo añade a la biblioteca con metadata opcional."""
     AUDIO_EXTS = {".mp3", ".flac", ".ogg", ".opus", ".m4a", ".aac", ".wav"}
@@ -382,6 +487,15 @@ async def upload_track(
 
     final_path = organizer.organize(tmp_path, meta)
     track_id = scanner.index_file(final_path)
+    # Asignar el álbum recién creado al uploader si no tiene owner
+    if track_id:
+        with library_svc.session_scope() as s:
+            t = s.get(Track, track_id)
+            if t and t.album_id:
+                a = s.get(Album, t.album_id)
+                if a and a.owner_id is None:
+                    a.owner_id = user.id
+                    s.add(a)
     return {
         "ok": True,
         "track_id": track_id,
@@ -392,11 +506,33 @@ async def upload_track(
 
 
 @router.get("/stats")
-def library_stats(session: Session = Depends(get_session)) -> dict:
-    n_tracks = session.exec(select(func.count(Track.id))).one()
-    n_albums = session.exec(select(func.count(Album.id))).one()
-    n_artists = session.exec(select(func.count(Artist.id))).one()
-    total_bytes = session.exec(select(func.coalesce(func.sum(Track.file_size), 0))).one()
+def library_stats(
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
+    visible_filter = access_svc.visibility_filter_for_tracks(user)
+    base = (
+        select(Track)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(visible_filter)
+    )
+    n_tracks = session.exec(select(func.count()).select_from(base.subquery())).one()
+    visible_albums = access_svc.visible_album_ids(session, user)
+    n_albums = len(visible_albums)
+    artist_q = (
+        select(func.count(func.distinct(Track.artist_id)))
+        .select_from(Track)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(visible_filter)
+    )
+    n_artists = session.exec(artist_q).one()
+    bytes_q = (
+        select(func.coalesce(func.sum(Track.file_size), 0))
+        .select_from(Track)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(visible_filter)
+    )
+    total_bytes = session.exec(bytes_q).one()
     return {
         "tracks": n_tracks,
         "albums": n_albums,

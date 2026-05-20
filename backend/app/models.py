@@ -8,6 +8,18 @@ def _now() -> datetime:
     return datetime.utcnow()
 
 
+class User(SQLModel, table=True):
+    __tablename__ = "users"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    email: str = Field(index=True, unique=True)
+    password_hash: str = Field()
+    is_admin: bool = Field(default=False, index=True)
+    is_active: bool = Field(default=True, index=True)
+    created_at: datetime = Field(default_factory=_now)
+
+
 class Artist(SQLModel, table=True):
     __tablename__ = "artists"
 
@@ -29,6 +41,8 @@ class Album(SQLModel, table=True):
     artist_id: int = Field(foreign_key="artists.id", index=True)
     year: Optional[int] = Field(default=None, index=True)
     cover_path: Optional[str] = Field(default=None)
+    owner_id: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
+    is_public: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=_now)
 
     artist: Optional[Artist] = Relationship(back_populates="albums")
@@ -77,6 +91,10 @@ class Job(SQLModel, table=True):
     # los tracks de una playlist/álbum, así puedo agruparlos en UI.
     source_url: str = Field(index=True)
     source_kind: str = Field(default="track")  # track | album | playlist
+
+    # Quién inició este job (None = legacy / sistema)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
+    target_album_id: Optional[int] = Field(default=None, foreign_key="albums.id")
 
     # Metadata Spotify resuelta (capturada al CREAR el job, no se re-fetchea)
     spotify_track_id: str = Field(unique=True, index=True)

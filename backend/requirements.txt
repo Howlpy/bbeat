@@ -7,6 +7,11 @@ python-multipart==0.0.20
 httpx==0.28.1
 aiofiles==24.1.0
 
+# Auth
+bcrypt==4.2.1
+pyjwt==2.10.1
+email-validator==2.2.0
+
 spotifyscraper==2.1.5
 mutagen==1.47.0
 yt-dlp==2026.3.17

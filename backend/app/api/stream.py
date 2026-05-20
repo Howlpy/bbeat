@@ -11,7 +11,8 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import get_session
-from app.models import Album, Track
+from app.models import Album, Track, User
+from app.services import auth as auth_svc
 
 router = APIRouter(prefix="/library", tags=["stream"])
 
@@ -70,10 +71,16 @@ def stream_track(
     request: Request,
     range_header: str | None = Header(default=None, alias="Range"),
     session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
 ):
     track = session.get(Track, track_id)
     if track is None:
         raise HTTPException(404, "track not found")
+    # Visibilidad
+    if track.album_id:
+        album = session.get(Album, track.album_id)
+        if album and not user.is_admin and not (album.is_public or album.owner_id == user.id):
+            raise HTTPException(403, "no tienes acceso")
 
     path = (settings.music_dir / track.file_path).resolve()
     if not path.is_file():
@@ -122,10 +129,16 @@ def stream_track(
 
 
 @router.get("/cover/{album_id}")
-def get_cover(album_id: int, session: Session = Depends(get_session)):
+def get_cover(
+    album_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+):
     album = session.get(Album, album_id)
     if album is None or not album.cover_path:
         raise HTTPException(404, "cover not found")
+    if not user.is_admin and not (album.is_public or album.owner_id == user.id):
+        raise HTTPException(403, "no tienes acceso")
     path = (settings.covers_dir / album.cover_path).resolve()
     if not path.is_file():
         raise HTTPException(404, "cover file missing")
