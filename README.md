@@ -31,7 +31,7 @@ Listo para uso real. Probado en producción privada en `bbeat.howl.wtf`.
 | Subir ficheros locales (drag & drop) | listo |
 | Editar/borrar pistas y álbumes desde UI | listo |
 | PWA instalable, audio en background | listo |
-| Cookies de Votify para descarga en alta calidad | opcional |
+| Cookies de Votify para descarga en alta calidad | roto upstream (ver nota) |
 
 ## Stack
 
@@ -151,6 +151,22 @@ bbeat/
 4. Confirmas; el backend crea Jobs en SQLite.
 5. Un worker single-thread procesa la cola: descarga, FFmpeg para extraer audio, mutagen para tags + cover, scanner para indexar.
 6. Si el track ya existe en la biblioteca (mismo ID externo), no descarga: añade el track a tu álbum vía `album_tracks` (M:N).
+
+## Votify: solo con Spotify Premium
+
+El pipeline Votify+librespot funciona correctamente (auth, fetch de metadata, fetch del stream cifrado). Pero a finales de 2025 Spotify **bloqueó la entrega de "audio keys" (las claves AES para descifrar el stream) a cuentas Free**. Sin esa clave los bytes son inútiles. El error típico es `RuntimeError: Failed fetching audio key!`.
+
+Esto afecta a TODO el ecosistema librespot (Votify, Zotify, etc.), no es específico de Bbeat. Con una cuenta Premium activa funciona; con Free no hay workaround técnico.
+
+Por defecto Bbeat queda configurado con **yt-dlp** como primario. Si tienes Premium, sube las cookies en `/settings` y cambia `BBEAT_DOWNLOAD_BACKEND=votify` en el `.env`. Calidad real:
+
+| Backend | Formato | Bitrate aprox |
+|---|---|---|
+| yt-dlp (YouTube Music) | m4a (AAC) | 128–256 kbps |
+| Votify con Premium Standard | Ogg Vorbis | 160 kbps |
+| Votify con Premium High | Ogg Vorbis | 320 kbps |
+
+Para uso normal en auriculares/altavoces no audiophile, la diferencia es imperceptible.
 
 ## Por qué no usamos la API pública de Spotify
 

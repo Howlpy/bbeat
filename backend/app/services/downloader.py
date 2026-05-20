@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -89,9 +90,11 @@ def download_with_votify(meta: TrackMeta) -> DownloadResult:
             "WARNING",
             spotify_url,
         ]
+        # protobuf C-ext vs librespot 0.0.10 → tenemos que forzar la implementación python
+        env = {**os.environ, "PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": "python"}
         log.info("votify ▶ %s", meta.search_query)
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=180, env=env)
         except subprocess.TimeoutExpired:
             return DownloadResult(None, "votify", "timeout 180s")
 
