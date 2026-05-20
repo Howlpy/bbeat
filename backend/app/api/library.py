@@ -189,7 +189,10 @@ def add_tracks_to_album(
     """Añade N pistas existentes a un álbum vía AlbumTrack (M:N). No descarga
     nada. Útil para componer colecciones a partir de la biblioteca compartida.
     """
+    import logging
     from app.models import AlbumTrack
+
+    log = logging.getLogger("bbeat.library")
 
     album = session.get(Album, album_id)
     if album is None:
@@ -200,27 +203,40 @@ def add_tracks_to_album(
     if not body.track_ids:
         return {"added": 0, "already": 0, "denied": 0}
 
-    visible_ids = set(
-        session.exec(access_svc.visible_track_ids_subquery(user)).all()
-    )
+    # Filtra a los track_ids que el user realmente puede ver
+    visible_subq = access_svc.visible_track_ids_subquery(user)
+    allowed_rows = session.exec(
+        select(Track.id).where(Track.id.in_(body.track_ids)).where(Track.id.in_(visible_subq))
+    ).all()
+    # SQLModel devuelve directamente los IDs como int, pero por si acaso unión devuelve tuplas
+    allowed_ids = {r[0] if isinstance(r, (tuple, list)) else r for r in allowed_rows}
+
+    # IDs ya en este álbum
+    existing_rows = session.exec(
+        select(AlbumTrack.track_id).where(
+            AlbumTrack.album_id == album_id,
+            AlbumTrack.track_id.in_(body.track_ids),
+        )
+    ).all()
+    existing_ids = {r[0] if isinstance(r, (tuple, list)) else r for r in existing_rows}
+
     added = 0
     already = 0
     denied = 0
     for tid in body.track_ids:
-        if tid not in visible_ids:
-            denied += 1
-            continue
-        existing = session.exec(
-            select(AlbumTrack).where(
-                AlbumTrack.album_id == album_id, AlbumTrack.track_id == tid
-            )
-        ).first()
-        if existing:
+        if tid in existing_ids:
             already += 1
+            continue
+        if tid not in allowed_ids:
+            denied += 1
             continue
         session.add(AlbumTrack(album_id=album_id, track_id=tid))
         added += 1
 
+    log.info(
+        "add_tracks album=%s by user=%s: added=%d already=%d denied=%d",
+        album_id, user.id, added, already, denied,
+    )
     return {"added": added, "already": already, "denied": denied}
 
 
