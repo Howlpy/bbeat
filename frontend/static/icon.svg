@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0b0b0f"/>
+  <g fill="none" stroke="#34d399" stroke-width="22" stroke-linecap="round">
+    <path d="M 130 256 Q 180 180 230 256 T 330 256 T 430 256"/>
+    <path d="M 130 326 Q 180 250 230 326 T 330 326 T 430 326" opacity="0.5"/>
+    <path d="M 130 186 Q 180 110 230 186 T 330 186 T 430 186" opacity="0.5"/>
+  </g>
+  <text x="256" y="100" text-anchor="middle" fill="#34d399"
+        font-family="system-ui, sans-serif" font-size="80" font-weight="800">B</text>
+</svg>

@@ -12,6 +12,9 @@ class PlayerState {
 
   audio: HTMLAudioElement | null = null;
 
+  /** Recuerda si el usuario tenía la pista en play cuando la pestaña pasa a background. */
+  private wantsPlay = false;
+
   attach(el: HTMLAudioElement) {
     this.audio = el;
     el.volume = this.volume;
@@ -27,12 +30,33 @@ class PlayerState {
     el.addEventListener('ended', () => this.next());
     el.addEventListener('play', () => {
       this.isPlaying = true;
+      this.wantsPlay = true;
       this.setPlaybackState('playing');
     });
     el.addEventListener('pause', () => {
       this.isPlaying = false;
       this.setPlaybackState('paused');
     });
+
+    // Safety net: si Chrome pausa el audio al cambiar de pestaña/app
+    // y luego volvemos, reanudar si el usuario estaba reproduciendo.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (
+          document.visibilityState === 'visible' &&
+          this.wantsPlay &&
+          this.audio &&
+          this.audio.paused
+        ) {
+          this.audio.play().catch(() => {});
+        }
+      });
+    }
+  }
+
+  pauseExplicit() {
+    this.wantsPlay = false;
+    this.audio?.pause();
   }
 
   playTracks(tracks: Track[], startIndex = 0) {
@@ -60,8 +84,13 @@ class PlayerState {
 
   toggle() {
     if (!this.audio) return;
-    if (this.audio.paused) this.audio.play();
-    else this.audio.pause();
+    if (this.audio.paused) {
+      this.wantsPlay = true;
+      this.audio.play();
+    } else {
+      this.wantsPlay = false;
+      this.audio.pause();
+    }
   }
 
   next() {
@@ -100,7 +129,10 @@ class PlayerState {
   }
 
   private updateMediaSession() {
-    if (!this.hasMediaSession()) return;
+    if (!this.hasMediaSession()) {
+      console.warn('[bbeat] navigator.mediaSession NO disponible en este navegador');
+      return;
+    }
     const t = this.current;
     if (!t) {
       navigator.mediaSession.metadata = null;
@@ -123,6 +155,15 @@ class PlayerState {
       artist: t.artist_name,
       album: t.album_title ?? '',
       artwork
+    });
+
+    console.log('[bbeat] MediaSession metadata set:', {
+      title: t.title,
+      artist: t.artist_name,
+      album: t.album_title,
+      artwork_src: artwork[0]?.src,
+      isSecureContext: typeof window !== 'undefined' && window.isSecureContext,
+      protocol: typeof window !== 'undefined' && window.location.protocol
     });
 
     const safe = (name: MediaSessionAction, fn: () => void) => {
