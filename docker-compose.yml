@@ -1,0 +1,25 @@
+# Bbeat — todo en uno para self-hosting fácil.
+#   docker compose up -d
+# y andando en http://localhost:8787
+
+services:
+  bbeat:
+    build: .
+    container_name: bbeat
+    restart: unless-stopped
+    ports:
+      - "${BBEAT_PORT:-8787}:8787"
+    volumes:
+      # Tu biblioteca persistente (ajusta la ruta de la izquierda)
+      - ./data:/app/data
+    env_file:
+      - ./backend/.env
+    environment:
+      - BBEAT_HOST=0.0.0.0
+      - BBEAT_PORT=8787
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8787/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

@@ -1,0 +1,58 @@
+# ─── Secretos y datos de usuario (NUNCA commitear) ──────────────
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+data/secrets/
+data/music/
+data/covers/
+data/logs/
+data/library.db
+data/library.db-journal
+data/library.db-wal
+data/library.db-shm
+*.cookies.txt
+*.wvd
+credentials.json
+
+# ─── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# ─── Node / SvelteKit ───────────────────────────────────────────
+node_modules/
+.svelte-kit/
+.vite/
+.cache/
+frontend/build/
+frontend/.svelte-kit/
+
+# ─── IDE / OS ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── Logs y temporales ──────────────────────────────────────────
+*.log
+*.tmp
+*.pid
+tmp/

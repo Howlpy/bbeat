@@ -1,0 +1,12 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+sqlmodel==0.0.22
+python-multipart==0.0.20
+httpx==0.28.1
+aiofiles==24.1.0
+
+spotipy==2.24.0
+mutagen==1.47.0
+yt-dlp==2025.1.15
