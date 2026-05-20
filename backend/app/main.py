@@ -1,11 +1,13 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import health
+from app.api import health, library, stream
 from app.config import settings
+from app.db import init_db
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -14,13 +16,23 @@ logging.basicConfig(
 log = logging.getLogger("bbeat")
 
 
-def create_app() -> FastAPI:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     settings.ensure_dirs()
+    init_db()
+    log.info("Bbeat %s arrancando en %s:%s", __version__, settings.host, settings.port)
+    log.info("Setup wizard %s", "PENDIENTE" if not settings.setup_complete else "COMPLETO")
+    log.info("Música en %s", settings.music_dir)
+    yield
+    log.info("Bbeat parando")
 
+
+def create_app() -> FastAPI:
     app = FastAPI(
         title="Bbeat",
         description="Self-hosted personal music server",
         version=__version__,
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -32,12 +44,8 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router, prefix="/api")
-
-    @app.on_event("startup")
-    async def _startup() -> None:
-        log.info("Bbeat %s arrancando en %s:%s", __version__, settings.host, settings.port)
-        log.info("Setup wizard %s", "PENDIENTE" if not settings.setup_complete else "COMPLETO")
-        log.info("Música en %s", settings.music_dir)
+    app.include_router(library.router, prefix="/api")
+    app.include_router(stream.router, prefix="/api")
 
     return app
 
