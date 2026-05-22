@@ -12,7 +12,6 @@ from sqlmodel import Session, select
 from app.config import settings
 from app.db import get_session
 from app.models import Album, Track, User
-from app.services import access as access_svc
 from app.services import auth as auth_svc
 
 router = APIRouter(prefix="/library", tags=["stream"])
@@ -74,11 +73,10 @@ def stream_track(
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ):
+    # Pool global: cualquier usuario autenticado puede reproducir cualquier pista.
     track = session.get(Track, track_id)
     if track is None:
         raise HTTPException(404, "track not found")
-    if not access_svc.can_access_track(session, track.id, user):
-        raise HTTPException(403, "no tienes acceso")
 
     path = (settings.music_dir / track.file_path).resolve()
     if not path.is_file():
@@ -132,11 +130,10 @@ def get_cover(
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ):
+    # Pool global: las carátulas son visibles para cualquier usuario autenticado.
     album = session.get(Album, album_id)
     if album is None or not album.cover_path:
         raise HTTPException(404, "cover not found")
-    if not user.is_admin and not (album.is_public or album.owner_id == user.id):
-        raise HTTPException(403, "no tienes acceso")
     path = (settings.covers_dir / album.cover_path).resolve()
     if not path.is_file():
         raise HTTPException(404, "cover file missing")

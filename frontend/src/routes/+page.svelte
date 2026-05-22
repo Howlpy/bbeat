@@ -9,7 +9,9 @@
     Play,
     Search,
     RefreshCw,
-    AudioWaveform
+    AudioWaveform,
+    Flame,
+    Heart
   } from 'lucide-svelte';
   import {
     api,
@@ -27,20 +29,23 @@
   let stats = $state<LibraryStats | null>(null);
   let recentTracks = $state<Track[]>([]);
   let recentAlbums = $state<Album[]>([]);
+  let topTracks = $state<(Track & { plays: number })[]>([]);
   let authStatus = $state<SpotifyAuthStatus | null>(null);
   let error = $state<string | null>(null);
   let scanning = $state(false);
 
   async function load() {
     try {
-      const [s, r, a] = await Promise.all([
+      const [s, r, a, top] = await Promise.all([
         api.stats(),
         api.recent(12),
-        api.spotifyAuthStatus().catch(() => null)
+        api.spotifyAuthStatus().catch(() => null),
+        api.topTracks({ limit: 8 }).catch(() => ({ items: [] }))
       ]);
       stats = s;
       recentTracks = r.tracks ?? [];
       recentAlbums = r.albums ?? [];
+      topTracks = top.items ?? [];
       authStatus = a;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -66,6 +71,10 @@
     player.playTracks(recentTracks, i);
   }
 
+  function playTopTrack(i: number) {
+    player.playTracks(topTracks, i);
+  }
+
   onMount(load);
 
   const greeting = $derived.by(() => {
@@ -78,15 +87,18 @@
 </script>
 
 <div class="mx-auto max-w-5xl px-4 pt-6 pb-8 sm:pt-10">
-  <header class="mb-6 flex items-end justify-between gap-3">
-    <div>
-      <p class="text-xs uppercase tracking-widest text-slate-500">{greeting}</p>
-      <h1 class="text-3xl font-bold tracking-tight">
-        {auth.user?.username ?? 'Bbeat'}
-      </h1>
+  <header class="mb-6 flex items-center justify-between gap-3">
+    <div class="flex min-w-0 items-center gap-3">
+      <img src="/icon.svg?v=2" alt="bbeat" class="size-11 flex-none rounded-xl" />
+      <div class="min-w-0">
+        <p class="truncate text-xs uppercase tracking-widest text-slate-500">{greeting}</p>
+        <h1 class="truncate text-3xl font-bold tracking-tight">
+          {auth.user?.username ?? 'Bbeat'}
+        </h1>
+      </div>
     </div>
     {#if auth.user?.is_admin}
-      <span class="rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan-400">
+      <span class="flex-none rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan-400">
         admin
       </span>
     {/if}
@@ -195,6 +207,12 @@
       >
         <Search size={16} /> Buscar
       </a>
+      <a
+        href="/liked"
+        class="inline-flex items-center gap-2 rounded border border-slate-800 px-4 py-2 text-sm transition hover:bg-slate-900"
+      >
+        <Heart size={16} /> Favoritos
+      </a>
       {#if auth.user?.is_admin}
         <button
           onclick={rescan}
@@ -242,6 +260,47 @@
             </a>
           {/each}
         </div>
+      </section>
+    {/if}
+
+    <!-- Más escuchadas -->
+    {#if topTracks.length > 0}
+      <section class="mb-8">
+        <header class="mb-3 flex items-baseline justify-between">
+          <h2 class="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
+            <Flame size={14} class="text-cyan-400" /> Tus más escuchadas
+          </h2>
+        </header>
+        <ul class="divide-y divide-slate-800 rounded border border-slate-800 bg-slate-900/40">
+          {#each topTracks as t, i (t.id)}
+            {@const isCurrent = player.current?.id === t.id}
+            <li>
+              <button
+                onclick={() => playTopTrack(i)}
+                class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-slate-800/60"
+                class:bg-slate-800={isCurrent}
+              >
+                <span class="w-5 flex-none text-center font-mono text-xs text-slate-600">{i + 1}</span>
+                {#if t.cover_url}
+                  <img src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
+                {:else}
+                  <div class="grid size-10 flex-none place-items-center rounded bg-slate-800 text-slate-600">
+                    <Music2 size={14} />
+                  </div>
+                {/if}
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-sm" class:text-cyan-400={isCurrent}>{t.title}</div>
+                  <div class="truncate text-xs text-slate-500">
+                    {t.artist_name}{#if t.album_title} · {t.album_title}{/if}
+                  </div>
+                </div>
+                <span class="flex-none text-xs text-slate-500">
+                  {t.plays} {t.plays === 1 ? 'play' : 'plays'}
+                </span>
+              </button>
+            </li>
+          {/each}
+        </ul>
       </section>
     {/if}
 

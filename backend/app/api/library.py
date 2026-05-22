@@ -1,5 +1,6 @@
 import shutil
 import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -10,7 +11,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import get_session
-from app.models import Album, AlbumTrack, Artist, Track, User
+from app.models import Album, AlbumTrack, Artist, Play, Track, TrackLike, User
 from app.services import access as access_svc
 from app.services import auth as auth_svc
 from app.services import library as library_svc
@@ -18,6 +19,33 @@ from app.services import lyrics as lyrics_svc
 from app.services import organizer, scanner, spotify
 
 router = APIRouter(prefix="/library", tags=["library"])
+
+
+def _user_liked_set(session: Session, user: User) -> set[int]:
+    """track_ids a los que este usuario ha dado 'me gusta'."""
+    rows = session.exec(select(TrackLike.track_id).where(TrackLike.user_id == user.id)).all()
+    return {r[0] if isinstance(r, (tuple, list)) else r for r in rows}
+
+
+def _track_payload(track: Track, artist: Artist, album: Optional[Album], liked: bool = False) -> dict:
+    """Dict serializado de una pista para la UI (formato único compartido)."""
+    return {
+        "id": track.id,
+        "title": track.title,
+        "artist_id": artist.id,
+        "artist_name": artist.name,
+        "album_id": album.id if album else None,
+        "album_title": album.title if album else None,
+        "album_year": album.year if album else None,
+        "cover_url": f"/api/library/cover/{album.id}" if album and album.cover_path else None,
+        "track_number": track.track_number,
+        "disc_number": track.disc_number,
+        "duration_ms": track.duration_ms,
+        "file_format": track.file_format,
+        "stream_url": f"/api/library/stream/{track.id}",
+        "source_url": track.source_url,
+        "liked": liked,
+    }
 
 
 @router.get("/tracks")
@@ -29,55 +57,33 @@ def list_tracks(
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
-    visible_ids = access_svc.visible_track_ids_subquery(user)
+    # Pool global: cualquier usuario ve todas las pistas del server, estén o no
+    # en un álbum suyo/público. La privacidad de álbumes solo aplica a mutar.
     stmt = (
         select(Track, Artist, Album)
         .join(Artist, Track.artist_id == Artist.id)
         .outerjoin(Album, Track.album_id == Album.id)
-        .where(Track.id.in_(visible_ids))
     )
+    count_stmt = select(func.count(Track.id)).select_from(Track)
     if artist_id is not None:
         stmt = stmt.where(Track.artist_id == artist_id)
+        count_stmt = count_stmt.where(Track.artist_id == artist_id)
     if album_id is not None:
         # Vía AlbumTrack (M:N): incluye tracks que pertenecen al álbum aunque
         # su album_id "primario" sea otro.
         in_album_subq = select(AlbumTrack.track_id).where(AlbumTrack.album_id == album_id)
         stmt = stmt.where(Track.id.in_(in_album_subq))
-
-    count_stmt = (
-        select(func.count(Track.id))
-        .select_from(Track)
-        .where(Track.id.in_(visible_ids))
-    )
-    if album_id is not None:
-        in_album_subq = select(AlbumTrack.track_id).where(AlbumTrack.album_id == album_id)
         count_stmt = count_stmt.where(Track.id.in_(in_album_subq))
-    if artist_id is not None:
-        count_stmt = count_stmt.where(Track.artist_id == artist_id)
     total = session.exec(count_stmt).one()
 
     stmt = stmt.order_by(Album.title, Track.disc_number, Track.track_number, Track.title)
     stmt = stmt.limit(limit).offset(offset)
 
-    items = []
-    for track, artist, album in session.exec(stmt).all():
-        items.append({
-            "id": track.id,
-            "title": track.title,
-            "artist_id": artist.id,
-            "artist_name": artist.name,
-            "album_id": album.id if album else None,
-            "album_title": album.title if album else None,
-            "album_year": album.year if album else None,
-            "cover_url": f"/api/library/cover/{album.id}" if album and album.cover_path else None,
-            "track_number": track.track_number,
-            "disc_number": track.disc_number,
-            "duration_ms": track.duration_ms,
-            "file_format": track.file_format,
-            "stream_url": f"/api/library/stream/{track.id}",
-            "source_url": track.source_url,
-        })
-
+    liked = _user_liked_set(session, user)
+    items = [
+        _track_payload(track, artist, album, track.id in liked)
+        for track, artist, album in session.exec(stmt).all()
+    ]
     return {"total": total, "limit": limit, "offset": offset, "items": items}
 
 
@@ -309,6 +315,7 @@ def recent(
 ) -> dict:
     """Últimas pistas/álbumes añadidos a la biblioteca del user."""
     visible_ids = access_svc.visible_track_ids_subquery(user)
+    liked = _user_liked_set(session, user)
     out: dict = {}
     if kind in ("tracks", "both"):
         stmt = (
@@ -321,20 +328,7 @@ def recent(
         )
         out["tracks"] = [
             {
-                "id": t.id,
-                "title": t.title,
-                "artist_id": ar.id,
-                "artist_name": ar.name,
-                "album_id": al.id if al else None,
-                "album_title": al.title if al else None,
-                "album_year": al.year if al else None,
-                "cover_url": f"/api/library/cover/{al.id}" if al and al.cover_path else None,
-                "track_number": t.track_number,
-                "disc_number": t.disc_number,
-                "duration_ms": t.duration_ms,
-                "file_format": t.file_format,
-                "stream_url": f"/api/library/stream/{t.id}",
-                "source_url": t.source_url,
+                **_track_payload(t, ar, al, t.id in liked),
                 "created_at": t.created_at.isoformat() if t.created_at else None,
             }
             for t, ar, al in session.exec(stmt).all()
@@ -375,14 +369,12 @@ def search(
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
-    """Búsqueda case-insensitive sobre title/artist/album."""
+    """Búsqueda case-insensitive sobre title/artist/album. Pool global."""
     qlike = f"%{q.strip().lower()}%"
-    visible_ids = access_svc.visible_track_ids_subquery(user)
     stmt = (
         select(Track, Artist, Album)
         .join(Artist, Track.artist_id == Artist.id)
         .outerjoin(Album, Track.album_id == Album.id)
-        .where(Track.id.in_(visible_ids))
         .where(
             or_(
                 func.lower(Track.title).like(qlike),
@@ -392,24 +384,11 @@ def search(
         )
         .limit(limit)
     )
-    items = []
-    for track, artist, album in session.exec(stmt).all():
-        items.append({
-            "id": track.id,
-            "title": track.title,
-            "artist_id": artist.id,
-            "artist_name": artist.name,
-            "album_id": album.id if album else None,
-            "album_title": album.title if album else None,
-            "album_year": album.year if album else None,
-            "cover_url": f"/api/library/cover/{album.id}" if album and album.cover_path else None,
-            "track_number": track.track_number,
-            "disc_number": track.disc_number,
-            "duration_ms": track.duration_ms,
-            "file_format": track.file_format,
-            "stream_url": f"/api/library/stream/{track.id}",
-            "source_url": track.source_url,
-        })
+    liked = _user_liked_set(session, user)
+    items = [
+        _track_payload(track, artist, album, track.id in liked)
+        for track, artist, album in session.exec(stmt).all()
+    ]
     return {"query": q, "total": len(items), "items": items}
 
 
@@ -584,6 +563,7 @@ def get_lyrics(
 @router.post("/upload")
 async def upload_track(
     file: UploadFile = File(...),
+    title: Optional[str] = Form(None),
     album: Optional[str] = Form(None),
     artist: Optional[str] = Form(None),
     year: Optional[int] = Form(None),
@@ -633,7 +613,7 @@ async def upload_track(
     # Construir meta combinando tags del fichero + overrides
     detected_artist = _first("artist") or _first("albumartist") or "Unknown Artist"
     detected_album = _first("album")
-    detected_title = _first("title") or Path(file.filename or "").stem
+    detected_title = (title or "").strip() or _first("title") or Path(file.filename or "").stem
 
     meta = spotify.TrackMeta(
         spotify_id=f"upload:{uuid.uuid4().hex[:12]}",
@@ -732,3 +712,128 @@ def library_stats(
         "artists": mine_artists,
         "total_bytes": mine_bytes,
     }
+
+
+# ─── Me gusta (favoritos) ─────────────────────────────────────
+
+
+@router.put("/tracks/{track_id}/like")
+def like_track(
+    track_id: int,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    if not session.get(Track, track_id):
+        raise HTTPException(404, "track no encontrado")
+    if not session.get(TrackLike, (user.id, track_id)):
+        session.add(TrackLike(user_id=user.id, track_id=track_id))
+    return {"liked": True}
+
+
+@router.delete("/tracks/{track_id}/like")
+def unlike_track(
+    track_id: int,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    existing = session.get(TrackLike, (user.id, track_id))
+    if existing:
+        session.delete(existing)
+    return {"liked": False}
+
+
+@router.get("/liked")
+def list_liked(
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Pistas a las que el usuario dio 'me gusta', recientes primero."""
+    stmt = (
+        select(Track, Artist, Album, TrackLike.created_at)
+        .join(TrackLike, TrackLike.track_id == Track.id)
+        .join(Artist, Track.artist_id == Artist.id)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(TrackLike.user_id == user.id)
+        .order_by(TrackLike.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    items = [
+        {**_track_payload(t, ar, al, True), "liked_at": liked_at.isoformat() if liked_at else None}
+        for t, ar, al, liked_at in session.exec(stmt).all()
+    ]
+    total = session.exec(
+        select(func.count()).select_from(TrackLike).where(TrackLike.user_id == user.id)
+    ).one()
+    return {"total": total, "items": items}
+
+
+# ─── Historial + más escuchadas ───────────────────────────────
+
+
+@router.post("/tracks/{track_id}/play")
+def record_play(
+    track_id: int,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Registra una reproducción (el front lo llama al empezar cada pista)."""
+    if not session.get(Track, track_id):
+        raise HTTPException(404, "track no encontrado")
+    session.add(Play(user_id=user.id, track_id=track_id))
+    return {"ok": True}
+
+
+@router.get("/top")
+def top_tracks(
+    limit: int = Query(20, ge=1, le=100),
+    days: Optional[int] = Query(None, ge=1, le=3650),
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Más escuchadas por este usuario (opcionalmente últimos N días)."""
+    plays = func.count(Play.id).label("plays")
+    stmt = (
+        select(Track, Artist, Album, plays)
+        .join(Play, Play.track_id == Track.id)
+        .join(Artist, Track.artist_id == Artist.id)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(Play.user_id == user.id)
+    )
+    if days:
+        stmt = stmt.where(Play.played_at >= datetime.utcnow() - timedelta(days=days))
+    stmt = stmt.group_by(Track.id).order_by(plays.desc()).limit(limit)
+    liked = _user_liked_set(session, user)
+    items = [
+        {**_track_payload(t, ar, al, t.id in liked), "plays": n}
+        for t, ar, al, n in session.exec(stmt).all()
+    ]
+    return {"items": items}
+
+
+@router.get("/history")
+def play_history(
+    limit: int = Query(50, ge=1, le=200),
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Pistas escuchadas recientemente (una entrada por pista, último play)."""
+    last_played = func.max(Play.played_at).label("last_played")
+    stmt = (
+        select(Track, Artist, Album, last_played)
+        .join(Play, Play.track_id == Track.id)
+        .join(Artist, Track.artist_id == Artist.id)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(Play.user_id == user.id)
+        .group_by(Track.id)
+        .order_by(last_played.desc())
+        .limit(limit)
+    )
+    liked = _user_liked_set(session, user)
+    items = [
+        {**_track_payload(t, ar, al, t.id in liked), "last_played": lp.isoformat() if lp else None}
+        for t, ar, al, lp in session.exec(stmt).all()
+    ]
+    return {"items": items}

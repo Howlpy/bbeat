@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { AlertTriangle, Disc3, Globe, Plus } from 'lucide-svelte';
+  import { AlertTriangle, Disc3, Globe, Heart, Plus } from 'lucide-svelte';
   import { api, type Album } from '$lib/api';
   import NewAlbumDialog from '$lib/components/NewAlbumDialog.svelte';
 
@@ -9,6 +9,7 @@
   let error = $state<string | null>(null);
   let loading = $state(false);
   let creating = $state(false);
+  let likedCount = $state<number | null>(null);
 
   async function load() {
     loading = true;
@@ -23,7 +24,10 @@
     }
   }
 
-  onMount(load);
+  onMount(() => {
+    load();
+    api.likedTracks().then((r) => (likedCount = r.total)).catch(() => {});
+  });
   $effect(() => {
     if (scope) load();
   });
@@ -66,21 +70,20 @@
     <p class="inline-flex items-center gap-2 text-red-400"><AlertTriangle size={16} /> {error}</p>
   {:else if loading && albums.length === 0}
     <p class="text-sm text-slate-500">Cargando…</p>
-  {:else if albums.length === 0}
-    <div class="rounded border border-dashed border-slate-800 p-8 text-center">
-      <p class="text-sm text-slate-400">
-        {#if scope === 'mine'}
-          No tienes álbumes propios. Crea uno o importa desde
-          <a href="/import" class="text-cyan-400 underline">/import</a>.
-        {:else if scope === 'public'}
-          No hay álbumes compartidos.
-        {:else}
-          Sin álbumes.
-        {/if}
-      </p>
-    </div>
   {:else}
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <!-- Favoritos: card fija siempre la primera -->
+      <a href="/liked" class="group relative block">
+        <div
+          class="grid aspect-square w-full place-items-center rounded bg-gradient-to-br from-cyan-400 to-sky-700 text-slate-950 transition group-hover:opacity-90"
+        >
+          <Heart size={48} fill="currentColor" />
+        </div>
+        <div class="mt-2 truncate text-sm font-medium">Favoritos</div>
+        <div class="truncate text-xs text-slate-500">
+          {likedCount === null ? '…' : `${likedCount} ${likedCount === 1 ? 'canción' : 'canciones'}`}
+        </div>
+      </a>
       {#each albums as album (album.id)}
         <a href="/albums/{album.id}" class="group relative block">
           {#if album.cover_url}
@@ -114,6 +117,18 @@
         </a>
       {/each}
     </div>
+    {#if albums.length === 0}
+      <p class="mt-4 text-center text-sm text-slate-500">
+        {#if scope === 'mine'}
+          No tienes álbumes propios. Crea uno o importa desde
+          <a href="/import" class="text-cyan-400 underline">/import</a>.
+        {:else if scope === 'public'}
+          No hay álbumes compartidos.
+        {:else}
+          Aún no hay álbumes.
+        {/if}
+      </p>
+    {/if}
   {/if}
 </div>
 

@@ -25,6 +25,21 @@
   let albums = $state<Album[]>([]);
   let expanded = $state<Record<string, boolean>>({});
 
+  // Selección de pistas del preview (todas marcadas por defecto)
+  let selected = $state<Record<string, boolean>>({});
+  const selectedCount = $derived(
+    preview ? preview.tracks.filter((t) => selected[t.spotify_id]).length : 0
+  );
+  const allSelected = $derived(
+    preview ? preview.tracks.length > 0 && preview.tracks.every((t) => selected[t.spotify_id]) : false
+  );
+
+  function toggleAll(v: boolean) {
+    if (!preview) return;
+    for (const t of preview.tracks) selected[t.spotify_id] = v;
+    selected = { ...selected };
+  }
+
   // Overrides editables (rellenan defaults desde el preview)
   let ovMode = $state<'new' | 'existing'>('new');
   let ovAlbum = $state('');
@@ -68,6 +83,8 @@
     try {
       const p = await api.previewIngest(url.trim());
       preview = p;
+      // Todas las pistas marcadas por defecto
+      selected = Object.fromEntries(p.tracks.map((t) => [t.spotify_id, true]));
       // Rellenar overrides con lo resuelto
       ovAlbum = p.tracks[0]?.album || '';
       ovArtist = p.tracks[0]?.artists?.[0] || '';
@@ -94,7 +111,11 @@
       if (ovYear.trim()) overrides.year = parseInt(ovYear, 10) || undefined;
     }
     try {
-      const r = await api.ingest(url.trim(), overrides);
+      const onlyIds =
+        preview.tracks.length > 1
+          ? preview.tracks.filter((t) => selected[t.spotify_id]).map((t) => t.spotify_id)
+          : undefined;
+      const r = await api.ingest(url.trim(), overrides, onlyIds);
       const created = r.created_job_ids.length;
       const dedupedCount = r.deduped.length;
       const addedToAlbum = r.deduped.filter((d) => d.added_to_album_id !== null).length;
@@ -439,35 +460,41 @@
       <div class="border-t border-slate-800 bg-slate-900 p-3">
         <button
           onclick={onImport}
-          disabled={busy || (ovMode === 'existing' && !ovTargetAlbumId)}
+          disabled={busy || selectedCount === 0 || (ovMode === 'existing' && !ovTargetAlbumId)}
           class="w-full rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
         >
-          {busy ? 'Encolando…' : `Importar ${preview.total_tracks} ${preview.total_tracks === 1 ? 'pista' : 'pistas'}`}
+          {busy ? 'Encolando…' : `Importar ${selectedCount} ${selectedCount === 1 ? 'pista' : 'pistas'}`}
         </button>
       </div>
 
       {#if preview.tracks.length > 1}
-        <details class="border-t border-slate-800">
-          <summary class="cursor-pointer px-4 py-2 text-xs text-slate-400 hover:bg-slate-950">
-            Ver tracklist ({preview.tracks.length})
-          </summary>
-          <ul class="divide-y divide-slate-800 text-sm">
-            {#each preview.tracks.slice(0, 50) as t}
-              <li class="flex items-center justify-between px-4 py-1.5">
-                <span class="truncate">
-                  <span class="mr-2 text-xs text-slate-500">{String(t.track_number).padStart(2, '0')}</span>
-                  {t.title}
-                </span>
-                <span class="font-mono text-xs text-slate-500">{formatDuration(t.duration_ms)}</span>
+        <div class="border-t border-slate-800">
+          <div class="flex items-center justify-between px-4 py-2 text-xs">
+            <span class="text-slate-400">{selectedCount} de {preview.tracks.length} seleccionadas</span>
+            <button
+              type="button"
+              onclick={() => toggleAll(!allSelected)}
+              class="font-medium text-cyan-400 hover:underline"
+            >{allSelected ? 'Quitar todas' : 'Marcar todas'}</button>
+          </div>
+          <ul class="max-h-72 divide-y divide-slate-800 overflow-y-auto text-sm">
+            {#each preview.tracks as t (t.spotify_id)}
+              <li>
+                <label class="flex cursor-pointer items-center gap-3 px-4 py-1.5 hover:bg-slate-950">
+                  <input
+                    type="checkbox"
+                    bind:checked={selected[t.spotify_id]}
+                    class="size-4 flex-none accent-cyan-500"
+                  />
+                  <span class="min-w-0 flex-1 truncate" class:text-slate-600={!selected[t.spotify_id]}>
+                    {t.title}
+                  </span>
+                  <span class="flex-none font-mono text-xs text-slate-500">{formatDuration(t.duration_ms)}</span>
+                </label>
               </li>
             {/each}
-            {#if preview.tracks.length > 50}
-              <li class="px-4 py-2 text-center text-xs text-slate-500">
-                + {preview.tracks.length - 50} más…
-              </li>
-            {/if}
           </ul>
-        </details>
+        </div>
       {/if}
     </section>
   {/if}

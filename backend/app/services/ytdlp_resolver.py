@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 from yt_dlp import YoutubeDL
 
@@ -15,9 +16,45 @@ from app.services.sources import SourceKind
 
 log = logging.getLogger("bbeat.ytdlp_resolver")
 
+# Cap de pistas para mixes/radios autogenerados (RD...), que son infinitos.
+MIX_PLAYLIST_CAP = 50
+
 
 def _provider_prefix(kind: SourceKind) -> str:
     return {"youtube": "yt", "soundcloud": "sc"}.get(kind, "url")
+
+
+def _normalize_youtube_url(url: str) -> tuple[str, Optional[int]]:
+    """Normaliza URLs de YouTube con parámetro `list=` para que yt-dlp resuelva
+    la playlist COMPLETA y no solo el vídeo del `watch?v=`.
+
+    - Mixes/radios autogenerados (`RD...`, infinitos) → se mantiene el watch URL
+      con `v=` (que es como yt-dlp los resuelve) y se devuelve un cap de pistas.
+    - Playlists creadas (`PL...`), álbumes autogenerados (`OLAK5uy_...`), subidas
+      de canal (`UU...`), etc. → se reescribe a `playlist?list=<id>`.
+
+    Devuelve (url_normalizada, playlistend). playlistend != None solo para mixes.
+    """
+    try:
+        parts = urlparse(url)
+    except Exception:
+        return url, None
+    host = (parts.hostname or "").lower()
+    qs = parse_qs(parts.query)
+    list_id = (qs.get("list") or [None])[0]
+    if not list_id:
+        return url, None
+
+    video_id = (qs.get("v") or [None])[0]
+    if "youtu.be" in host and not video_id:
+        video_id = parts.path.lstrip("/").split("/")[0] or None
+
+    if list_id.upper().startswith("RD"):  # mix / radio
+        if video_id:
+            return f"https://www.youtube.com/watch?v={video_id}&list={list_id}", MIX_PLAYLIST_CAP
+        return f"https://www.youtube.com/playlist?list={list_id}", MIX_PLAYLIST_CAP
+
+    return f"https://www.youtube.com/playlist?list={list_id}", None
 
 
 def _normalize_for_compare(s: str) -> str:
@@ -121,19 +158,34 @@ def _year_from_release_date(date) -> Optional[int]:
 
 
 def resolve_url(url: str, source_kind: SourceKind) -> ResolveResult:
-    """Extrae metadata sin descargar. Maneja single y playlist/set."""
+    """Extrae metadata sin descargar. Maneja single y playlist/set.
+
+    Para YouTube, normaliza URLs con `list=` (vídeo + playlist) para resolver la
+    playlist completa, ya sea autogenerada (mix/álbum) o creada por el usuario.
+    """
+    target = url
+    playlistend: Optional[int] = None
+    if source_kind == "youtube":
+        target, playlistend = _normalize_youtube_url(url)
+
     opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        "extract_flat": "discard_in_playlist",
-        "ignoreerrors": False,
+        # 'in_playlist' extrae las entradas PLANAS (id/título/duración/canal) sin
+        # procesar cada vídeo entero. 'discard_in_playlist' reextraía cada pista al
+        # completo → en mixes de 50 colgaba >75s. Plano resuelve en ~4s.
+        "extract_flat": "in_playlist",
+        "ignoreerrors": True,
+        "extractor_retries": 1,
         "socket_timeout": 30,
     }
-    log.info("resolviendo %s · %s", source_kind, url)
+    if playlistend:
+        opts["playlistend"] = playlistend
+    log.info("resolviendo %s · %s", source_kind, target)
     try:
         with YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(target, download=False)
     except Exception as e:
         msg = str(e)
         raise IngestError(f"No se pudo resolver la URL ({msg[:150]})") from e
@@ -150,12 +202,12 @@ def resolve_url(url: str, source_kind: SourceKind) -> ResolveResult:
         playlist_title = info.get("title") or "Playlist"
         tracks = [
             _track_meta_from_entry(
-                e, i + 1, len(entries), info.get("webpage_url") or url, source_kind, ""
+                e, i + 1, len(entries), info.get("webpage_url") or target, source_kind, ""
             )
             for i, e in enumerate(entries)
         ]
         return ResolveResult(kind="playlist", name=playlist_title, tracks=tracks)
 
     # Single track/video
-    meta = _track_meta_from_entry(info, 1, 1, url, source_kind, "")
+    meta = _track_meta_from_entry(info, 1, 1, target, source_kind, "")
     return ResolveResult(kind="track", name=meta.title, tracks=[meta])

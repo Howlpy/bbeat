@@ -24,6 +24,9 @@ class OverridesIn(BaseModel):
 class IngestRequest(BaseModel):
     url: str
     overrides: Optional[OverridesIn] = None
+    # Si viene, solo se importan las pistas cuyo spotify_id esté en la lista
+    # (para deseleccionar pistas de una playlist desde la UI).
+    only_ids: Optional[list[str]] = None
 
 
 def _to_dataclass(ov: Optional[OverridesIn]) -> Optional[IngestOverrides]:
@@ -42,6 +45,7 @@ def ingest(
             req.url,
             overrides=_to_dataclass(req.overrides),
             user_id=user.id,
+            only_ids=req.only_ids,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))

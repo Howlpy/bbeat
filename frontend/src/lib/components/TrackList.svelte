@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { MoreVertical, Pencil, Trash2, Music2 } from 'lucide-svelte';
+  import { MoreVertical, Pencil, Trash2, Music2, Heart } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { formatDuration, api, type Track, type Album } from '$lib/api';
   import EditTrackDialog from './EditTrackDialog.svelte';
@@ -44,6 +44,18 @@
     menuFor = null;
   }
 
+  async function toggleLike(e: MouseEvent, t: Track) {
+    e.stopPropagation();
+    const next = !t.liked;
+    t.liked = next; // optimista
+    try {
+      if (next) await api.likeTrack(t.id);
+      else await api.unlikeTrack(t.id);
+    } catch {
+      t.liked = !next; // revertir si falla
+    }
+  }
+
   async function deleteTrack(t: Track) {
     menuFor = null;
     if (!confirm(`¿Borrar "${t.title}"? Se eliminará el fichero del disco.`)) return;
@@ -84,6 +96,14 @@
             {formatDuration(t.duration_ms)}
           </span>
         </button>
+        <button
+          onclick={(e) => toggleLike(e, t)}
+          class="grid size-8 flex-none place-items-center rounded transition hover:bg-slate-800"
+          class:text-cyan-400={t.liked}
+          class:text-slate-600={!t.liked}
+          aria-label={t.liked ? 'Quitar de me gusta' : 'Me gusta'}
+          title={t.liked ? 'Quitar de me gusta' : 'Me gusta'}
+        ><Heart size={16} fill={t.liked ? 'currentColor' : 'none'} /></button>
         <div class="relative">
           <button
             onclick={(e) => toggleMenu(e, t.id)}

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { X } from 'lucide-svelte';
+  import { X, Shuffle, Heart } from 'lucide-svelte';
   import { api, type Track } from '$lib/api';
+  import { player } from '$lib/player.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
 
   let tracks = $state<Track[]>([]);
@@ -43,14 +44,33 @@
     searchTimer = setTimeout(() => doSearch(query), 250);
   }
 
+  function shuffleAll() {
+    if (tracks.length) player.playShuffled(tracks);
+  }
+
   onMount(load);
 </script>
 
 <div class="mx-auto max-w-3xl px-4 pt-6">
   <header class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
     <h1 class="text-2xl font-bold">Canciones</h1>
-    <span class="text-xs text-slate-500">{total} {query ? 'resultados' : 'en biblioteca'}</span>
+    <div class="flex items-center gap-3">
+      <a
+        href="/liked"
+        class="inline-flex items-center gap-1.5 text-xs text-slate-400 transition hover:text-cyan-400"
+      ><Heart size={14} /> Favoritos</a>
+      <span class="text-xs text-slate-500">{total} {query ? 'resultados' : 'en biblioteca'}</span>
+    </div>
   </header>
+
+  {#if tracks.length > 0}
+    <button
+      onclick={shuffleAll}
+      class="mb-4 inline-flex items-center gap-2 rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+    >
+      <Shuffle size={16} /> Reproducir aleatorio
+    </button>
+  {/if}
 
   <div class="relative mb-4">
     <input

@@ -136,10 +136,17 @@ def create_jobs_from_url(
     url: str,
     overrides: Optional[IngestOverrides] = None,
     user_id: Optional[int] = None,
+    only_ids: Optional[list[str]] = None,
 ) -> dict:
     """Resuelve la URL y crea Jobs en BD, con dedup: si la pista ya existe
-    en la biblioteca, simplemente la añade al álbum destino del user."""
+    en la biblioteca, simplemente la añade al álbum destino del user.
+
+    Si `only_ids` viene, solo se procesan las pistas cuyo spotify_id esté ahí
+    (deselección de pistas de una playlist desde la UI)."""
     result, source = _resolve_any(url)
+    if only_ids:
+        wanted = set(only_ids)
+        result.tracks = [t for t in result.tracks if t.spotify_id in wanted]
     created: list[int] = []
     deduped: list[dict] = []
     skipped: list[str] = []

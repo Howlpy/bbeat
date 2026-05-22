@@ -1,7 +1,8 @@
-import type { Track } from './api';
+import { api, type Track } from './api';
 
 const VOLUME_KEY = "bbeat:volume";
 const MUTED_KEY = "bbeat:muted";
+const SHUFFLE_KEY = "bbeat:shuffle";
 
 
 function readPersistedVolume(): number {
@@ -17,6 +18,21 @@ function readPersistedMuted(): boolean {
   return localStorage.getItem(MUTED_KEY) === "1";
 }
 
+function readPersistedShuffle(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(SHUFFLE_KEY) === "1";
+}
+
+/** Fisher-Yates sobre una copia. Si `first` se pasa, queda fijado al principio. */
+function shuffled(tracks: Track[], first: Track | null): Track[] {
+  const rest = tracks.filter((t) => !first || t.id !== first.id);
+  for (let i = rest.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rest[i], rest[j]] = [rest[j], rest[i]];
+  }
+  return first ? [first, ...rest] : rest;
+}
+
 
 class PlayerState {
   queue = $state<Track[]>([]);
@@ -26,11 +42,17 @@ class PlayerState {
   duration = $state(0);
   volume = $state(readPersistedVolume());
   muted = $state(readPersistedMuted());
+  shuffle = $state(readPersistedShuffle());
 
   current = $derived<Track | null>(this.queue[this.index] ?? null);
   effectiveVolume = $derived(this.muted ? 0 : this.volume);
 
   audio: HTMLAudioElement | null = null;
+
+  /** Orden sin barajar de la cola actual (para poder restaurarlo al quitar shuffle). */
+  private baseQueue: Track[] = [];
+  /** track_id cuya reproducción ya hemos registrado, para no contar dos veces. */
+  private playLogged: number | null = null;
 
   /** Recuerda si el usuario tenía la pista en play cuando la pestaña pasa a background. */
   private wantsPlay = false;
@@ -86,9 +108,53 @@ class PlayerState {
   }
 
   playTracks(tracks: Track[], startIndex = 0) {
-    this.queue = tracks;
-    this.index = Math.max(0, Math.min(startIndex, tracks.length - 1));
+    this.baseQueue = tracks;
+    const start = Math.max(0, Math.min(startIndex, tracks.length - 1));
+    if (this.shuffle && tracks.length > 1) {
+      this.queue = shuffled(tracks, tracks[start] ?? null);
+      this.index = 0;
+    } else {
+      this.queue = tracks;
+      this.index = start;
+    }
     this.loadCurrent(true);
+  }
+
+  /** Reproduce el set entero barajado (botón "Reproducir aleatorio"). */
+  playShuffled(tracks: Track[]) {
+    if (!tracks.length) return;
+    if (!this.shuffle) {
+      this.shuffle = true;
+      this.persistShuffle();
+    }
+    this.baseQueue = tracks;
+    this.queue = shuffled(tracks, null);
+    this.index = 0;
+    this.loadCurrent(true);
+  }
+
+  /** Activa/desactiva aleatorio conservando la pista en curso. */
+  toggleShuffle() {
+    this.shuffle = !this.shuffle;
+    this.persistShuffle();
+    const cur = this.current;
+    const base = this.baseQueue.length ? this.baseQueue : this.queue;
+    if (this.shuffle) {
+      this.queue = shuffled(base, cur);
+      this.index = cur ? 0 : this.index;
+    } else {
+      this.queue = [...base];
+      this.index = cur ? Math.max(0, this.queue.findIndex((t) => t.id === cur.id)) : this.index;
+    }
+  }
+
+  private persistShuffle() {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(SHUFFLE_KEY, this.shuffle ? "1" : "0");
+    } catch {
+      // ignorar quota errors
+    }
   }
 
   enqueue(track: Track) {
@@ -108,11 +174,19 @@ class PlayerState {
     this.audio.src = this.current.stream_url;
     this.audio.load();
 
+    const cur = this.current;
     const done = () => {
       this.switching = false;
     };
     if (autoplay) {
-      this.audio.play().then(done, (err) => {
+      this.audio.play().then(() => {
+        done();
+        // Registrar la reproducción una sola vez por pista (historial + top).
+        if (cur && this.playLogged !== cur.id) {
+          this.playLogged = cur.id;
+          api.recordPlay(cur.id).catch(() => {});
+        }
+      }, (err) => {
         console.warn('[bbeat] autoplay rechazado:', err);
         done();
       });

@@ -91,6 +91,25 @@ class AlbumTrack(SQLModel, table=True):
     added_at: datetime = Field(default_factory=_now)
 
 
+class TrackLike(SQLModel, table=True):
+    """'Me gusta' de un usuario sobre una pista (tipo Spotify)."""
+    __tablename__ = "track_likes"
+
+    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    track_id: int = Field(foreign_key="tracks.id", primary_key=True)
+    created_at: datetime = Field(default_factory=_now)
+
+
+class Play(SQLModel, table=True):
+    """Un evento de reproducción (para historial + más escuchadas)."""
+    __tablename__ = "plays"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    track_id: int = Field(foreign_key="tracks.id", index=True)
+    played_at: datetime = Field(default_factory=_now, index=True)
+
+
 class Setting(SQLModel, table=True):
     """Pares clave/valor editables desde la UI (override del .env)."""
     __tablename__ = "settings"

@@ -6,6 +6,7 @@
 
   type Item = {
     file: File;
+    title: string;
     status: 'pending' | 'uploading' | 'done' | 'failed';
     error?: string;
   };
@@ -21,9 +22,16 @@
 
   const AUDIO_EXT_RE = /\.(mp3|flac|ogg|opus|m4a|aac|wav)$/i;
 
+  function cleanName(name: string): string {
+    return name.replace(/\.[^.]+$/, '').replace(/_/g, ' ').trim();
+  }
+
   function addFiles(list: FileList | File[]) {
     const arr = Array.from(list).filter((f) => AUDIO_EXT_RE.test(f.name));
-    items = [...items, ...arr.map((file) => ({ file, status: 'pending' as const }))];
+    items = [
+      ...items,
+      ...arr.map((file) => ({ file, title: cleanName(file.name), status: 'pending' as const }))
+    ];
   }
 
   function onDrop(e: DragEvent) {
@@ -57,7 +65,7 @@
       if (items[i].status === 'done') continue;
       items[i] = { ...items[i], status: 'uploading' };
       try {
-        await api.uploadTrack(items[i].file, opts);
+        await api.uploadTrack(items[i].file, { ...opts, title: items[i].title?.trim() || undefined });
         items[i] = { ...items[i], status: 'done' };
       } catch (e) {
         items[i] = {
@@ -178,8 +186,16 @@
             {/if}
           </span>
           <div class="min-w-0 flex-1">
-            <div class="truncate text-sm">{it.file.name}</div>
-            <div class="text-xs text-slate-500">{formatBytes(it.file.size)}</div>
+            {#if it.status === 'pending'}
+              <input
+                bind:value={it.title}
+                placeholder="Título"
+                class="w-full rounded border border-slate-800 bg-slate-950 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none"
+              />
+            {:else}
+              <div class="truncate text-sm">{it.title || it.file.name}</div>
+            {/if}
+            <div class="mt-0.5 truncate text-xs text-slate-500">{it.file.name} · {formatBytes(it.file.size)}</div>
             {#if it.error}
               <div class="truncate text-xs text-red-400/80" title={it.error}>{it.error}</div>
             {/if}

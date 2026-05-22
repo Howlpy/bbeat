@@ -13,6 +13,7 @@ export type Track = {
   file_format: string | null;
   stream_url: string;
   source_url: string | null;
+  liked?: boolean;
 };
 
 export type Album = {
@@ -262,11 +263,11 @@ export const api = {
       body: JSON.stringify({ url }),
       timeoutMs: 60_000  // playlists grandes pueden tardar
     }),
-  ingest: (url: string, overrides?: IngestOverrides) =>
+  ingest: (url: string, overrides?: IngestOverrides, onlyIds?: string[]) =>
     json<IngestResult & { source?: Source }>('/api/ingest', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url, overrides }),
+      body: JSON.stringify({ url, overrides, only_ids: onlyIds }),
       timeoutMs: 60_000
     }),
   addTracksToAlbum: (albumId: number, trackIds: number[]) =>
@@ -342,13 +343,34 @@ export const api = {
       artist_name?: string;
     }>(`/api/library/tracks/${trackId}/lyrics`, { timeoutMs: 15_000 }),
 
+  // ── Me gusta / historial ──
+  likeTrack: (id: number) =>
+    json<{ liked: boolean }>(`/api/library/tracks/${id}/like`, { method: 'PUT' }),
+  unlikeTrack: (id: number) =>
+    json<{ liked: boolean }>(`/api/library/tracks/${id}/like`, { method: 'DELETE' }),
+  likedTracks: () => json<{ total: number; items: Track[] }>('/api/library/liked'),
+  recordPlay: (id: number) =>
+    json<{ ok: boolean }>(`/api/library/tracks/${id}/play`, { method: 'POST' }),
+  topTracks: (opts: { limit?: number; days?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.limit !== undefined) q.set('limit', String(opts.limit));
+    if (opts.days !== undefined) q.set('days', String(opts.days));
+    const s = q.toString();
+    return json<{ items: (Track & { plays: number })[] }>(`/api/library/top${s ? '?' + s : ''}`);
+  },
+  history: (limit = 50) =>
+    json<{ items: (Track & { last_played: string | null })[] }>(
+      `/api/library/history?limit=${limit}`
+    ),
+
   // ── Upload local ──
   uploadTrack: async (
     file: File,
-    opts: { album?: string; artist?: string; year?: number; target_album_id?: number } = {}
+    opts: { title?: string; album?: string; artist?: string; year?: number; target_album_id?: number } = {}
   ) => {
     const fd = new FormData();
     fd.append('file', file);
+    if (opts.title) fd.append('title', opts.title);
     if (opts.album) fd.append('album', opts.album);
     if (opts.artist) fd.append('artist', opts.artist);
     if (opts.year !== undefined) fd.append('year', String(opts.year));
