@@ -11,7 +11,9 @@
     RefreshCw,
     AudioWaveform,
     Flame,
-    Heart
+    Heart,
+    WifiOff,
+    HardDriveDownload
   } from 'lucide-svelte';
   import {
     api,
@@ -32,6 +34,7 @@
   let topTracks = $state<(Track & { plays: number })[]>([]);
   let authStatus = $state<SpotifyAuthStatus | null>(null);
   let error = $state<string | null>(null);
+  let offlineMode = $state(false);
   let scanning = $state(false);
 
   async function load() {
@@ -48,7 +51,8 @@
       topTracks = top.items ?? [];
       authStatus = a;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      if (typeof navigator !== 'undefined' && !navigator.onLine) offlineMode = true;
+      else error = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -104,7 +108,17 @@
     {/if}
   </header>
 
-  {#if error}
+  {#if offlineMode}
+    <div class="rounded-xl border border-slate-800 bg-slate-900 p-6 text-center">
+      <WifiOff class="mx-auto mb-2 text-slate-500" size={30} />
+      <p class="text-sm text-slate-300">Sin conexión.</p>
+      <p class="mt-1 text-xs text-slate-500">Tus canciones descargadas siguen disponibles sin internet.</p>
+      <a
+        href="/downloads"
+        class="mt-4 inline-flex items-center gap-2 rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+      ><HardDriveDownload size={16} /> Ir a Descargas</a>
+    </div>
+  {:else if error}
     <p class="rounded border border-red-900/50 bg-red-950/50 p-3 text-sm text-red-300">{error}</p>
   {:else if !stats}
     <p class="text-slate-500">Cargando…</p>
