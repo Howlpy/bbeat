@@ -1,8 +1,12 @@
 import { api, type Track } from './api';
+import { offline } from './offline.svelte';
 
 const VOLUME_KEY = "bbeat:volume";
 const MUTED_KEY = "bbeat:muted";
 const SHUFFLE_KEY = "bbeat:shuffle";
+const REPEAT_KEY = "bbeat:repeat";
+
+export type RepeatMode = 'off' | 'all' | 'one';
 
 
 function readPersistedVolume(): number {
@@ -21,6 +25,12 @@ function readPersistedMuted(): boolean {
 function readPersistedShuffle(): boolean {
   if (typeof localStorage === "undefined") return false;
   return localStorage.getItem(SHUFFLE_KEY) === "1";
+}
+
+function readPersistedRepeat(): RepeatMode {
+  if (typeof localStorage === "undefined") return 'off';
+  const v = localStorage.getItem(REPEAT_KEY);
+  return v === 'all' || v === 'one' ? v : 'off';
 }
 
 /** Fisher-Yates sobre una copia. Si `first` se pasa, queda fijado al principio. */
@@ -43,6 +53,7 @@ class PlayerState {
   volume = $state(readPersistedVolume());
   muted = $state(readPersistedMuted());
   shuffle = $state(readPersistedShuffle());
+  repeat = $state<RepeatMode>(readPersistedRepeat());
 
   current = $derived<Track | null>(this.queue[this.index] ?? null);
   effectiveVolume = $derived(this.muted ? 0 : this.volume);
@@ -71,7 +82,7 @@ class PlayerState {
       this.duration = el.duration;
       this.updatePositionState();
     });
-    el.addEventListener('ended', () => this.next());
+    el.addEventListener('ended', () => this.next(true));
     el.addEventListener('play', () => {
       this.isPlaying = true;
       this.wantsPlay = true;
@@ -171,7 +182,8 @@ class PlayerState {
     // metadata DEBE ir antes del .play() para que el OS enganche la sesión
     this.updateMediaSession();
 
-    this.audio.src = this.current.stream_url;
+    // Si la pista está descargada, reproduce desde el blob local (offline).
+    this.audio.src = offline.audioUrl(this.current.id) ?? this.current.stream_url;
     this.audio.load();
 
     const cur = this.current;
@@ -206,14 +218,95 @@ class PlayerState {
     }
   }
 
-  next() {
+  next(auto = false) {
+    // Repeat-one: al acabar sola, reproduce de nuevo la misma (manual sí avanza).
+    if (auto && this.repeat === 'one') {
+      this.playLogged = null; // que cuente como nueva reproducción
+      this.loadCurrent(true);
+      return;
+    }
     if (this.index < this.queue.length - 1) {
       this.index += 1;
+      this.loadCurrent(true);
+    } else if (this.repeat === 'all' && this.queue.length) {
+      this.index = 0;
       this.loadCurrent(true);
     } else {
       this.audio?.pause();
       this.isPlaying = false;
     }
+  }
+
+  cycleRepeat() {
+    this.repeat = this.repeat === 'off' ? 'all' : this.repeat === 'all' ? 'one' : 'off';
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(REPEAT_KEY, this.repeat);
+      } catch {
+        // ignorar
+      }
+    }
+  }
+
+  // ─── Cola ──────────────────────────────────────────────────────
+  /** Añade pista(s) al final de la cola. Si no hay nada sonando, arranca. */
+  addToQueue(t: Track | Track[]) {
+    const arr = Array.isArray(t) ? t : [t];
+    if (!arr.length) return;
+    const wasEmpty = this.queue.length === 0;
+    this.queue = [...this.queue, ...arr];
+    this.baseQueue = [...this.baseQueue, ...arr];
+    if (wasEmpty) {
+      this.index = 0;
+      this.loadCurrent(true);
+    }
+  }
+
+  /** Inserta una pista justo después de la actual. */
+  playNext(t: Track) {
+    if (!this.queue.length) {
+      this.addToQueue(t);
+      return;
+    }
+    const at = this.index + 1;
+    this.queue = [...this.queue.slice(0, at), t, ...this.queue.slice(at)];
+    this.baseQueue = [...this.baseQueue, t];
+  }
+
+  /** Salta a una posición concreta de la cola. */
+  jumpTo(i: number) {
+    if (i >= 0 && i < this.queue.length) {
+      this.index = i;
+      this.loadCurrent(true);
+    }
+  }
+
+  /** Quita una pista de la cola por índice. */
+  removeFromQueue(i: number) {
+    if (i < 0 || i >= this.queue.length) return;
+    const removingCurrent = i === this.index;
+    this.queue = [...this.queue.slice(0, i), ...this.queue.slice(i + 1)];
+    if (removingCurrent) {
+      if (this.index >= this.queue.length) this.index = Math.max(0, this.queue.length - 1);
+      if (this.queue.length) this.loadCurrent(this.isPlaying);
+      else {
+        this.audio?.pause();
+        this.isPlaying = false;
+      }
+    } else if (i < this.index) {
+      this.index -= 1;
+    }
+  }
+
+  /** Marca/desmarca me gusta la pista actual (optimista). */
+  toggleLikeCurrent() {
+    const t = this.current;
+    if (!t) return;
+    const next = !t.liked;
+    t.liked = next;
+    (next ? api.likeTrack(t.id) : api.unlikeTrack(t.id)).catch(() => {
+      t.liked = !next;
+    });
   }
 
   prev() {

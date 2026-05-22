@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { fly } from 'svelte/transition';
   import { dev } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -9,6 +10,7 @@
   import { player } from '$lib/player.svelte';
   import { jobs } from '$lib/jobs.svelte';
   import { auth } from '$lib/auth.svelte';
+  import { offline } from '$lib/offline.svelte';
 
   let { children } = $props();
 
@@ -26,8 +28,11 @@
       return;
     }
 
-    // Polling de jobs solo si hay sesión
-    if (auth.isLoggedIn) jobs.start();
+    // Polling de jobs + cargar descargas offline solo si hay sesión
+    if (auth.isLoggedIn) {
+      jobs.start();
+      offline.init();
+    }
 
     if (dev && 'serviceWorker' in navigator) {
       try {
@@ -57,7 +62,11 @@
   </main>
 {:else}
   <main class="min-h-screen {mainPadBottom}">
-    {@render children?.()}
+    {#key page.url.pathname}
+      <div in:fly={{ y: 10, duration: 220 }}>
+        {@render children?.()}
+      </div>
+    {/key}
   </main>
   <BottomNav />
   <Player />

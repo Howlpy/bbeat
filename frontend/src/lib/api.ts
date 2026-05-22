@@ -351,16 +351,30 @@ export const api = {
   likedTracks: () => json<{ total: number; items: Track[] }>('/api/library/liked'),
   recordPlay: (id: number) =>
     json<{ ok: boolean }>(`/api/library/tracks/${id}/play`, { method: 'POST' }),
-  topTracks: (opts: { limit?: number; days?: number } = {}) => {
+  topTracks: (opts: { limit?: number; days?: number; scope?: 'me' | 'server' } = {}) => {
     const q = new URLSearchParams();
     if (opts.limit !== undefined) q.set('limit', String(opts.limit));
     if (opts.days !== undefined) q.set('days', String(opts.days));
+    if (opts.scope !== undefined) q.set('scope', opts.scope);
     const s = q.toString();
     return json<{ items: (Track & { plays: number })[] }>(`/api/library/top${s ? '?' + s : ''}`);
   },
   history: (limit = 50) =>
     json<{ items: (Track & { last_played: string | null })[] }>(
       `/api/library/history?limit=${limit}`
+    ),
+  myStats: (days?: number) =>
+    json<{
+      total_plays: number;
+      total_minutes: number;
+      unique_tracks: number;
+      liked_count: number;
+      top_tracks: (Track & { plays: number })[];
+      top_artists: { id: number; name: string; plays: number }[];
+    }>(`/api/library/me/stats${days ? '?days=' + days : ''}`),
+  activity: (limit = 30) =>
+    json<{ items: (Track & { username: string; played_at: string | null })[] }>(
+      `/api/library/activity?limit=${limit}`
     ),
 
   // ── Upload local ──

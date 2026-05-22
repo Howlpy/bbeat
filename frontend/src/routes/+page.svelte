@@ -213,6 +213,12 @@
       >
         <Heart size={16} /> Favoritos
       </a>
+      <a
+        href="/wrapped"
+        class="inline-flex items-center gap-2 rounded border border-slate-800 px-4 py-2 text-sm transition hover:bg-slate-900"
+      >
+        <Flame size={16} /> Wrapped
+      </a>
       {#if auth.user?.is_admin}
         <button
           onclick={rescan}

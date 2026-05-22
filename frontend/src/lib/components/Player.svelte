@@ -1,14 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronUp, Music2 } from 'lucide-svelte';
+  import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronUp, Music2, ListMusic } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { formatDuration } from '$lib/api';
   import NowPlaying from './NowPlaying.svelte';
+  import Queue from './Queue.svelte';
 
   let audioEl: HTMLAudioElement;
   let volumeOpen = $state(false);
   let volumePanel = $state<HTMLDivElement | null>(null);
   let nowPlayingOpen = $state(false);
+  let queueOpen = $state(false);
 
   onMount(() => {
     player.attach(audioEl);
@@ -139,6 +141,12 @@
         </div>
 
         <button
+          aria-label="Cola"
+          onclick={() => (queueOpen = true)}
+          class="grid size-9 place-items-center rounded text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+        ><ListMusic size={18} /></button>
+
+        <button
           aria-label="Expandir"
           onclick={openExpanded}
           class="grid size-9 place-items-center rounded text-slate-400 hover:bg-slate-800 hover:text-slate-200"
@@ -149,5 +157,9 @@
 {/if}
 
 {#if nowPlayingOpen}
-  <NowPlaying onclose={() => (nowPlayingOpen = false)} />
+  <NowPlaying onclose={() => (nowPlayingOpen = false)} onqueue={() => (queueOpen = true)} />
+{/if}
+
+{#if queueOpen}
+  <Queue onclose={() => (queueOpen = false)} />
 {/if}
