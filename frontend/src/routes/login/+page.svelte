@@ -27,10 +27,8 @@
 <div class="flex min-h-screen items-center justify-center px-4">
   <div class="w-full max-w-sm">
     <header class="mb-8 text-center">
-      <h1 class="text-3xl font-bold">
-        <span class="text-cyan-400">B</span>beat
-      </h1>
-      <p class="mt-1 text-xs text-slate-500">inicia sesión para entrar</p>
+      <img src="/logo.png" alt="bbeat — tu música, libre" class="mx-auto w-56" />
+      <p class="mt-3 text-xs text-slate-500">inicia sesión para entrar</p>
     </header>
 
     <form onsubmit={(e) => { e.preventDefault(); submit(); }} class="space-y-3">

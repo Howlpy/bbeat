@@ -1,9 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#0b0b0f"/>
-  <g fill="none" stroke="#34d399" stroke-width="22" stroke-linecap="round" transform="translate(0 30)">
-    <path d="M 160 256 Q 200 200 240 256 T 320 256 T 400 256"/>
-    <path d="M 160 306 Q 200 250 240 306 T 320 306 T 400 306" opacity="0.5"/>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="c" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#67E8F9"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <!-- A sangre (sin esquinas redondeadas): la máscara del SO recorta la forma. -->
+  <rect x="0" y="0" width="512" height="512" fill="#0F1626"/>
+  <!-- Barras escaladas al ~82% para quedar dentro de la zona segura del maskable. -->
+  <g transform="translate(256 256) scale(0.82) translate(-256 -256)">
+    <g fill="url(#c)">
+      <rect x="96"  y="216" width="48" height="150" rx="24"/>
+      <rect x="168" y="140" width="48" height="226" rx="24"/>
+      <rect x="240" y="96"  width="48" height="270" rx="24"/>
+      <rect x="312" y="170" width="48" height="196" rx="24"/>
+      <rect x="384" y="240" width="48" height="126" rx="24"/>
+    </g>
+    <circle cx="264" cy="366" r="22" fill="#A5F3FC"/>
   </g>
-  <text x="256" y="200" text-anchor="middle" fill="#34d399"
-        font-family="system-ui, sans-serif" font-size="120" font-weight="800">B</text>
 </svg>
