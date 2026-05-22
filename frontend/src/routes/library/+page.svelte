@@ -10,6 +10,7 @@
   let error = $state<string | null>(null);
   let query = $state('');
   let searching = $state(false);
+  let loading = $state(true);
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function load() {
@@ -19,6 +20,8 @@
       total = res.total;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    } finally {
+      loading = false;
     }
   }
 
@@ -93,6 +96,18 @@
 
   {#if error}
     <p class="text-red-400">{error}</p>
+  {:else if loading && tracks.length === 0}
+    <ul class="divide-y divide-slate-900">
+      {#each Array(8) as _, i (i)}
+        <li class="flex items-center gap-3 px-2 py-2">
+          <div class="size-10 flex-none animate-pulse rounded bg-slate-800"></div>
+          <div class="flex-1 space-y-2">
+            <div class="h-3 w-1/2 animate-pulse rounded bg-slate-800"></div>
+            <div class="h-2.5 w-1/3 animate-pulse rounded bg-slate-800"></div>
+          </div>
+        </li>
+      {/each}
+    </ul>
   {:else if tracks.length === 0}
     <p class="rounded-md border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">
       {query ? 'Sin resultados.' : 'Biblioteca vacía. Importa algo desde /import.'}

@@ -129,6 +129,16 @@
       <AlertTriangle size={16} /> {error}
     </p>
   {:else if album}
+    {#if album.cover_url}
+      <div class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80 overflow-hidden">
+        <img
+          src="{album.cover_url}{album.cover_url.includes('?') ? '&' : '?'}v={coverNonce}"
+          alt=""
+          class="size-full scale-125 object-cover opacity-25 blur-2xl"
+        />
+        <div class="absolute inset-0 bg-gradient-to-b from-transparent to-slate-950"></div>
+      </div>
+    {/if}
     <div class="mb-6 flex flex-col items-start gap-4 sm:flex-row sm:items-end">
       <div class="relative flex-none">
         {#if album.cover_url}

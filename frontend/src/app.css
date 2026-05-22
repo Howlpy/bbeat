@@ -9,3 +9,30 @@ body {
 body {
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
 }
+
+/* Pop del corazón al dar me gusta */
+@keyframes heartpop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.45); }
+  100% { transform: scale(1); }
+}
+.heart-pop {
+  animation: heartpop 0.38s ease;
+}
+
+/* Ecualizador animado en la pista que suena */
+@keyframes eqbar {
+  0%, 100% { height: 30%; }
+  50% { height: 100%; }
+}
+.eq-bar {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: #22d3ee;
+  animation: eqbar 0.85s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heart-pop, .eq-bar { animation: none; }
+}

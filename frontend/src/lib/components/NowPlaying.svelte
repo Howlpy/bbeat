@@ -6,15 +6,32 @@
     SkipBack,
     SkipForward,
     ChevronDown,
-    Volume2,
-    VolumeX,
+    Shuffle,
+    Repeat,
+    Repeat1,
+    Heart,
+    ListMusic,
     Mic2,
     Music2
   } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { api, formatDuration } from '$lib/api';
+  import { dominantColor } from '$lib/visual';
 
-  let { onclose }: { onclose: () => void } = $props();
+  let { onclose, onqueue }: { onclose: () => void; onqueue: () => void } = $props();
+
+  // Color ambiente extraído de la portada
+  let accent = $state<[number, number, number]>([34, 45, 70]);
+  $effect(() => {
+    const url = player.current?.cover_url;
+    if (!url) {
+      accent = [34, 45, 70];
+      return;
+    }
+    dominantColor(url)
+      .then((c) => (accent = c))
+      .catch(() => {});
+  });
 
   let plain = $state<string | null>(null);
   let synced = $state<{ time: number; text: string }[] | null>(null);
@@ -96,13 +113,19 @@
 
 {#if player.current}
   <div
-    class="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-slate-900 via-slate-950 to-black"
+    class="fixed inset-0 z-50 flex flex-col bg-black"
     style:transform="translateY({touchDelta > 0 ? touchDelta : 0}px)"
     style:transition={touchDelta === 0 ? 'transform 0.2s' : 'none'}
     ontouchstart={onTouchStart}
     ontouchmove={onTouchMove}
     ontouchend={onTouchEnd}
   >
+    <!-- Fondo ambiente del color de la portada -->
+    <div
+      class="pointer-events-none absolute inset-0 -z-10"
+      style:background="radial-gradient(ellipse 95% 55% at 50% 0%, rgba({accent[0]},{accent[1]},{accent[2]},0.6), transparent 72%), linear-gradient(180deg, rgb(2 6 23), #000 75%)"
+      style:transition="background 700ms ease"
+    ></div>
     <!-- Header -->
     <header class="flex flex-none items-center justify-between p-4">
       <button
@@ -112,13 +135,26 @@
       >
         <ChevronDown size={24} />
       </button>
-      <div class="text-center">
+      <div class="min-w-0 text-center">
         <div class="text-xs uppercase tracking-widest text-slate-500">Reproduciendo</div>
         <div class="truncate text-sm font-medium">
           {player.current.album_title || 'Sin álbum'}
         </div>
       </div>
-      <div class="size-10"></div>
+      <div class="flex flex-none items-center gap-1">
+        <button
+          onclick={() => player.toggleLikeCurrent()}
+          class="grid size-10 place-items-center rounded-full transition hover:bg-slate-800"
+          class:text-cyan-400={player.current.liked}
+          class:text-slate-300={!player.current.liked}
+          aria-label={player.current.liked ? 'Quitar de me gusta' : 'Me gusta'}
+        ><Heart size={20} fill={player.current.liked ? 'currentColor' : 'none'} /></button>
+        <button
+          onclick={onqueue}
+          class="grid size-10 place-items-center rounded-full text-slate-300 transition hover:bg-slate-800"
+          aria-label="Ver cola"
+        ><ListMusic size={20} /></button>
+      </div>
     </header>
 
     <!-- Tabs -->
@@ -148,7 +184,9 @@
             <img
               src={player.current.cover_url}
               alt=""
-              class="size-full rounded object-cover shadow-2xl shadow-cyan-500/20"
+              class="size-full rounded-lg object-cover"
+              style:box-shadow="0 25px 70px -15px rgba({accent[0]},{accent[1]},{accent[2]},0.6)"
+              style:transition="box-shadow 700ms ease"
             />
           {:else}
             <div class="grid size-full place-items-center rounded bg-slate-800 text-slate-700">
@@ -214,15 +252,13 @@
       <!-- Controles -->
       <div class="flex items-center justify-center gap-6">
         <button
-          onclick={() => player.toggleMute()}
-          class="text-slate-400 hover:text-slate-200"
-          aria-label="Silenciar"
+          onclick={() => player.toggleShuffle()}
+          class="transition"
+          class:text-cyan-400={player.shuffle}
+          class:text-slate-400={!player.shuffle}
+          aria-label="Aleatorio"
         >
-          {#if player.muted}
-            <VolumeX size={22} />
-          {:else}
-            <Volume2 size={22} />
-          {/if}
+          <Shuffle size={22} />
         </button>
 
         <button
@@ -253,7 +289,19 @@
           <SkipForward size={32} fill="currentColor" />
         </button>
 
-        <div class="size-[22px]"></div>
+        <button
+          onclick={() => player.cycleRepeat()}
+          class="transition"
+          class:text-cyan-400={player.repeat !== 'off'}
+          class:text-slate-400={player.repeat === 'off'}
+          aria-label="Repetir"
+        >
+          {#if player.repeat === 'one'}
+            <Repeat1 size={22} />
+          {:else}
+            <Repeat size={22} />
+          {/if}
+        </button>
       </div>
     </div>
   </div>
