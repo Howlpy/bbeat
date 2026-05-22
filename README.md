@@ -10,7 +10,7 @@ Pegas una URL de Spotify, YouTube o SoundCloud y Bbeat:
 4. Lo indexa y lo deja listo para reproducir.
 5. Si la pista ya existe en la biblioteca (mismo source ID), no la vuelve a descargar — solo la enlaza al álbum del usuario.
 
-Pensado para uso personal o entre amigos en una instancia compartida. No es una alternativa a Spotify pública: es para tu música, en tu servidor.
+Pensado para uso personal o entre amigos en una instancia compartida: cada usuario tiene sus favoritos, su historial y su "Wrapped", y puede **descargar canciones para escucharlas sin conexión** (PWA). No es una alternativa a Spotify pública: es para tu música, en tu servidor.
 
 > Aviso: no expongas Bbeat a internet sin entender los riesgos (ToS de las plataformas, copyright). Si lo haces, ten al menos auth (incluida) y rate limiting (no incluido aún).
 
@@ -21,22 +21,29 @@ Listo para uso real. Probado en producción privada en `bbeat.howl.wtf`.
 | Pieza | Estado |
 |---|---|
 | Reproductor con Media Session API (controles en lockscreen) | listo |
-| Pantalla "Now Playing" full-screen con letras sincronizadas | listo |
+| "Now Playing" full-screen con color ambiente de la portada + letras sincronizadas | listo |
+| Cola del reproductor (bottom-sheet), shuffle y repeat | listo |
+| Favoritos ("me gusta") por usuario + vista dedicada | listo |
+| Historial, "más escuchadas" y **Wrapped** (tus stats + top y actividad del server) | listo |
+| **Descargas offline** (PWA): escucha sin conexión (audio en IndexedDB) | listo |
+| Carátula propia **por pista** (no solo por álbum), con miniatura de YouTube de fallback | listo |
+| Pool global: cualquier usuario ve y reproduce todo el catálogo | listo |
 | Ingesta Spotify (SpotifyScraper, sin Premium ni dev app) | listo |
-| Ingesta YouTube y SoundCloud (yt-dlp directo) | listo |
+| Ingesta YouTube y SoundCloud + **playlists/mixes** con deselección de pistas | listo |
 | Multi-fuente con overrides de álbum/artista | listo |
 | Auth con JWT + admin (registrar/banear/promover) | listo |
-| Álbumes con dueño y visibilidad pública/privada | listo |
+| Álbumes con dueño (controlan edición) y flag público/privado | listo |
 | Crear álbumes vacíos y añadirles pistas existentes con búsqueda | listo |
 | Dedup automático (un track, varios álbumes vía M:N) | listo |
-| Búsqueda en biblioteca + filtros mine/public/all | listo |
-| Letras vía LRCLIB con sincronización en NowPlaying | listo |
-| Subir ficheros locales (drag & drop multi-archivo) | listo |
+| Búsqueda en biblioteca | listo |
+| Letras vía LRCLIB (con fallback por duración) + sincronización en NowPlaying | listo |
+| Subir ficheros locales (drag & drop multi-archivo, con renombrado) | listo |
 | Editar/borrar pistas y álbumes desde UI | listo |
 | Carátulas custom por álbum (re-embebe en todos los tracks) | listo |
-| Stats dual (lo que ves tú vs total de la instancia) | listo |
 | PWA instalable, audio en background | listo |
 | Votify (descarga directa de Spotify) | requiere Premium (ver nota) |
+
+> **Pool global:** desde mayo 2026 la vista de Pistas, la búsqueda y el streaming son compartidos — cualquier usuario autenticado ve y reproduce todo el catálogo de la instancia. El dueño/visibilidad de un álbum ya solo controla **quién puede editarlo o borrarlo**, no quién lo escucha. Pensado para instancias entre amigos de confianza.
 
 ## Stack
 
@@ -130,17 +137,18 @@ bbeat/
 │   ├── app/
 │   │   ├── api/                     endpoints HTTP
 │   │   ├── services/                spotify, downloader, jobs, auth, access...
-│   │   └── models.py                SQLModel (User, Track, Album, AlbumTrack, Job)
+│   │   └── models.py                SQLModel (User, Track, Album, AlbumTrack, Job, TrackLike, Play)
 │   ├── requirements.txt
 │   └── .env
 ├── frontend/                        SvelteKit
 │   ├── src/
-│   │   ├── routes/                  páginas
-│   │   └── lib/                     api.ts, auth, player, jobs, componentes
+│   │   ├── routes/                  páginas (home, library, albums, artists, liked, wrapped, downloads, import...)
+│   │   ├── service-worker.ts        cachea el shell para que la PWA arranque offline
+│   │   └── lib/                     api.ts, auth, player, jobs, offline (IndexedDB), visual, componentes
 │   └── package.json
 ├── data/                            (gitignored)
 │   ├── music/                       biblioteca organizada por artista/álbum
-│   ├── covers/                      carátulas extraídas
+│   ├── covers/                      carátulas por álbum y por pista (track-{id})
 │   ├── secrets/                     jwt.key, spotify_cookies.txt
 │   └── library.db                   SQLite
 ├── docker-compose.yml
@@ -154,6 +162,7 @@ bbeat/
 3. Tú decides:
    - Nuevo álbum (puedes meter título/artista/año custom para no-Spotify).
    - Añadir a un álbum existente tuyo.
+   - En playlists/mixes, marcar o desmarcar qué pistas importar.
 4. Confirmas; el backend crea Jobs en SQLite.
 5. Un worker single-thread procesa la cola: descarga, FFmpeg para extraer audio, mutagen para tags + cover, scanner para indexar.
 6. Si el track ya existe en la biblioteca (mismo ID externo), no descarga: añade el track a tu álbum vía `album_tracks` (M:N).
@@ -190,13 +199,13 @@ Bbeat ya trae auth: el primer usuario registrado es admin auto y desde `/admin` 
 
 ## Roadmap
 
-- Importar playlists locales (M3U)
+- Cola persistente (que sobreviva al cierre, con la última pista y posición)
 - Múltiples cookies de Spotify (una por usuario, para que cada uno use su Premium)
 - Rate limiting + protección DDoS para instancias públicas
 - Soporte de Subsonic API (compatibilidad con clientes como Symfonium / DSub)
-- Historial de reproducción + recomendaciones tipo "más escuchadas"
-- Mover pistas entre álbumes en bulk (drag&drop o multi-select)
-- Importar listas de Apple Music / Deezer / YouTube playlists
+- Mover pistas entre álbumes en bulk (multi-select)
+- Importar listas de Apple Music / Deezer
+- Dedup por título+artista+duración (ahora solo por ID externo, así que el mismo tema desde fuentes distintas puede duplicarse)
 
 ## Licencia
 
