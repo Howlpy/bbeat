@@ -45,6 +45,9 @@ class OfflineStore {
 
   async init() {
     if (!browser || !('indexedDB' in window)) return;
+    // Marca el almacenamiento como persistente para que el navegador no
+    // desaloje la caché del shell ni las descargas por falta de espacio.
+    navigator.storage?.persist?.().catch(() => {});
     try {
       const db = await openDB();
       const recs = await tx<Rec[]>(db, 'readonly', (s) => s.getAll());
