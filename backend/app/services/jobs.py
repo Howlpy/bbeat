@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -15,6 +16,12 @@ from app.models import Album, AlbumTrack, Artist, Job, Track
 from app.services import downloader, library as library_svc, organizer, scanner, sources, spotify, ytdlp_resolver
 
 log = logging.getLogger("bbeat.jobs")
+
+
+def _yt_video_id(url: str) -> Optional[str]:
+    """Extrae el id de un vídeo de YouTube de una URL (watch?v= o youtu.be/)."""
+    m = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", url or "")
+    return m.group(1) if m else None
 
 
 @dataclass
@@ -291,6 +298,13 @@ def process_job(job_id: int) -> None:
         if not dl_result.success:
             _mark_failed(job_id, dl_result.backend, dl_result.error or "download failed")
             return
+
+        # Si no hay carátula (típico en playlists de Spotify resueltas sin cookies),
+        # usar la miniatura del vídeo de YouTube del que se descargó.
+        if not meta.cover_url and dl_result.source_url:
+            vid = _yt_video_id(dl_result.source_url)
+            if vid:
+                meta.cover_url = f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg"
 
         # Organize (tags + cover)
         _update_job_progress(job_id, 97, "etiquetando")

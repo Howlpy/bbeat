@@ -64,6 +64,9 @@ class Track(SQLModel, table=True):
     # URL exacta del vídeo/track del que se descargó (para verificar match)
     source_url: Optional[str] = Field(default=None)
 
+    # True si hay carátula propia de la pista en covers/track-{id}.{jpg,png}
+    has_cover: bool = Field(default=False)
+
     file_path: str = Field(unique=True, index=True)
     file_size: Optional[int] = Field(default=None)
     file_format: Optional[str] = Field(default=None)

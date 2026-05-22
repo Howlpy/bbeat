@@ -37,7 +37,11 @@ def _track_payload(track: Track, artist: Artist, album: Optional[Album], liked: 
         "album_id": album.id if album else None,
         "album_title": album.title if album else None,
         "album_year": album.year if album else None,
-        "cover_url": f"/api/library/cover/{album.id}" if album and album.cover_path else None,
+        "cover_url": (
+            f"/api/library/cover/track/{track.id}"
+            if getattr(track, "has_cover", False)
+            else (f"/api/library/cover/{album.id}" if album and album.cover_path else None)
+        ),
         "track_number": track.track_number,
         "disc_number": track.disc_number,
         "duration_ms": track.duration_ms,
@@ -790,18 +794,20 @@ def record_play(
 def top_tracks(
     limit: int = Query(20, ge=1, le=100),
     days: Optional[int] = Query(None, ge=1, le=3650),
+    scope: str = Query("me", regex="^(me|server)$"),
     user: User = Depends(auth_svc.get_current_user),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Más escuchadas por este usuario (opcionalmente últimos N días)."""
+    """Más escuchadas. scope=me (este usuario) o server (todo el servidor)."""
     plays = func.count(Play.id).label("plays")
     stmt = (
         select(Track, Artist, Album, plays)
         .join(Play, Play.track_id == Track.id)
         .join(Artist, Track.artist_id == Artist.id)
         .outerjoin(Album, Track.album_id == Album.id)
-        .where(Play.user_id == user.id)
     )
+    if scope == "me":
+        stmt = stmt.where(Play.user_id == user.id)
     if days:
         stmt = stmt.where(Play.played_at >= datetime.utcnow() - timedelta(days=days))
     stmt = stmt.group_by(Track.id).order_by(plays.desc()).limit(limit)
@@ -835,5 +841,97 @@ def play_history(
     items = [
         {**_track_payload(t, ar, al, t.id in liked), "last_played": lp.isoformat() if lp else None}
         for t, ar, al, lp in session.exec(stmt).all()
+    ]
+    return {"items": items}
+
+
+@router.get("/me/stats")
+def my_stats(
+    days: Optional[int] = Query(None, ge=1, le=3650),
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Resumen tipo 'Wrapped' del usuario: totales + top tracks/artistas/álbumes."""
+    cutoff = datetime.utcnow() - timedelta(days=days) if days else None
+
+    def _scoped(stmt):
+        stmt = stmt.where(Play.user_id == user.id)
+        return stmt.where(Play.played_at >= cutoff) if cutoff else stmt
+
+    total_plays = session.exec(_scoped(select(func.count(Play.id)))).one()
+    total_ms = session.exec(
+        _scoped(
+            select(func.coalesce(func.sum(Track.duration_ms), 0))
+            .select_from(Play)
+            .join(Track, Track.id == Play.track_id)
+        )
+    ).one()
+    unique_tracks = session.exec(_scoped(select(func.count(func.distinct(Play.track_id))))).one()
+
+    liked = _user_liked_set(session, user)
+    plays_lbl = func.count(Play.id).label("plays")
+
+    tt = (
+        select(Track, Artist, Album, plays_lbl)
+        .join(Play, Play.track_id == Track.id)
+        .join(Artist, Track.artist_id == Artist.id)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(Play.user_id == user.id)
+    )
+    if cutoff:
+        tt = tt.where(Play.played_at >= cutoff)
+    tt = tt.group_by(Track.id).order_by(plays_lbl.desc()).limit(5)
+    top_tracks = [
+        {**_track_payload(t, ar, al, t.id in liked), "plays": n}
+        for t, ar, al, n in session.exec(tt).all()
+    ]
+
+    ta = (
+        select(Artist.id, Artist.name, plays_lbl)
+        .join(Track, Track.artist_id == Artist.id)
+        .join(Play, Play.track_id == Track.id)
+        .where(Play.user_id == user.id)
+    )
+    if cutoff:
+        ta = ta.where(Play.played_at >= cutoff)
+    ta = ta.group_by(Artist.id).order_by(plays_lbl.desc()).limit(5)
+    top_artists = [
+        {"id": aid, "name": name, "plays": n} for aid, name, n in session.exec(ta).all()
+    ]
+
+    return {
+        "total_plays": total_plays,
+        "total_minutes": round((total_ms or 0) / 60000),
+        "unique_tracks": unique_tracks,
+        "liked_count": len(liked),
+        "top_tracks": top_tracks,
+        "top_artists": top_artists,
+    }
+
+
+@router.get("/activity")
+def activity(
+    limit: int = Query(30, ge=1, le=100),
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Reproducciones recientes de TODOS los usuarios (qué suena en el server)."""
+    stmt = (
+        select(Play.played_at, User.username, Track, Artist, Album)
+        .join(User, User.id == Play.user_id)
+        .join(Track, Track.id == Play.track_id)
+        .join(Artist, Track.artist_id == Artist.id)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .order_by(Play.played_at.desc())
+        .limit(limit)
+    )
+    liked = _user_liked_set(session, user)
+    items = [
+        {
+            "username": username,
+            "played_at": played_at.isoformat() if played_at else None,
+            **_track_payload(t, ar, al, t.id in liked),
+        }
+        for played_at, username, t, ar, al in session.exec(stmt).all()
     ]
     return {"items": items}

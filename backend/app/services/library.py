@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import session_scope
-from app.models import Album, Artist, Track
+from app.models import Album, AlbumTrack, Artist, Track
 from app.services import organizer
 
 log = logging.getLogger("bbeat.library")
@@ -127,9 +127,20 @@ def delete_track(track_id: int) -> bool:
         file_path = settings.music_dir / t.file_path
         album_id = t.album_id
         artist_id = t.artist_id
+        # Limpiar la M:N (en cualquier álbum) para no dejar filas huérfanas.
+        for at in s.exec(select(AlbumTrack).where(AlbumTrack.track_id == track_id)).all():
+            s.delete(at)
         s.delete(t)
         s.flush()
         _delete_file_safe(file_path)
+        # Borrar la carátula propia de la pista si existe
+        for ext in (".jpg", ".png"):
+            cp = settings.covers_dir / f"track-{track_id}{ext}"
+            if cp.is_file():
+                try:
+                    cp.unlink()
+                except OSError:
+                    pass
         # Si el álbum se quedó sin pistas, borrarlo (y carátula)
         if album_id:
             remaining = s.exec(
@@ -174,9 +185,14 @@ def delete_album(album_id: int) -> dict:
         tracks = s.exec(select(Track).where(Track.album_id == album_id)).all()
         for t in tracks:
             file_path = settings.music_dir / t.file_path
+            for at in s.exec(select(AlbumTrack).where(AlbumTrack.track_id == t.id)).all():
+                s.delete(at)
             s.delete(t)
             _delete_file_safe(file_path)
             deleted_tracks += 1
+        # Quitar enlaces M:N de pistas de OTROS álbumes que se añadieron a este.
+        for at in s.exec(select(AlbumTrack).where(AlbumTrack.album_id == album_id)).all():
+            s.delete(at)
         _delete_album_record(s, album_id)
         s.flush()
         # ¿Artista huérfano?

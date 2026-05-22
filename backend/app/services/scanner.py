@@ -145,6 +145,53 @@ def _save_cover(album_id: int, data: bytes) -> Optional[str]:
         return None
 
 
+def save_track_cover(track_id: int, data: bytes) -> bool:
+    """Guarda la carátula propia de una pista en covers/track-{id}.{jpg,png}."""
+    settings.covers_dir.mkdir(parents=True, exist_ok=True)
+    ext = ".jpg" if data[:3] == b"\xff\xd8\xff" else ".png" if data[:4] == b"\x89PNG" else ".jpg"
+    try:
+        (settings.covers_dir / f"track-{track_id}{ext}").write_bytes(data)
+        return True
+    except OSError as e:
+        log.warning("No pude guardar cover de pista %s: %s", track_id, e)
+        return False
+
+
+def backfill_track_covers() -> dict:
+    """Asigna carátula propia a cada pista: usa la embebida; si no hay y la pista
+    viene de YouTube, baja la miniatura, la embebe y la guarda."""
+    from app.services import organizer
+
+    embedded = saved = 0
+    with session_scope() as s:
+        tracks = s.exec(select(Track)).all()
+        for t in tracks:
+            fpath = settings.music_dir / t.file_path
+            if not fpath.is_file():
+                continue
+            au = MutagenFile(fpath)
+            data = _extract_cover_bytes(au) if au else None
+            if not data and t.source_url:
+                m = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", t.source_url)
+                if m:
+                    cd = organizer._fetch_cover_bytes(
+                        f"https://i.ytimg.com/vi/{m.group(1)}/hqdefault.jpg"
+                    )
+                    if cd:
+                        try:
+                            organizer.embed_cover(fpath, cd)
+                            data = cd
+                            embedded += 1
+                        except Exception:
+                            pass
+            if data and save_track_cover(t.id, data):
+                if not t.has_cover:
+                    t.has_cover = True
+                    s.add(t)
+                saved += 1
+    return {"embedded": embedded, "saved": saved}
+
+
 def _get_or_create_artist(session: Session, name: str) -> Artist:
     normalized = _norm(name)
     artist = session.exec(select(Artist).where(Artist.name_normalized == normalized)).first()
@@ -198,11 +245,10 @@ def _index_one(session: Session, path: Path) -> str:
     artist = _get_or_create_artist(session, artist_name)
     album = _get_or_create_album(session, album_title, artist.id, tags["year"])
 
-    if not album.cover_path:
-        cover_bytes = _extract_cover_bytes(audio)
-        if cover_bytes:
-            album.cover_path = _save_cover(album.id, cover_bytes)
-            session.add(album)
+    cover_bytes = _extract_cover_bytes(audio)
+    if cover_bytes and not album.cover_path:
+        album.cover_path = _save_cover(album.id, cover_bytes)
+        session.add(album)
 
     rel_path = str(path.relative_to(settings.music_dir))
     info = audio.info
@@ -226,17 +272,24 @@ def _index_one(session: Session, path: Path) -> str:
     if track is None:
         track = Track(file_path=rel_path, **fields)
         session.add(track)
-        return "added"
+        status = "added"
+    else:
+        status = "skipped"
+        for k, v in fields.items():
+            if getattr(track, k) != v:
+                setattr(track, k, v)
+                status = "updated"
+        if status == "updated":
+            session.add(track)
 
-    changed = False
-    for k, v in fields.items():
-        if getattr(track, k) != v:
-            setattr(track, k, v)
-            changed = True
-    if changed:
-        session.add(track)
-        return "updated"
-    return "skipped"
+    # Carátula propia de la pista (independiente del álbum).
+    if cover_bytes and not track.has_cover:
+        session.flush()  # asegura track.id
+        if save_track_cover(track.id, cover_bytes):
+            track.has_cover = True
+            session.add(track)
+
+    return status
 
 
 def index_file(path: Path) -> Optional[int]:

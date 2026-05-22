@@ -147,3 +147,28 @@ def get_cover(
         media_type=media_type,
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+@router.get("/cover/track/{track_id}")
+def get_track_cover(
+    track_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+):
+    """Carátula propia de la pista (covers/track-{id}.{jpg,png})."""
+    track = session.get(Track, track_id)
+    if track is None or not getattr(track, "has_cover", False):
+        raise HTTPException(404, "cover not found")
+    for ext in (".jpg", ".png"):
+        path = (settings.covers_dir / f"track-{track_id}{ext}").resolve()
+        if path.is_file():
+            try:
+                path.relative_to(settings.covers_dir.resolve())
+            except ValueError:
+                raise HTTPException(400, "invalid path")
+            return FileResponse(
+                path,
+                media_type="image/jpeg" if ext == ".jpg" else "image/png",
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
+    raise HTTPException(404, "cover file missing")

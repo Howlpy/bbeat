@@ -129,8 +129,20 @@ def _track_meta_from_entry(
         )
         if sorted_thumbs:
             cover = sorted_thumbs[0].get("url")
+    # Último recurso para YouTube: la miniatura es derivable del id del vídeo.
+    if not cover and source_kind == "youtube" and entry.get("id"):
+        cover = f"https://i.ytimg.com/vi/{entry['id']}/hqdefault.jpg"
 
     dur = entry.get("duration") or 0  # seconds
+
+    # source_url: SIEMPRE el vídeo individual. En YouTube lo construimos desde el
+    # id (fiable); NUNCA caer a la URL de la playlist, o el descargador (con
+    # noplaylist) bajaría el MISMO vídeo para todas las entradas.
+    if source_kind == "youtube" and entry.get("id"):
+        track_src = f"https://www.youtube.com/watch?v={entry['id']}"
+    else:
+        track_src = entry.get("webpage_url") or entry.get("url") or source_url
+
     return TrackMeta(
         spotify_id=f"{prefix}:{track_id}",
         title=title,
@@ -144,7 +156,7 @@ def _track_meta_from_entry(
         isrc=None,
         year=entry.get("release_year") or _year_from_release_date(entry.get("release_date")),
         cover_url=cover,
-        source_url=entry.get("webpage_url") or entry.get("url") or source_url,
+        source_url=track_src,
         source_kind=source_kind,
     )
 
