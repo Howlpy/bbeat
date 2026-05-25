@@ -7,7 +7,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlmodel import Session, select
 
 from app.db import get_session, session_scope
-from app.models import Album, User
+from app.models import Album, AlbumSave, User
 from app.services import auth as auth_svc
 
 log = logging.getLogger("bbeat.users")
@@ -90,13 +90,14 @@ def me(user: User = Depends(auth_svc.get_current_user)) -> dict:
 
 
 def _assign_orphaned_albums_to(user_id: int) -> int:
-    """Adjudica todos los álbumes sin owner al user dado, como públicos."""
+    """Adjudica todos los álbumes sin owner al user dado y se los guarda."""
     with session_scope() as s:
         rows = s.exec(select(Album).where(Album.owner_id == None)).all()  # noqa: E711
         for a in rows:
             a.owner_id = user_id
-            a.is_public = True
             s.add(a)
+            if not s.get(AlbumSave, (user_id, a.id)):
+                s.add(AlbumSave(user_id=user_id, album_id=a.id))
         return len(rows)
 
 

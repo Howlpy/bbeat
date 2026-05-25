@@ -41,6 +41,7 @@ def _migrate_schema() -> None:
         ("jobs", "target_album_id", "INTEGER"),
         ("albums", "owner_id", "INTEGER"),
         ("albums", "is_public", "INTEGER DEFAULT 0"),
+        ("albums", "kind", "TEXT DEFAULT 'album'"),
         ("tracks", "external_id", "TEXT"),
         ("tracks", "source_url", "TEXT"),
         ("tracks", "has_cover", "INTEGER DEFAULT 0"),
@@ -78,6 +79,28 @@ def _migrate_schema() -> None:
         except Exception as e:
             import logging
             logging.warning("backfill album_tracks falló: %s", e)
+        # Backfill: marcar como 'playlist' los álbumes cuyo artista es Various Artists.
+        try:
+            conn.exec_driver_sql(
+                "UPDATE albums SET kind = 'playlist' WHERE kind != 'playlist' "
+                "AND artist_id IN (SELECT id FROM artists WHERE name_normalized = 'various artists')"
+            )
+        except Exception as e:
+            import logging
+            logging.warning("backfill album.kind falló: %s", e)
+        # Backfill: auto-guardar a cada dueño sus álbumes existentes, para que la
+        # pestaña 'Guardados' no salga vacía al estrenar el modelo de guardados.
+        try:
+            row = conn.exec_driver_sql("SELECT COUNT(*) FROM album_saves").first()
+            if row and row[0] == 0:
+                conn.exec_driver_sql(
+                    "INSERT OR IGNORE INTO album_saves (user_id, album_id, created_at) "
+                    "SELECT owner_id, id, CURRENT_TIMESTAMP FROM albums "
+                    "WHERE owner_id IS NOT NULL"
+                )
+        except Exception as e:
+            import logging
+            logging.warning("backfill album_saves falló: %s", e)
 
 
 @contextmanager

@@ -6,9 +6,9 @@ Pegas una URL de Spotify, YouTube o SoundCloud y Bbeat:
 
 1. Extrae metadata sin auth (título, artista, álbum, carátula).
 2. Descarga el audio (yt-dlp por defecto; Votify si subes cookies de cuenta Premium).
-3. Etiqueta y organiza el fichero en `Artista/Álbum/NN - Título.ext`.
+3. Etiqueta y organiza el fichero en `Artista/Álbum/NN - Título.ext` (o `Artista/Singles/` si es una canción suelta).
 4. Lo indexa y lo deja listo para reproducir.
-5. Si la pista ya existe en la biblioteca (mismo source ID), no la vuelve a descargar — solo la enlaza al álbum del usuario.
+5. Si la pista ya existe en la biblioteca (mismo source ID), no la vuelve a descargar — solo la enlaza al destino que elijas.
 
 Pensado para uso personal o entre amigos en una instancia compartida: cada usuario tiene sus favoritos, su historial y su "Wrapped", y puede **descargar canciones para escucharlas sin conexión** (PWA). No es una alternativa a Spotify pública: es para tu música, en tu servidor.
 
@@ -27,13 +27,15 @@ Listo para uso real. Probado en producción privada en `bbeat.howl.wtf`.
 | Historial, "más escuchadas" y **Wrapped** (tus stats + top y actividad del server) | listo |
 | **Descargas offline** (PWA): escucha sin conexión (audio en IndexedDB) | listo |
 | Carátula propia **por pista** (no solo por álbum), con miniatura de YouTube de fallback | listo |
-| Pool global: cualquier usuario ve y reproduce todo el catálogo | listo |
+| Pool global: cualquier usuario ve y reproduce todo el catálogo (pistas y álbumes) | listo |
 | Ingesta Spotify (SpotifyScraper, sin Premium ni dev app) | listo |
 | Ingesta YouTube y SoundCloud + **playlists/mixes** con deselección de pistas | listo |
-| Multi-fuente con overrides de álbum/artista | listo |
+| **Playlists multi-artista**: una playlist se agrupa en UNA colección (Various Artists), no en N álbumes | listo |
+| **Canciones sueltas**: al importar eliges suelta (sin álbum) · álbum/playlist nuevo · añadir a uno tuyo | listo |
 | Auth con JWT + admin (registrar/banear/promover) | listo |
-| Álbumes con dueño (controlan edición) y flag público/privado | listo |
-| Crear álbumes vacíos y añadirles pistas existentes con búsqueda | listo |
+| **Biblioteca por "guardados"**: catálogo global de álbumes/playlists, guardas los que quieras (Guardados/Explorar) | listo |
+| Álbumes con dueño: solo el dueño (o admin) edita, borra y cambia la carátula | listo |
+| Crear playlists y añadirles pistas existentes con búsqueda | listo |
 | Dedup automático (un track, varios álbumes vía M:N) | listo |
 | Búsqueda en biblioteca | listo |
 | Letras vía LRCLIB (con fallback por duración) + sincronización en NowPlaying | listo |
@@ -43,7 +45,7 @@ Listo para uso real. Probado en producción privada en `bbeat.howl.wtf`.
 | PWA instalable, audio en background | listo |
 | Votify (descarga directa de Spotify) | requiere Premium (ver nota) |
 
-> **Pool global:** desde mayo 2026 la vista de Pistas, la búsqueda y el streaming son compartidos — cualquier usuario autenticado ve y reproduce todo el catálogo de la instancia. El dueño/visibilidad de un álbum ya solo controla **quién puede editarlo o borrarlo**, no quién lo escucha. Pensado para instancias entre amigos de confianza.
+> **Pool global:** desde mayo 2026 Pistas, álbumes, playlists, búsqueda y streaming son compartidos — cualquier usuario autenticado ve y reproduce todo el catálogo de la instancia. Se retiró el modelo público/privado: lo que decide tu biblioteca personal es **guardar** (pestañas Guardados / Explorar), y el dueño de un álbum solo controla **quién puede editarlo, borrarlo o cambiarle la carátula**. Pensado para instancias entre amigos de confianza.
 
 ## Stack
 
@@ -137,7 +139,7 @@ bbeat/
 │   ├── app/
 │   │   ├── api/                     endpoints HTTP
 │   │   ├── services/                spotify, downloader, jobs, auth, access...
-│   │   └── models.py                SQLModel (User, Track, Album, AlbumTrack, Job, TrackLike, Play)
+│   │   └── models.py                SQLModel (User, Track, Album, AlbumTrack, AlbumSave, Job, TrackLike, Play)
 │   ├── requirements.txt
 │   └── .env
 ├── frontend/                        SvelteKit
@@ -159,13 +161,14 @@ bbeat/
 
 1. Pegas una URL en `/import`.
 2. El frontend pide preview (`POST /api/ingest/preview`): SpotifyScraper o yt-dlp resuelven la metadata sin descargar.
-3. Tú decides:
-   - Nuevo álbum (puedes meter título/artista/año custom para no-Spotify).
-   - Añadir a un álbum existente tuyo.
+3. Eliges el **destino**:
+   - **Auto**: una canción individual entra suelta (sin álbum); un álbum, como su álbum; una playlist, como una colección multi-artista (Various Artists).
+   - **Álbum/playlist nuevo** (puedes meter título/artista/año custom).
+   - **Añadir a uno tuyo** existente.
    - En playlists/mixes, marcar o desmarcar qué pistas importar.
 4. Confirmas; el backend crea Jobs en SQLite.
 5. Un worker single-thread procesa la cola: descarga, FFmpeg para extraer audio, mutagen para tags + cover, scanner para indexar.
-6. Si el track ya existe en la biblioteca (mismo ID externo), no descarga: añade el track a tu álbum vía `album_tracks` (M:N).
+6. Si el track ya existe en la biblioteca (mismo ID externo), no descarga: lo enlaza al destino vía `album_tracks` (M:N).
 
 ## Votify: solo con Spotify Premium
 
@@ -206,6 +209,8 @@ Bbeat ya trae auth: el primer usuario registrado es admin auto y desde `/admin` 
 - Mover pistas entre álbumes en bulk (multi-select)
 - Importar listas de Apple Music / Deezer
 - Dedup por título+artista+duración (ahora solo por ID externo, así que el mismo tema desde fuentes distintas puede duplicarse)
+- Dueño de pista (hoy una canción suelta, sin álbum, la puede editar/borrar cualquiera)
+- Reproducción en segundo plano fiable con pantalla bloqueada (app nativa / Capacitor)
 
 ## Licencia
 

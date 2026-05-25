@@ -139,9 +139,16 @@ def write_tags(path: Path, meta: TrackMeta) -> None:
 
     audio["title"] = meta.title
     audio["artist"] = "; ".join(meta.artists) if meta.artists else "Unknown Artist"
-    audio["album"] = meta.album or "Unknown Album"
-    audio["albumartist"] = meta.album_artist or meta.primary_artist
-    audio["tracknumber"] = f"{meta.track_number}/{meta.total_tracks}"
+    if meta.album:
+        audio["album"] = meta.album
+        audio["albumartist"] = meta.album_artist or meta.primary_artist
+        audio["tracknumber"] = f"{meta.track_number}/{meta.total_tracks}"
+    else:
+        # Canción suelta (single): sin álbum. Quitamos los tags de álbum por si
+        # el fichero los traía, para que el scanner la indexe como suelta.
+        for k in ("album", "albumartist", "tracknumber"):
+            if k in audio:
+                del audio[k]
     audio["discnumber"] = str(meta.disc_number)
     if meta.year:
         audio["date"] = str(meta.year)

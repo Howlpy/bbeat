@@ -61,3 +61,7 @@ Thumbs.db
 *.tmp
 *.pid
 tmp/
+
+# backups de la BD
+data/*.bak
+data/*.bak-*

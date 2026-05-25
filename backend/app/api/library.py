@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import get_session
-from app.models import Album, AlbumTrack, Artist, Play, Track, TrackLike, User
+from app.models import Album, AlbumSave, AlbumTrack, Artist, Play, Track, TrackLike, User
 from app.services import access as access_svc
 from app.services import auth as auth_svc
 from app.services import library as library_svc
@@ -21,10 +21,58 @@ from app.services import organizer, scanner, spotify
 router = APIRouter(prefix="/library", tags=["library"])
 
 
+def _cover_ver(filename: Optional[str]) -> str:
+    """Sufijo ?v=<mtime> para versionar la URL de una carátula. Cuando el fichero
+    cambia (re-subida), cambia la URL → cualquier caché (navegador/CDN) la refresca.
+    """
+    if not filename:
+        return ""
+    try:
+        return f"?v={int((settings.covers_dir / filename).stat().st_mtime)}"
+    except OSError:
+        return ""
+
+
+def _track_cover_file(track_id: int) -> Optional[str]:
+    for ext in (".jpg", ".png"):
+        if (settings.covers_dir / f"track-{track_id}{ext}").is_file():
+            return f"track-{track_id}{ext}"
+    return None
+
+
 def _user_liked_set(session: Session, user: User) -> set[int]:
     """track_ids a los que este usuario ha dado 'me gusta'."""
     rows = session.exec(select(TrackLike.track_id).where(TrackLike.user_id == user.id)).all()
     return {r[0] if isinstance(r, (tuple, list)) else r for r in rows}
+
+
+def _user_saved_album_ids(session: Session, user: User) -> set[int]:
+    """album_ids que este usuario ha guardado en su biblioteca."""
+    rows = session.exec(select(AlbumSave.album_id).where(AlbumSave.user_id == user.id)).all()
+    return {r[0] if isinstance(r, (tuple, list)) else r for r in rows}
+
+
+def _album_payload(
+    album: Album, artist_name: str, track_count: int, *, is_saved: bool, is_mine: bool
+) -> dict:
+    """Dict serializado de un álbum/playlist para la UI (formato único)."""
+    return {
+        "id": album.id,
+        "title": album.title,
+        "year": album.year,
+        "artist_id": album.artist_id,
+        "artist_name": artist_name,
+        "track_count": track_count,
+        "cover_url": (
+            f"/api/library/cover/{album.id}{_cover_ver(album.cover_path)}"
+            if album.cover_path
+            else None
+        ),
+        "owner_id": album.owner_id,
+        "kind": album.kind,
+        "is_mine": is_mine,
+        "is_saved": is_saved,
+    }
 
 
 def _track_payload(track: Track, artist: Artist, album: Optional[Album], liked: bool = False) -> dict:
@@ -38,9 +86,13 @@ def _track_payload(track: Track, artist: Artist, album: Optional[Album], liked: 
         "album_title": album.title if album else None,
         "album_year": album.year if album else None,
         "cover_url": (
-            f"/api/library/cover/track/{track.id}"
+            f"/api/library/cover/track/{track.id}{_cover_ver(_track_cover_file(track.id))}"
             if getattr(track, "has_cover", False)
-            else (f"/api/library/cover/{album.id}" if album and album.cover_path else None)
+            else (
+                f"/api/library/cover/{album.id}{_cover_ver(album.cover_path)}"
+                if album and album.cover_path
+                else None
+            )
         ),
         "track_number": track.track_number,
         "disc_number": track.disc_number,
@@ -93,10 +145,15 @@ def list_tracks(
 
 @router.get("/albums")
 def list_albums(
-    scope: str = Query("all", regex="^(all|mine|public)$"),
+    scope: str = Query("saved", regex="^(saved|all|mine)$"),
+    kind: Optional[str] = Query(None, regex="^(album|playlist)$"),
+    q: Optional[str] = Query(None),
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
+    """Lista álbumes/playlists. scope: 'saved' (los que guardaste, por defecto),
+    'all' (explorar todo el catálogo) o 'mine' (de los que eres dueño)."""
+    saved_ids = _user_saved_album_ids(session, user)
     stmt = (
         select(
             Album,
@@ -108,31 +165,79 @@ def list_albums(
         .group_by(Album.id)
         .order_by(Artist.name, Album.year, Album.title)
     )
-    if user.is_admin and scope == "all":
-        pass
+    if scope == "saved":
+        if not saved_ids:
+            return {"total": 0, "items": []}
+        stmt = stmt.where(Album.id.in_(saved_ids))
     elif scope == "mine":
         stmt = stmt.where(Album.owner_id == user.id)
-    elif scope == "public":
-        stmt = stmt.where(Album.is_public == True)  # noqa: E712
-    else:
-        # 'all' para no-admin = mis álbumes + públicos
-        stmt = stmt.where(or_(Album.owner_id == user.id, Album.is_public == True))  # noqa: E712
+    # 'all' → pool global, sin filtro de propiedad.
+    if kind:
+        stmt = stmt.where(Album.kind == kind)
+    if q and q.strip():
+        qlike = f"%{q.strip().lower()}%"
+        stmt = stmt.where(
+            or_(func.lower(Album.title).like(qlike), func.lower(Artist.name).like(qlike))
+        )
     items = [
-        {
-            "id": album.id,
-            "title": album.title,
-            "year": album.year,
-            "artist_id": album.artist_id,
-            "artist_name": artist_name,
-            "track_count": track_count,
-            "cover_url": f"/api/library/cover/{album.id}" if album.cover_path else None,
-            "owner_id": album.owner_id,
-            "is_public": album.is_public,
-            "is_mine": album.owner_id == user.id,
-        }
+        _album_payload(
+            album, artist_name, track_count,
+            is_saved=album.id in saved_ids,
+            is_mine=album.owner_id == user.id,
+        )
         for album, artist_name, track_count in session.exec(stmt).all()
     ]
     return {"total": len(items), "items": items}
+
+
+@router.put("/albums/{album_id}/save")
+def save_album(
+    album_id: int,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Guarda un álbum/playlist en tu biblioteca (aparece en 'Guardados')."""
+    if not session.get(Album, album_id):
+        raise HTTPException(404, "álbum no encontrado")
+    if not session.get(AlbumSave, (user.id, album_id)):
+        session.add(AlbumSave(user_id=user.id, album_id=album_id))
+    return {"saved": True}
+
+
+@router.delete("/albums/{album_id}/save")
+def unsave_album(
+    album_id: int,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Quita un álbum/playlist de tu biblioteca (no borra nada del catálogo)."""
+    existing = session.get(AlbumSave, (user.id, album_id))
+    if existing:
+        session.delete(existing)
+    return {"saved": False}
+
+
+@router.get("/albums/{album_id}")
+def get_album(
+    album_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
+    """Un álbum/playlist concreto (para la vista de detalle, lo veas o no guardado)."""
+    album = session.get(Album, album_id)
+    if not album:
+        raise HTTPException(404, "álbum no encontrado")
+    artist = session.get(Artist, album.artist_id)
+    track_count = session.exec(
+        select(func.count(AlbumTrack.track_id)).where(AlbumTrack.album_id == album_id)
+    ).one()
+    return _album_payload(
+        album,
+        artist.name if artist else "Unknown Artist",
+        track_count,
+        is_saved=session.get(AlbumSave, (user.id, album_id)) is not None,
+        is_mine=album.owner_id == user.id,
+    )
 
 
 @router.get("/artists")
@@ -338,29 +443,19 @@ def recent(
             for t, ar, al in session.exec(stmt).all()
         ]
     if kind in ("albums", "both"):
-        visible_albums = access_svc.visible_album_ids(session, user)
+        saved_ids = _user_saved_album_ids(session, user)
         stmt = (
             select(Album, Artist.name, func.count(AlbumTrack.track_id).label("tc"))
             .join(Artist, Album.artist_id == Artist.id)
             .outerjoin(AlbumTrack, AlbumTrack.album_id == Album.id)
-            .where(Album.id.in_(visible_albums))
             .group_by(Album.id)
             .order_by(Album.created_at.desc())
             .limit(limit)
         )
         out["albums"] = [
-            {
-                "id": a.id,
-                "title": a.title,
-                "year": a.year,
-                "artist_id": a.artist_id,
-                "artist_name": an,
-                "track_count": tc,
-                "cover_url": f"/api/library/cover/{a.id}" if a.cover_path else None,
-                "owner_id": a.owner_id,
-                "is_public": a.is_public,
-                "is_mine": a.owner_id == user.id,
-            }
+            _album_payload(
+                a, an, tc, is_saved=a.id in saved_ids, is_mine=a.owner_id == user.id
+            )
             for a, an, tc in session.exec(stmt).all()
         ]
     return out
@@ -456,7 +551,7 @@ class NewAlbumIn(BaseModel):
     title: str
     artist: Optional[str] = None
     year: Optional[int] = None
-    is_public: bool = False
+    kind: str = "playlist"
 
 
 @router.post("/albums")
@@ -465,7 +560,9 @@ def create_album(
     user: User = Depends(auth_svc.get_current_user),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Crea un álbum vacío. El user lo posee y decide si lo comparte."""
+    """Crea una colección vacía. El user la posee y queda guardada en su biblioteca.
+
+    Por defecto es 'playlist' (colección multi-artista hecha a mano)."""
     title = (body.title or "").strip()
     if not title:
         raise HTTPException(400, "título requerido")
@@ -474,18 +571,15 @@ def create_album(
     album = library_svc._get_or_create_album(session, title, artist.id, body.year)
     if album.owner_id is None:
         album.owner_id = user.id
-    album.is_public = body.is_public
+    album.kind = body.kind if body.kind in ("album", "playlist") else "playlist"
     session.add(album)
     session.flush()
-    return {
-        "id": album.id,
-        "title": album.title,
-        "artist_id": album.artist_id,
-        "artist_name": artist.name,
-        "year": album.year,
-        "is_public": album.is_public,
-        "owner_id": album.owner_id,
-    }
+    # Lo creas → lo tienes guardado.
+    if not session.get(AlbumSave, (user.id, album.id)):
+        session.add(AlbumSave(user_id=user.id, album_id=album.id))
+    return _album_payload(
+        album, artist.name, 0, is_saved=True, is_mine=album.owner_id == user.id
+    )
 
 
 @router.delete("/albums/{album_id}")
@@ -508,7 +602,6 @@ def delete_album(
 class EditAlbumIn(BaseModel):
     title: Optional[str] = None
     year: Optional[int] = None
-    is_public: Optional[bool] = None
 
 
 @router.patch("/albums/{album_id}")
@@ -523,17 +616,12 @@ def edit_album(
         raise HTTPException(404, "no encontrado")
     if not access_svc.can_mutate_album(a, user):
         raise HTTPException(403, "no es tuyo")
-    # is_public lo gestionamos aquí, los demás campos vía library_svc.edit_album
-    if body.is_public is not None:
-        a.is_public = body.is_public
-        session.add(a)
     edit_kwargs = body.model_dump(exclude_none=True)
-    edit_kwargs.pop("is_public", None)
     if edit_kwargs:
         res = library_svc.edit_album(album_id, **edit_kwargs)
         if not res.get("ok"):
             raise HTTPException(400, res.get("reason", "error"))
-    return {"ok": True, "is_public": a.is_public}
+    return {"ok": True}
 
 
 # ─── Letras (LRCLIB) ──────────────────────────────────────────
@@ -548,10 +636,8 @@ def get_lyrics(
     t = session.get(Track, track_id)
     if not t:
         raise HTTPException(404, "track no encontrado")
-    # Visibilidad
+    # Pool global: cualquier usuario autenticado puede pedir letras.
     album = session.get(Album, t.album_id) if t.album_id else None
-    if album and not user.is_admin and not (album.is_public or album.owner_id == user.id):
-        raise HTTPException(403, "no tienes acceso")
     artist = session.get(Artist, t.artist_id)
     return lyrics_svc.fetch_lyrics(
         artist=artist.name if artist else "",

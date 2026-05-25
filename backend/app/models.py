@@ -42,6 +42,10 @@ class Album(SQLModel, table=True):
     year: Optional[int] = Field(default=None, index=True)
     cover_path: Optional[str] = Field(default=None)
     owner_id: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
+    # 'album' = lanzamiento de un único artista; 'playlist' = colección multi-artista.
+    kind: str = Field(default="album", index=True)
+    # Deprecado: el modelo público/privado se retiró (pool global). Se conserva la
+    # columna para no romper el esquema antiguo, pero ya no se usa en ninguna lógica.
     is_public: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=_now)
 
@@ -92,6 +96,19 @@ class AlbumTrack(SQLModel, table=True):
     track_id: int = Field(foreign_key="tracks.id", primary_key=True)
     position: Optional[int] = Field(default=None)  # número de orden en el álbum
     added_at: datetime = Field(default_factory=_now)
+
+
+class AlbumSave(SQLModel, table=True):
+    """Álbum/playlist guardado por un usuario en su biblioteca.
+
+    El catálogo de álbumes es un pool global (cualquiera ve todo); 'guardar'
+    es lo que decide qué aparece en la sección personal de cada usuario.
+    """
+    __tablename__ = "album_saves"
+
+    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    album_id: int = Field(foreign_key="albums.id", primary_key=True)
+    created_at: datetime = Field(default_factory=_now)
 
 
 class TrackLike(SQLModel, table=True):

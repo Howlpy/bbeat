@@ -1,49 +1,31 @@
-"""Filtros de visibilidad por usuario, conscientes de AlbumTrack (M:N)."""
+"""Permisos de mutación por usuario.
+
+La LECTURA del catálogo es un pool global: cualquier usuario autenticado ve y
+reproduce todo (pistas, álbumes y playlists). Lo que decide qué aparece en la
+biblioteca personal de cada uno es 'guardar' (AlbumSave), no la visibilidad.
+La MUTACIÓN (editar/borrar/añadir pistas) sigue restringida a dueño o admin.
+"""
 from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import or_
 from sqlmodel import Session, select
 
-from app.models import Album, AlbumTrack, Track, User
+from app.models import Album, Track, User
 
 
 def visible_album_ids(session: Session, user: Optional[User]) -> list[int]:
-    """IDs de álbumes que el usuario puede ver. Admin → todos."""
+    """Pool global: cualquier usuario ve todos los álbumes."""
     if user is None:
         return []
-    if user.is_admin:
-        return list(session.exec(select(Album.id)).all())
-    return list(
-        session.exec(
-            select(Album.id).where(
-                or_(Album.owner_id == user.id, Album.is_public == True)  # noqa: E712
-            )
-        ).all()
-    )
+    return list(session.exec(select(Album.id)).all())
 
 
 def visible_track_ids_subquery(user: Optional[User]):
-    """Subquery (select de track_id) con todos los tracks que el user puede ver.
-
-    Un track es visible si pertenece (vía AlbumTrack) a algún álbum visible,
-    o si no tiene álbum asignado (legacy).
-    """
+    """Subquery con todos los track_id (pool global)."""
     if user is None:
         return None
-    if user.is_admin:
-        # admin → todos los track ids (cualquier track)
-        return select(Track.id)
-    # IDs de álbumes visibles
-    visible_albs = select(Album.id).where(
-        or_(Album.owner_id == user.id, Album.is_public == True)  # noqa: E712
-    )
-    # tracks que están en al menos un álbum visible
-    via_membership = select(AlbumTrack.track_id).where(AlbumTrack.album_id.in_(visible_albs))
-    # tracks huérfanos (sin album_id)
-    orphan = select(Track.id).where(Track.album_id == None)  # noqa: E711
-    return via_membership.union(orphan)
+    return select(Track.id)
 
 
 def can_mutate_album(album: Album, user: User) -> bool:
@@ -61,21 +43,5 @@ def can_mutate_track(album: Optional[Album], user: User) -> bool:
 
 
 def can_access_track(session: Session, track_id: int, user: User) -> bool:
-    """¿El user tiene acceso de lectura/stream a este track?"""
-    if user.is_admin:
-        return True
-    # cualquier álbum visible que contenga el track
-    q = (
-        select(Album.id)
-        .join(AlbumTrack, AlbumTrack.album_id == Album.id)
-        .where(AlbumTrack.track_id == track_id)
-        .where(or_(Album.owner_id == user.id, Album.is_public == True))  # noqa: E712
-        .limit(1)
-    )
-    if session.exec(q).first():
-        return True
-    # huérfano
-    t = session.get(Track, track_id)
-    if t and t.album_id is None:
-        return True
-    return False
+    """Lectura/stream: pool global, cualquier usuario autenticado tiene acceso."""
+    return True

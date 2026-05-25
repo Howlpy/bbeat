@@ -16,6 +16,8 @@ export type Track = {
   liked?: boolean;
 };
 
+export type AlbumKind = 'album' | 'playlist';
+
 export type Album = {
   id: number;
   title: string;
@@ -25,8 +27,9 @@ export type Album = {
   track_count: number;
   cover_url: string | null;
   owner_id?: number | null;
-  is_public?: boolean;
+  kind?: AlbumKind;
   is_mine?: boolean;
+  is_saved?: boolean;
 };
 
 export type Artist = {
@@ -243,8 +246,20 @@ export const api = {
       `/api/library/tracks?${q.toString()}`
     );
   },
-  albums: (scope: 'all' | 'mine' | 'public' = 'all') =>
-    json<{ total: number; items: Album[] }>(`/api/library/albums?scope=${scope}`),
+  albums: (
+    scope: 'saved' | 'all' | 'mine' = 'saved',
+    opts: { q?: string; kind?: AlbumKind } = {}
+  ) => {
+    const p = new URLSearchParams({ scope });
+    if (opts.q) p.set('q', opts.q);
+    if (opts.kind) p.set('kind', opts.kind);
+    return json<{ total: number; items: Album[] }>(`/api/library/albums?${p.toString()}`);
+  },
+  album: (id: number) => json<Album>(`/api/library/albums/${id}`),
+  saveAlbum: (id: number) =>
+    json<{ saved: boolean }>(`/api/library/albums/${id}/save`, { method: 'PUT' }),
+  unsaveAlbum: (id: number) =>
+    json<{ saved: boolean }>(`/api/library/albums/${id}/save`, { method: 'DELETE' }),
   artists: () => json<{ total: number; items: Artist[] }>('/api/library/artists'),
   recent: (limit = 12) =>
     json<{ tracks: Track[]; albums: Album[] }>(`/api/library/recent?limit=${limit}`),
@@ -313,14 +328,14 @@ export const api = {
     json<{ deleted: boolean; tracks_deleted: number }>(`/api/library/albums/${id}`, {
       method: 'DELETE'
     }),
-  createAlbum: (body: { title: string; artist?: string; year?: number; is_public?: boolean }) =>
+  createAlbum: (body: { title: string; artist?: string; year?: number; kind?: AlbumKind }) =>
     json<Album>('/api/library/albums', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     }),
-  editAlbum: (id: number, body: { title?: string; year?: number; is_public?: boolean }) =>
-    json<{ ok: boolean; is_public?: boolean }>(`/api/library/albums/${id}`, {
+  editAlbum: (id: number, body: { title?: string; year?: number }) =>
+    json<{ ok: boolean }>(`/api/library/albums/${id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)

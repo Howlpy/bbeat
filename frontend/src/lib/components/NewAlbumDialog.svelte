@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { Globe, Lock, X } from 'lucide-svelte';
+  import { X } from 'lucide-svelte';
   import { api } from '$lib/api';
 
   let {
@@ -11,7 +11,6 @@
   let title = $state('');
   let artist = $state('');
   let year = $state('');
-  let isPublic = $state(false);
   let saving = $state(false);
   let error = $state<string | null>(null);
 
@@ -24,7 +23,7 @@
         title: title.trim(),
         artist: artist.trim() || 'Various Artists',
         year: year ? Number(year) || undefined : undefined,
-        is_public: isPublic
+        kind: 'playlist'
       });
       oncreated?.();
       onclose();
@@ -47,7 +46,7 @@
     role="dialog"
   >
     <header class="mb-4 flex items-center justify-between">
-      <h2 class="text-lg font-semibold">Nuevo álbum</h2>
+      <h2 class="text-lg font-semibold">Nueva playlist</h2>
       <button
         onclick={onclose}
         class="grid size-8 place-items-center rounded text-slate-500 hover:bg-slate-800"
@@ -86,25 +85,10 @@
         />
       </label>
 
-      <fieldset class="space-y-1">
-        <legend class="mb-1 text-xs text-slate-400">Visibilidad</legend>
-        <label class="flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm"
-          class:border-cyan-500={!isPublic}
-          class:bg-cyan-500={!isPublic}
-          class:text-slate-950={!isPublic}
-          class:border-slate-800={isPublic}>
-          <input type="radio" bind:group={isPublic} value={false} class="sr-only" />
-          <Lock size={14} /> Privado (solo tú)
-        </label>
-        <label class="flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm"
-          class:border-cyan-500={isPublic}
-          class:bg-cyan-500={isPublic}
-          class:text-slate-950={isPublic}
-          class:border-slate-800={!isPublic}>
-          <input type="radio" bind:group={isPublic} value={true} class="sr-only" />
-          <Globe size={14} /> Compartido (todos los users lo ven)
-        </label>
-      </fieldset>
+      <p class="rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-500">
+        Una playlist es una colección a la que puedes añadir pistas de cualquier
+        artista del catálogo. Queda guardada en tu biblioteca.
+      </p>
 
       {#if error}
         <p class="rounded border border-red-900/50 bg-red-950/30 p-2 text-xs text-red-300">{error}</p>
@@ -120,7 +104,7 @@
           type="submit"
           disabled={saving || !title.trim()}
           class="flex-1 rounded bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50"
-        >{saving ? 'Creando…' : 'Crear álbum'}</button>
+        >{saving ? 'Creando…' : 'Crear playlist'}</button>
       </div>
     </form>
   </div>

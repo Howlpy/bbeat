@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from sqlmodel import select
 
 from app.db import session_scope
-from app.models import Album, AlbumTrack, Artist, Job, Track
+from app.models import Album, AlbumSave, AlbumTrack, Artist, Job, Track
 from app.services import downloader, library as library_svc, organizer, scanner, sources, spotify, ytdlp_resolver
 
 log = logging.getLogger("bbeat.jobs")
@@ -125,6 +125,35 @@ def _resolve_target_album(
     return None
 
 
+def _ensure_album_save(session, user_id: Optional[int], album_id: Optional[int]) -> None:
+    """Auto-guarda el álbum en la biblioteca del usuario (idempotente)."""
+    if not user_id or not album_id:
+        return
+    if not session.get(AlbumSave, (user_id, album_id)):
+        session.add(AlbumSave(user_id=user_id, album_id=album_id))
+
+
+def _collection_album_for_playlist(
+    session, name: str, tracks: list[spotify.TrackMeta], user_id: int
+) -> tuple[int, str]:
+    """Crea/obtiene la colección (kind=playlist) que agrupa una playlist entera.
+
+    El artista del álbum es 'Various Artists' salvo que TODAS las pistas sean del
+    mismo artista. Devuelve (album_id, nombre_artista_de_album). La cuenta se
+    auto-guarda para el usuario."""
+    distinct = {(m.primary_artist or "").strip().lower() for m in tracks if m.primary_artist}
+    coll_artist_name = tracks[0].primary_artist if len(distinct) == 1 else "Various Artists"
+    artist = library_svc._get_or_create_artist(session, coll_artist_name)
+    album = library_svc._get_or_create_album(session, name, artist.id, None)
+    album.kind = "playlist"
+    if album.owner_id is None:
+        album.owner_id = user_id
+    session.add(album)
+    session.flush()
+    _ensure_album_save(session, user_id, album.id)
+    return album.id, artist.name
+
+
 def _link_track_to_album(session, track_id: int, album_id: int, position: Optional[int]) -> bool:
     """Crea AlbumTrack si no existe. Devuelve True si añadió."""
     existing = session.exec(
@@ -159,6 +188,26 @@ def create_jobs_from_url(
     skipped: list[str] = []
 
     with session_scope() as session:
+        # Una PLAYLIST (YT o Spotify) se agrupa en UNA colección multi-artista,
+        # no en un álbum por artista. Forzamos álbum=nombre de la playlist y
+        # album_artist=Various Artists (o el único artista si todas coinciden),
+        # conservando el artista real de cada pista. Solo si el user no pidió un
+        # álbum destino explícito.
+        playlist_album_id: Optional[int] = None
+        no_explicit_target = not (overrides and (overrides.target_album_id or overrides.album))
+        if result.kind == "playlist" and user_id and result.tracks and no_explicit_target:
+            playlist_album_id, coll_artist = _collection_album_for_playlist(
+                session, result.name, result.tracks, user_id
+            )
+            for m in result.tracks:
+                m.album = result.name
+                m.album_artist = coll_artist
+        elif result.kind == "track" and no_explicit_target:
+            # Canción individual = SUELTA por defecto (sin álbum). Solo se agrupa
+            # si el user eligió crear un álbum o añadir a uno existente (overrides).
+            for m in result.tracks:
+                m.album = ""
+
         for meta in result.tracks:
             _apply_overrides(meta, overrides)
 
@@ -168,7 +217,7 @@ def create_jobs_from_url(
             ).first()
 
             if existing_track:
-                target = _resolve_target_album(session, overrides, user_id, meta)
+                target = playlist_album_id or _resolve_target_album(session, overrides, user_id, meta)
                 added_to = None
                 if target:
                     if _link_track_to_album(session, existing_track.id, target, meta.track_number):
@@ -194,7 +243,7 @@ def create_jobs_from_url(
                 session.flush()
 
             # Determinar target album para que el worker lo enganche al terminar
-            target_for_job = _resolve_target_album(session, overrides, user_id, meta)
+            target_for_job = playlist_album_id or _resolve_target_album(session, overrides, user_id, meta)
 
             job = Job(
                 source_url=url,
@@ -343,9 +392,12 @@ def process_job(job_id: int) -> None:
                         if a and a.owner_id is None and job.user_id:
                             a.owner_id = job.user_id
                             s.add(a)
+                        # El álbum/playlist importado aparece en tu biblioteca.
+                        _ensure_album_save(s, job.user_id, t.album_id)
                     # Y enlazar al álbum destino si el user pidió uno custom
                     if job.target_album_id and job.target_album_id != t.album_id:
                         _link_track_to_album(s, t.id, job.target_album_id, t.track_number)
+                        _ensure_album_save(s, job.user_id, job.target_album_id)
         log.info("job %s OK · %s · %s", job_id, dl_result.backend, final_path.name)
     except Exception as e:
         log.exception("job %s: error inesperado", job_id)

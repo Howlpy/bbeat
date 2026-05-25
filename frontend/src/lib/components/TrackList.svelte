@@ -38,7 +38,8 @@
 
   onMount(async () => {
     try {
-      const r = await api.albums();
+      // Solo los álbumes/playlists que puedes mutar (para mover/añadir pistas).
+      const r = await api.albums('mine');
       albumsCache = r.items;
     } catch {}
   });

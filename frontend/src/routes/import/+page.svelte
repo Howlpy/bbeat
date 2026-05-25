@@ -40,12 +40,25 @@
     selected = { ...selected };
   }
 
-  // Overrides editables (rellenan defaults desde el preview)
-  let ovMode = $state<'new' | 'existing'>('new');
+  // Destino de la importación.
+  //  'auto'     → sin override; el backend decide por tipo: canción→suelta,
+  //               álbum→su álbum, playlist→colección.
+  //  'new'      → crear álbum/playlist nuevo con nombre.
+  //  'existing' → añadir a uno tuyo.
+  let ovMode = $state<'auto' | 'new' | 'existing'>('auto');
   let ovAlbum = $state('');
   let ovArtist = $state('');
   let ovYear = $state<string>('');
   let ovTargetAlbumId = $state<number | null>(null);
+
+  // Etiqueta de la opción 'auto' según el tipo de lo que se importa.
+  const autoLabel = $derived(
+    preview?.kind === 'album'
+      ? 'Su álbum'
+      : preview?.kind === 'playlist'
+        ? 'Como playlist'
+        : 'Canción suelta'
+  );
 
   // Detección rápida de la fuente desde el frontend (sin ir al backend)
   function detectSource(u: string): Source {
@@ -67,7 +80,8 @@
 
   async function refreshAlbums() {
     try {
-      const r = await api.albums();
+      // Destino de importación: solo álbumes/playlists que puedes mutar.
+      const r = await api.albums('mine');
       albums = r.items;
     } catch {
       albums = [];
@@ -85,11 +99,11 @@
       preview = p;
       // Todas las pistas marcadas por defecto
       selected = Object.fromEntries(p.tracks.map((t) => [t.spotify_id, true]));
-      // Rellenar overrides con lo resuelto
-      ovAlbum = p.tracks[0]?.album || '';
+      // Rellenar sugerencias para la opción 'nuevo'; destino por defecto = auto.
+      ovAlbum = p.kind === 'playlist' ? p.name : p.tracks[0]?.album || '';
       ovArtist = p.tracks[0]?.artists?.[0] || '';
       ovYear = '';
-      ovMode = 'new';
+      ovMode = 'auto';
       ovTargetAlbumId = null;
     } catch (e) {
       previewError = e instanceof Error ? e.message : String(e);
@@ -110,6 +124,7 @@
       if (ovArtist.trim()) overrides.album_artist = ovArtist.trim();
       if (ovYear.trim()) overrides.year = parseInt(ovYear, 10) || undefined;
     }
+    // 'auto' → sin overrides; el backend agrupa según el tipo (suelta/álbum/colección).
     try {
       const onlyIds =
         preview.tracks.length > 1
@@ -236,9 +251,6 @@
     failed: X
   } as const;
 
-  const needsManualMetadata = $derived(
-    preview ? preview.source !== 'spotify' || !preview.tracks[0]?.album : false
-  );
 </script>
 
 <div class="mx-auto max-w-2xl px-4 pt-6">
@@ -371,34 +383,52 @@
         </div>
       </div>
 
-      <!-- Metadata override -->
-      {#if needsManualMetadata}
-        <div class="border-t border-slate-800 bg-slate-950 p-4">
+      <!-- Destino de la importación -->
+      <div class="border-t border-slate-800 bg-slate-950 p-4">
           <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">
-            Organizar como…
+            ¿Dónde van estas canciones?
           </p>
-          <div class="mb-3 flex gap-2 text-xs">
-            <label class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded border px-3 py-1.5"
+          <div class="mb-3 grid grid-cols-3 gap-2 text-xs">
+            <label class="flex cursor-pointer items-center justify-center gap-1.5 rounded border px-2 py-1.5 text-center"
+              class:border-cyan-500={ovMode === 'auto'}
+              class:border-slate-800={ovMode !== 'auto'}
+              class:bg-cyan-500={ovMode === 'auto'}
+              class:text-slate-950={ovMode === 'auto'}
+              class:font-semibold={ovMode === 'auto'}>
+              <input type="radio" bind:group={ovMode} value="auto" class="sr-only" />
+              {autoLabel}
+            </label>
+            <label class="flex cursor-pointer items-center justify-center gap-1.5 rounded border px-2 py-1.5 text-center"
               class:border-cyan-500={ovMode === 'new'}
               class:border-slate-800={ovMode !== 'new'}
               class:bg-cyan-500={ovMode === 'new'}
               class:text-slate-950={ovMode === 'new'}
               class:font-semibold={ovMode === 'new'}>
               <input type="radio" bind:group={ovMode} value="new" class="sr-only" />
-              Álbum nuevo
+              Álbum/playlist nuevo
             </label>
-            <label class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded border px-3 py-1.5"
+            <label class="flex cursor-pointer items-center justify-center gap-1.5 rounded border px-2 py-1.5 text-center"
               class:border-cyan-500={ovMode === 'existing'}
               class:border-slate-800={ovMode !== 'existing'}
               class:bg-cyan-500={ovMode === 'existing'}
               class:text-slate-950={ovMode === 'existing'}
               class:font-semibold={ovMode === 'existing'}>
               <input type="radio" bind:group={ovMode} value="existing" class="sr-only" />
-              Añadir a existente
+              Añadir a uno tuyo
             </label>
           </div>
 
-          {#if ovMode === 'new'}
+          {#if ovMode === 'auto'}
+            <p class="rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-400">
+              {#if preview.kind === 'album'}
+                Se guardan como su álbum original.
+              {:else if preview.kind === 'playlist'}
+                Se agrupan en una playlist “{preview.name}” (varios artistas).
+              {:else}
+                {selectedCount === 1 ? 'La canción entra' : 'Las canciones entran'} sueltas, sin álbum. Podrás añadirlas a una playlist cuando quieras.
+              {/if}
+            </p>
+          {:else if ovMode === 'new'}
             <div class="space-y-2 text-sm">
               <label class="block">
                 <span class="text-xs text-slate-400">Álbum</span>
@@ -455,7 +485,6 @@
             </div>
           {/if}
         </div>
-      {/if}
 
       <div class="border-t border-slate-800 bg-slate-900 p-3">
         <button

@@ -4,11 +4,12 @@
   import { page } from '$app/state';
   import {
     AlertTriangle,
+    Bookmark,
+    BookmarkCheck,
     Camera,
     Disc3,
-    Globe,
+    ListMusic,
     Loader2,
-    Lock,
     Pencil,
     Play,
     Plus,
@@ -27,23 +28,40 @@
   let coverInput = $state<HTMLInputElement | null>(null);
   let uploading = $state(false);
   let coverMsg = $state<string | null>(null);
-  let coverNonce = $state(0);
   let editing = $state(false);
   let editTitle = $state('');
   let editYear = $state('');
   let savingEdit = $state(false);
   let addingTracks = $state(false);
 
+  let savingSave = $state(false);
+
   async function load() {
     try {
-      const [trackRes, albumsRes] = await Promise.all([
+      const [trackRes, albumRes] = await Promise.all([
         api.tracks({ album_id: albumId, limit: 500 }),
-        api.albums()
+        api.album(albumId)
       ]);
       tracks = trackRes.items;
-      album = albumsRes.items.find((a) => a.id === albumId) ?? null;
+      album = albumRes;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async function toggleSave() {
+    if (!album || savingSave) return;
+    savingSave = true;
+    const next = !album.is_saved;
+    album.is_saved = next; // optimista
+    try {
+      if (next) await api.saveAlbum(album.id);
+      else await api.unsaveAlbum(album.id);
+    } catch (e) {
+      album.is_saved = !next;
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      savingSave = false;
     }
   }
 
@@ -77,16 +95,6 @@
     }
   }
 
-  async function togglePublic() {
-    if (!album) return;
-    try {
-      await api.editAlbum(album.id, { is_public: !album.is_public });
-      await load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
-    }
-  }
-
   async function deleteAlbum() {
     if (!album) return;
     if (
@@ -112,7 +120,6 @@
     try {
       const r = await api.uploadAlbumCover(album.id, file);
       coverMsg = `Carátula actualizada en ${r.tracks_updated} ${r.tracks_updated === 1 ? 'pista' : 'pistas'}.`;
-      coverNonce++;
       await load();
     } catch (err) {
       coverMsg = err instanceof Error ? err.message : String(err);
@@ -132,7 +139,7 @@
     {#if album.cover_url}
       <div class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80 overflow-hidden">
         <img
-          src="{album.cover_url}{album.cover_url.includes('?') ? '&' : '?'}v={coverNonce}"
+          src={album.cover_url}
           alt=""
           class="size-full scale-125 object-cover opacity-25 blur-2xl"
         />
@@ -143,7 +150,7 @@
       <div class="relative flex-none">
         {#if album.cover_url}
           <img
-            src="{album.cover_url}{album.cover_url.includes('?') ? '&' : '?'}v={coverNonce}"
+            src={album.cover_url}
             alt=""
             class="size-40 rounded object-cover shadow-xl shadow-cyan-500/10"
           />
@@ -152,39 +159,36 @@
             <Disc3 size={56} />
           </div>
         {/if}
-        <label
-          class="absolute bottom-1 right-1 flex cursor-pointer items-center gap-1 rounded-full bg-slate-900/90 px-2 py-1 text-xs text-slate-200 backdrop-blur transition hover:bg-slate-800"
-          title="Cambiar carátula"
-        >
-          <input
-            bind:this={coverInput}
-            type="file"
-            accept="image/jpeg,image/png"
-            class="hidden"
-            onchange={onCoverUpload}
-            disabled={uploading}
-          />
-          {#if uploading}
-            <Loader2 size={14} class="animate-spin" />
-          {:else}
-            <Camera size={14} />
-          {/if}
-        </label>
+        {#if album.is_mine}
+          <label
+            class="absolute bottom-1 right-1 flex cursor-pointer items-center gap-1 rounded-full bg-slate-900/90 px-2 py-1 text-xs text-slate-200 backdrop-blur transition hover:bg-slate-800"
+            title="Cambiar carátula"
+          >
+            <input
+              bind:this={coverInput}
+              type="file"
+              accept="image/jpeg,image/png"
+              class="hidden"
+              onchange={onCoverUpload}
+              disabled={uploading}
+            />
+            {#if uploading}
+              <Loader2 size={14} class="animate-spin" />
+            {:else}
+              <Camera size={14} />
+            {/if}
+          </label>
+        {/if}
       </div>
       <div class="min-w-0 flex-1">
         {#if !editing}
           <h1 class="flex flex-wrap items-center gap-2 text-2xl font-bold">
             {album.title}
-            {#if album.is_public}
+            {#if album.kind === 'playlist'}
               <span
                 class="inline-flex items-center gap-1 rounded border border-cyan-700/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-cyan-300"
-                title="Visible para todos los usuarios"
-              ><Globe size={10} /> compartido</span>
-            {:else if album.is_mine}
-              <span
-                class="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-800/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-400"
-                title="Solo tú"
-              ><Lock size={10} /> privado</span>
+                title="Colección multi-artista"
+              ><ListMusic size={10} /> playlist</span>
             {/if}
           </h1>
           <div class="text-sm text-slate-400">
@@ -199,22 +203,25 @@
             >
               <Play size={14} fill="currentColor" /> Reproducir
             </button>
+            <button
+              onclick={toggleSave}
+              disabled={savingSave}
+              class="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm transition disabled:opacity-50 {album.is_saved
+                ? 'border-cyan-700/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20'
+                : 'border-slate-800 hover:bg-slate-800'}"
+              title={album.is_saved ? 'Quitar de tu biblioteca' : 'Guardar en tu biblioteca'}
+            >
+              {#if album.is_saved}
+                <BookmarkCheck size={14} /> Guardado
+              {:else}
+                <Bookmark size={14} /> Guardar
+              {/if}
+            </button>
             {#if album.is_mine}
               <button
                 onclick={() => (addingTracks = true)}
                 class="inline-flex items-center gap-1.5 rounded border border-cyan-700/40 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-300 transition hover:bg-cyan-500/20"
               ><Plus size={14} /> Añadir pistas</button>
-              <button
-                onclick={togglePublic}
-                class="inline-flex items-center gap-1.5 rounded border border-slate-800 px-3 py-1.5 text-sm transition hover:bg-slate-800"
-                title={album.is_public ? 'Hacer privado' : 'Compartir con otros'}
-              >
-                {#if album.is_public}
-                  <Lock size={14} /> Hacer privado
-                {:else}
-                  <Globe size={14} /> Compartir
-                {/if}
-              </button>
               <button
                 onclick={startEdit}
                 class="inline-flex items-center gap-1.5 rounded border border-slate-800 px-3 py-1.5 text-sm transition hover:bg-slate-800"

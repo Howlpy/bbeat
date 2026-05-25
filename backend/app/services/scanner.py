@@ -203,11 +203,23 @@ def _get_or_create_artist(session: Session, name: str) -> Artist:
     return artist
 
 
+def _primary_artist(value: Optional[str]) -> Optional[str]:
+    """Primer artista de un tag que puede traer varios unidos con '; '.
+
+    write_tags() une artistas múltiples con '; ', así que partimos por ';' (no
+    por ',' para no romper nombres como 'Tyler, the Creator')."""
+    if not value:
+        return None
+    first = value.split(";")[0].strip()
+    return first or value.strip()
+
+
 def _get_or_create_album(
     session: Session,
     title: str,
     artist_id: int,
     year: Optional[int],
+    kind: str = "album",
 ) -> Album:
     normalized = _norm(title)
     album = session.exec(
@@ -219,12 +231,17 @@ def _get_or_create_album(
         if year and not album.year:
             album.year = year
             session.add(album)
+        # Si detectamos que es una colección multi-artista, promociona el kind.
+        if kind == "playlist" and album.kind != "playlist":
+            album.kind = "playlist"
+            session.add(album)
         return album
     album = Album(
         title=title.strip(),
         title_normalized=normalized,
         artist_id=artist_id,
         year=year,
+        kind=kind,
     )
     session.add(album)
     session.flush()
@@ -239,16 +256,24 @@ def _index_one(session: Session, path: Path) -> str:
 
     tags = _extract_tags(audio)
     title = tags["title"] or path.stem
-    artist_name = tags["album_artist"] or tags["artist"] or "Unknown Artist"
-    album_title = tags["album"] or "Unknown Album"
+    # Artista de la PISTA vs artista del ÁLBUM son distintos: en una playlist
+    # multi-artista cada pista conserva su artista, pero el álbum es Various Artists.
+    track_artist_name = _primary_artist(tags["artist"]) or tags["album_artist"] or "Unknown Artist"
+    album_title = (tags["album"] or "").strip()
 
-    artist = _get_or_create_artist(session, artist_name)
-    album = _get_or_create_album(session, album_title, artist.id, tags["year"])
-
+    track_artist = _get_or_create_artist(session, track_artist_name)
     cover_bytes = _extract_cover_bytes(audio)
-    if cover_bytes and not album.cover_path:
-        album.cover_path = _save_cover(album.id, cover_bytes)
-        session.add(album)
+
+    # Sin tag de álbum → canción suelta (single): no se crea álbum, album_id=None.
+    album = None
+    if album_title:
+        album_artist_name = tags["album_artist"] or tags["artist"] or "Unknown Artist"
+        album_artist = _get_or_create_artist(session, album_artist_name)
+        kind = "playlist" if _norm(album_artist_name) == "various artists" else "album"
+        album = _get_or_create_album(session, album_title, album_artist.id, tags["year"], kind)
+        if cover_bytes and not album.cover_path:
+            album.cover_path = _save_cover(album.id, cover_bytes)
+            session.add(album)
 
     rel_path = str(path.relative_to(settings.music_dir))
     info = audio.info
@@ -257,8 +282,8 @@ def _index_one(session: Session, path: Path) -> str:
 
     fields = {
         "title": title.strip(),
-        "artist_id": artist.id,
-        "album_id": album.id,
+        "artist_id": track_artist.id,
+        "album_id": album.id if album else None,
         "track_number": tags["track_number"],
         "disc_number": tags["disc_number"],
         "duration_ms": int(getattr(info, "length", 0) * 1000) or None,
