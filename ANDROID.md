@@ -4,11 +4,11 @@ APK nativa que envuelve el frontend SvelteKit. Añade sobre la PWA:
 
 - **Offline real**: descargas a fichero en disco (`@capacitor/filesystem`), no caché del navegador.
 - **Reproducción en segundo plano / pantalla bloqueada** fiable (WebView Chromium + MediaSession nativo + doble `<audio>` con precarga).
-- Llama a la API de producción `https://bbeat.howl.wtf`.
+- **Multi-servidor**: te conectas al servidor bbeat que elijas dentro de la app (con favoritos guardados).
 
 ## Cómo se compila
 
-Toolchain ya instalado en este host: Android SDK en `~/Android/Sdk` (platform-tools, `android-36`, build-tools 36), JDK 21. `ANDROID_HOME` exportado en `~/.bashrc`.
+Requisitos: **JDK 21** y **Android SDK** con `platform-tools`, `platforms;android-36` y `build-tools;36.0.0`, con `ANDROID_HOME` apuntando al SDK. Capacitor 8 descarga Gradle por su cuenta.
 
 ```bash
 cd frontend
@@ -16,7 +16,7 @@ npm run apk
 ```
 
 Eso hace, en orden:
-1. `build:native` — build de SvelteKit con `VITE_API_BASE=https://bbeat.howl.wtf`, `BBEAT_NATIVE=1` (sin service worker) → carpeta `frontend/build-native` (no pisa `frontend/build`, que sirve FastAPI a la PWA web).
+1. `build:native` — build de SvelteKit con `BBEAT_NATIVE=1` (sin service worker) → carpeta `frontend/build-native` (no pisa `frontend/build`, que sirve FastAPI a la PWA web). Opcional: `VITE_API_BASE=https://tu-servidor npm run apk` hornea un servidor por defecto; si no, el usuario lo elige en la app al entrar.
 2. `cap sync android` — copia el bundle y los plugins al proyecto Android.
 3. `./gradlew assembleRelease` — compila y **firma** la APK.
 
@@ -26,7 +26,7 @@ APK firmada resultante:
 frontend/android/app/build/outputs/apk/release/app-release.apk
 ```
 
-(El primer build descarga Gradle + dependencias a `~/.gradle`, tarda varios minutos. Gradle corre sin daemon residente para no molestar a bbeat/bots — ver `android/gradle.properties`.)
+(El primer build descarga Gradle + dependencias a `~/.gradle`, tarda varios minutos. Gradle corre sin daemon residente — ver `android/gradle.properties`.)
 
 ## Instalar en el móvil
 
@@ -52,7 +52,7 @@ versionName "1.1"      // string visible
 
 ## Arquitectura (qué tocó la app nativa)
 
-- `frontend/src/lib/config.ts` — `API_BASE` (vacío en web → relativo; absoluto en nativo). `apiUrl()` la antepone en `api.ts` (`json()` y `tokenizeUrls()`).
+- `frontend/src/lib/config.ts` + `lib/server.svelte.ts` — base de la API en runtime: vacía en web (mismo origen); en nativo, el servidor elegido (multi-servidor con favoritos, selector en el login). `apiUrl()` la antepone en `api.ts`.
 - `frontend/src/lib/offline.svelte.ts` — misma interfaz, dos backends: IndexedDB (web) y `@capacitor/filesystem` + `convertFileSrc()` (nativo).
 - `frontend/src/lib/player.svelte.ts` — doble `<audio>` (activo + en espera precargado). El auto-avance intercambia al elemento ya bufferizado en vez de `load()` en frío → no se estrangula con la pantalla bloqueada. **Esto mejora también la PWA web.**
 - `backend/app/config.py` — CORS permite siempre `https://localhost` / `capacitor://localhost` (orígenes del WebView nativo).
@@ -79,8 +79,8 @@ npx capacitor-assets generate --android --iconBackgroundColor '#0F1626' --iconBa
 ## Publicar una release
 
 ```bash
-gh release create vX.Y ~/bbeat-vX.Y.apk --repo Howlpy/bbeat --target main \
+gh release create vX.Y ~/bbeat-vX.Y.apk --repo <tu-usuario>/bbeat --target main \
   --title "Bbeat Android vX.Y" --notes "..."
 ```
 
-El repo es **privado**: para bajar la APK al móvil hay que estar logueado en GitHub (app móvil o `gh release download`). La APK no va dentro del árbol de git (es binario), solo como asset de release. El keystore/`.env`/`secrets` están en `.gitignore` — nunca se suben.
+La APK no va dentro del árbol de git (es binario), solo como asset de release. El keystore, `.env` y `data/secrets/` están en `.gitignore` — nunca se suben.

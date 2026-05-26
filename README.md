@@ -80,7 +80,6 @@ Lo más simple es ponerlo detrás de **Cloudflare**: un record `A` a tu IP con p
 
 - Rate limiting + protección anti-abuso para instancias públicas
 - Cola persistente (sobrevive al cierre, con posición)
-- Cookies de Spotify por usuario (cada uno con su Premium)
 - Soporte Subsonic API (clientes tipo Symfonium / DSub)
 - Editar/mover pistas en bulk · importar de Apple Music / Deezer
 - Dedup por título+artista+duración (hoy solo por ID externo)

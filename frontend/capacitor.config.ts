@@ -1,9 +1,10 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 // App nativa de Bbeat (Android). El WebView sirve el frontend ya compilado
-// (build-native) y habla con la API de producción en bbeat.howl.wtf.
-// Ese build se genera con VITE_API_BASE=https://bbeat.howl.wtf, así que las
-// llamadas y las URLs de stream/cover son absolutas (no hay backend local).
+// (build-native) y habla con un servidor bbeat por HTTP. El usuario elige el
+// servidor dentro de la app (multi-servidor); opcionalmente se puede hornear
+// uno por defecto con VITE_API_BASE al compilar. Las URLs de stream/cover se
+// resuelven absolutas en runtime (no hay backend en el mismo origen).
 const config: CapacitorConfig = {
   appId: 'wtf.howl.bbeat',
   appName: 'Bbeat',

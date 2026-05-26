@@ -10,7 +10,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "preview:https": "BBEAT_HTTPS=1 vite preview --host 0.0.0.0",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "build:native": "BBEAT_NATIVE=1 BBEAT_BUILD_DIR=build-native VITE_API_BASE=https://bbeat.howl.wtf vite build",
+    "build:native": "BBEAT_NATIVE=1 BBEAT_BUILD_DIR=build-native vite build",
     "sync:android": "npm run build:native && cap sync android",
     "apk": "npm run sync:android && cd android && ./gradlew assembleRelease"
   },
