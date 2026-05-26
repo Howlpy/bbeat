@@ -12,6 +12,7 @@
     Download,
     CircleCheck,
     Loader2,
+    AlertCircle,
     Play,
     X
   } from 'lucide-svelte';
@@ -141,8 +142,12 @@
             {formatDuration(t.duration_ms)}
           </span>
         </button>
-        {#if offline.has(t.id)}
+        {#if offline.downloading.has(t.id)}
+          <span class="flex-none text-cyan-400" title="Descargando…"><Loader2 size={14} class="animate-spin" /></span>
+        {:else if offline.has(t.id)}
           <span class="flex-none text-cyan-500" title="Descargada"><CircleCheck size={14} /></span>
+        {:else if offline.failed.has(t.id)}
+          <button onclick={(e) => { e.stopPropagation(); offline.download(t); }} class="flex-none text-red-400" title="Falló — reintentar"><AlertCircle size={14} /></button>
         {/if}
         <button
           onclick={(e) => toggleLike(e, t)}
@@ -200,10 +205,15 @@
           <Loader2 size={17} class="animate-spin" /> Descargando…
         {:else if offline.has(t.id)}
           <CircleCheck size={17} class="text-cyan-400" /> Quitar descarga
+        {:else if offline.failed.has(t.id)}
+          <AlertCircle size={17} class="text-red-400" /> Reintentar descarga
         {:else}
           <Download size={17} /> Descargar
         {/if}
       </button>
+      {#if offline.failed.has(t.id) && offline.lastError}
+        <p class="px-4 pb-2 text-xs text-red-400/80">Error: {offline.lastError}</p>
+      {/if}
       <div class="my-1 border-t border-slate-800/70"></div>
       <button onclick={() => openEdit(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><Pencil size={17} /> Editar</button>
       <button onclick={() => deleteTrack(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-red-400 hover:bg-slate-800"><Trash2 size={17} /> Borrar</button>

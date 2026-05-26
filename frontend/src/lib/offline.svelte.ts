@@ -48,7 +48,7 @@ function tx<T>(db: IDBDatabase, mode: IDBTransactionMode, fn: (s: IDBObjectStore
 }
 
 // ─── Nativo: índice en localStorage (los ficheros, en disco) ─────
-type NativeEntry = { track: Track; audioPath: string; coverPath: string | null };
+type NativeEntry = { track: Track; audioPath: string; coverPath: string | null; bytes?: number };
 
 function readNativeIndex(): Record<number, NativeEntry> {
   try {
@@ -73,16 +73,50 @@ function audioExt(t: Track): string {
   return 'mp3';
 }
 
+/** Blob → base64 sin el prefijo `data:...;base64,` (lo que espera Filesystem.writeFile). */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onloadend = () => {
+      const s = String(r.result);
+      const i = s.indexOf(',');
+      resolve(i >= 0 ? s.slice(i + 1) : s);
+    };
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+/** Descarga una URL como Blob. Lanza si la respuesta no es OK. */
+async function fetchBlob(url: string): Promise<Blob> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.blob();
+}
+
 class OfflineStore {
   /** ids de pistas descargadas (reactivo). */
   ids = $state<Set<number>>(new Set());
   /** ids descargándose ahora mismo (reactivo). */
   downloading = $state<Set<number>>(new Set());
+  /** ids cuya última descarga falló (reactivo) — para mostrar reintento. */
+  failed = $state<Set<number>>(new Set());
+  /** Mensaje del último error de descarga (para diagnóstico/feedback). */
+  lastError = $state<string | null>(null);
+  /** Bytes totales ocupados por las descargas (reactivo). */
+  totalBytes = $state(0);
   ready = $state(false);
 
   private audioUrls = new Map<number, string>();
   private coverUrls = new Map<number, string>();
   private metas = new Map<number, Track>();
+  private byteMap = new Map<number, number>();
+
+  private recountBytes() {
+    let s = 0;
+    for (const v of this.byteMap.values()) s += v;
+    this.totalBytes = s;
+  }
 
   async init() {
     if (!browser) return;
@@ -107,8 +141,10 @@ class OfflineStore {
       this.audioUrls.set(r.id, URL.createObjectURL(r.audio));
       if (r.cover) this.coverUrls.set(r.id, URL.createObjectURL(r.cover));
       this.metas.set(r.id, r.track);
+      this.byteMap.set(r.id, (r.audio?.size ?? 0) + (r.cover?.size ?? 0));
     }
     this.ids = new Set(recs.map((r) => r.id));
+    this.recountBytes();
   }
 
   private async initNative() {
@@ -118,8 +154,10 @@ class OfflineStore {
       this.metas.set(id, entry.track);
       this.audioUrls.set(id, await this.nativeSrc(entry.audioPath));
       if (entry.coverPath) this.coverUrls.set(id, await this.nativeSrc(entry.coverPath));
+      this.byteMap.set(id, entry.bytes ?? 0);
     }
     this.ids = new Set(Object.keys(idx).map(Number));
+    this.recountBytes();
   }
 
   /** URI local reproducible (http://localhost/_capacitor_file_/...) de un path en Directory.Data. */
@@ -151,12 +189,19 @@ class OfflineStore {
   async download(t: Track) {
     if (!browser || this.ids.has(t.id) || this.downloading.has(t.id)) return;
     this.downloading = new Set(this.downloading).add(t.id);
+    if (this.failed.has(t.id)) {
+      const f = new Set(this.failed);
+      f.delete(t.id);
+      this.failed = f;
+    }
     try {
       if (NATIVE) await this.downloadNative(t);
       else await this.downloadWeb(t);
       this.ids = new Set(this.ids).add(t.id);
     } catch (e) {
       console.warn('[bbeat] descarga falló:', e);
+      this.lastError = e instanceof Error ? e.message : String(e);
+      this.failed = new Set(this.failed).add(t.id);
     } finally {
       const d = new Set(this.downloading);
       d.delete(t.id);
@@ -179,42 +224,55 @@ class OfflineStore {
     this.audioUrls.set(t.id, URL.createObjectURL(audio));
     if (cover) this.coverUrls.set(t.id, URL.createObjectURL(cover));
     this.metas.set(t.id, { ...t });
+    this.byteMap.set(t.id, audio.size + (cover?.size ?? 0));
+    this.recountBytes();
     navigator.storage?.persist?.().catch(() => {});
   }
 
   private async downloadNative(t: Track) {
+    const dir = Directory.Data;
+    // Asegura la carpeta (writeFile recursive no siempre crea el padre).
+    await Filesystem.mkdir({ directory: dir, path: NATIVE_DIR, recursive: true }).catch(() => {});
+
+    // stream_url/cover_url ya vienen absolutos y con ?token=... (tokenizeUrls).
+    // Usamos fetch + writeFile(base64) en vez de Filesystem.downloadFile (deprecado
+    // desde 7.1.0 y roto en Cap 8). CORS permite el origen del WebView.
+    const audioBlob = await fetchBlob(t.stream_url);
     const audioPath = `${NATIVE_DIR}/audio-${t.id}.${audioExt(t)}`;
-    // stream_url ya viene absoluto y con ?token=... (tokenizeUrls), así que el
-    // descargador no necesita cabecera Authorization.
-    await Filesystem.downloadFile({
-      url: t.stream_url,
+    await Filesystem.writeFile({
+      directory: dir,
       path: audioPath,
-      directory: Directory.Data,
+      data: await blobToBase64(audioBlob),
       recursive: true
     });
+    let bytes = audioBlob.size;
 
     let coverPath: string | null = null;
     if (t.cover_url) {
-      coverPath = `${NATIVE_DIR}/cover-${t.id}.jpg`;
       try {
-        await Filesystem.downloadFile({
-          url: t.cover_url,
+        const coverBlob = await fetchBlob(t.cover_url);
+        coverPath = `${NATIVE_DIR}/cover-${t.id}.jpg`;
+        await Filesystem.writeFile({
+          directory: dir,
           path: coverPath,
-          directory: Directory.Data,
+          data: await blobToBase64(coverBlob),
           recursive: true
         });
+        bytes += coverBlob.size;
       } catch {
         coverPath = null;
       }
     }
 
     const idx = readNativeIndex();
-    idx[t.id] = { track: { ...t }, audioPath, coverPath };
+    idx[t.id] = { track: { ...t }, audioPath, coverPath, bytes };
     writeNativeIndex(idx);
 
     this.audioUrls.set(t.id, await this.nativeSrc(audioPath));
     if (coverPath) this.coverUrls.set(t.id, await this.nativeSrc(coverPath));
     this.metas.set(t.id, { ...t });
+    this.byteMap.set(t.id, bytes);
+    this.recountBytes();
   }
 
   async remove(id: number) {
@@ -232,6 +290,8 @@ class OfflineStore {
     if (c && !NATIVE) URL.revokeObjectURL(c);
     this.coverUrls.delete(id);
     this.metas.delete(id);
+    this.byteMap.delete(id);
+    this.recountBytes();
     const s = new Set(this.ids);
     s.delete(id);
     this.ids = s;
