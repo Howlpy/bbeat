@@ -31,18 +31,23 @@ DURATION_TOLERANCE_MS = 15000
 
 
 def _ytdlp_format_and_pp() -> tuple[str, list[dict]]:
-    """Selector de formato + postprocesador de yt-dlp según settings.audio_format.
+    """Selector de formato + postprocesador de yt-dlp según settings.
 
-    Por defecto (opus): preferimos el stream Opus nativo de YouTube y lo copiamos
-    al contenedor con FFmpegExtractAudio (yt-dlp hace `-c:a copy` cuando el códec
-    ya coincide, así que NO recodifica) → mínimo tamaño, máxima calidad. Si no hay
-    opus disponible cae a bestaudio. Para mp3/m4a/flac sí recodifica al pedido.
+    Para opus/ogg:
+    - `audio_quality` numérico (96/128/160/320) → recodifica a ESE bitrate
+      (más control de tamaño; ligera pérdida al re-encodear).
+    - `audio_quality='auto'` → copia el stream Opus nativo de YouTube sin
+      recodificar (`-c:a copy`): máxima calidad, sin control de tamaño.
+    Para mp3/m4a/flac recodifica al códec pedido.
     """
     fmt = settings.audio_format
+    q = settings.audio_quality
     if fmt in ("opus", "ogg"):
-        return "bestaudio[acodec=opus]/bestaudio/best", [
-            {"key": "FFmpegExtractAudio", "preferredcodec": "opus"}
-        ]
+        pp = {"key": "FFmpegExtractAudio", "preferredcodec": "opus"}
+        if q.isdigit():
+            pp["preferredquality"] = q  # fuerza -b:a {q}k (recodifica)
+            return "bestaudio/best", [pp]
+        return "bestaudio[acodec=opus]/bestaudio/best", [pp]
     return "bestaudio/best", [{"key": "FFmpegExtractAudio", "preferredcodec": fmt}]
 
 
