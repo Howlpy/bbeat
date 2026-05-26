@@ -59,9 +59,94 @@ class DownloadResult:
 
 
 def _norm_text(s: str) -> str:
-    """Normaliza para comparación: lowercase, sin signos, espacios colapsados."""
+    """Normaliza para comparación: lowercase, SIN ACENTOS, sin signos, espacios
+    colapsados. Quitar acentos es clave para que 'reacción'→'reaccion' y casen
+    las keywords (antes la ó se volvía espacio y rompía el match)."""
     import re as _re
-    return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", (s or "").lower())).strip()
+    import unicodedata
+
+    s = unicodedata.normalize("NFKD", (s or "").lower())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", s)).strip()
+
+
+# Keywords que casi nunca son la canción real (reacciones, podcasts, vídeos
+# educativos, etc.): penalización dura. En español e inglés, ya sin acentos.
+HARD_BAD_KEYWORDS = (
+    "reaccion", "reacciona", "reaccionando", "reaction", "react", "reacting",
+    "review", "reseña", "resena", "podcast", "entrevista", "interview",
+    "explained", "explicacion", "explicado", "analisis", "analysis",
+    "documental", "documentary", "trailer", "gameplay", "tutorial",
+    "lecture", "conferencia", "clase", "speedrun", "noticias", "news",
+)
+# Versiones no-originales: penalización media (no descalifican del todo).
+SOFT_BAD_KEYWORDS = (
+    "cover", "tribute", "instrumental", "karaoke", "lyric video", "lyrics",
+    "live", "en vivo", "directo", "concert", "concierto", "acoustic", "acustico",
+    "8 hours", "1 hour", "loop", "extended", "sped up", "slowed", "nightcore",
+    "mashup",
+)
+
+
+def _score_candidate(
+    e: dict, target_secs: float, artist_norm: str, title_norm: str, title_words: set[str]
+) -> tuple[float, str]:
+    """Puntúa un candidato de YouTube. Menor score = mejor."""
+    score = 0.0
+    reasons: list[str] = []
+
+    # 1. Duración (1 punto por segundo de diferencia)
+    dur = e.get("duration") or 0
+    if target_secs and dur > 0:
+        d_diff = abs(dur - target_secs)
+        score += d_diff
+        if d_diff <= 3:
+            reasons.append(f"dur✓({d_diff:.0f}s)")
+        elif d_diff > 15:
+            score += 20
+    else:
+        score += 50
+
+    uploader = _norm_text(e.get("uploader") or e.get("channel") or "")
+    cand_title = _norm_text(e.get("title") or "")
+    artist_in_uploader = bool(artist_norm and artist_norm in uploader)
+    artist_in_title = bool(artist_norm and artist_norm in cand_title)
+
+    # 2. Canal oficial "- Topic" / artista en el canal
+    if "- topic" in uploader or " topic" in uploader:
+        score -= 40
+        reasons.append("topic")
+    if artist_in_uploader:
+        score -= 25
+        reasons.append("artist✓")
+
+    # 3. Keywords malas (solo si NO están en el título original de la pista)
+    for kw in HARD_BAD_KEYWORDS:
+        if kw in cand_title and kw not in title_norm:
+            score += 150
+            reasons.append(f"-{kw}!")
+            break
+    for kw in SOFT_BAD_KEYWORDS:
+        if kw in cand_title and kw not in title_norm:
+            score += 35
+            reasons.append(f"-{kw}")
+
+    # 4. Solape de palabras del título
+    cand_words = set(cand_title.split())
+    overlap = (len(title_words & cand_words) / max(len(title_words), 1)) if title_words else 0.0
+    score -= overlap * 20
+    if overlap >= 0.8:
+        reasons.append("title✓")
+    elif overlap < 0.34:
+        score += 40
+        reasons.append("title✗")
+
+    # 5. Ni el artista ni apenas el título aparecen → probablemente no tiene que ver
+    if not artist_in_uploader and not artist_in_title and overlap < 0.5:
+        score += 30
+        reasons.append("noartist")
+
+    return score, ",".join(reasons)
 
 
 def cookies_path() -> Path:
@@ -188,52 +273,8 @@ def download_with_ytdlp(
 
     scored: list[tuple[float, dict, str]] = []
     for e in entries:
-        score = 0.0
-        reasons: list[str] = []
-
-        # 1. Duración (peso: 1 punto por segundo de diferencia)
-        dur = e.get("duration") or 0
-        if target_secs and dur > 0:
-            d_diff = abs(dur - target_secs)
-            score += d_diff
-            if d_diff <= 3:
-                reasons.append(f"dur✓({d_diff:.0f}s)")
-            elif d_diff > 15:
-                score += 20  # penalización extra si duración muy distinta
-        else:
-            score += 50  # sin duración → penalizar
-
-        # 2. Canal/uploader oficial: "- Topic" es upload automático del sello
-        uploader = _norm_text(e.get("uploader") or e.get("channel") or "")
-        if "- topic" in uploader or " topic" in uploader:
-            score -= 40
-            reasons.append("topic")
-        # 3. Match del artista en el uploader
-        if artist_norm and artist_norm in uploader:
-            score -= 25
-            reasons.append("artist✓")
-
-        # 4. Penalización por palabras peligrosas en el título
-        cand_title = _norm_text(e.get("title") or "")
-        BAD_KEYWORDS = (
-            "cover", "tribute", "instrumental", "karaoke", "lyric video",
-            "live", "concert", "8 hours", "1 hour", "loop", "extended",
-            "reaction", "review",
-        )
-        for kw in BAD_KEYWORDS:
-            if kw in cand_title and kw not in title_norm:
-                score += 30
-                reasons.append(f"-{kw}")
-
-        # 5. Bonus por overlap de palabras del título original (max -20)
-        cand_words = set(cand_title.split())
-        if title_words and cand_words:
-            overlap = len(title_words & cand_words) / max(len(title_words), 1)
-            score -= overlap * 20
-            if overlap >= 0.8:
-                reasons.append("title✓")
-
-        scored.append((score, e, ",".join(reasons)))
+        score, reasons = _score_candidate(e, target_secs, artist_norm, title_norm, title_words)
+        scored.append((score, e, reasons))
 
     scored.sort(key=lambda x: x[0])
     log.info("yt-dlp: %d candidatos", len(scored))
