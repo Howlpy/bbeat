@@ -14,6 +14,7 @@
   import { auth } from '$lib/auth.svelte';
   import { offline } from '$lib/offline.svelte';
   import { net } from '$lib/net.svelte';
+  import { server } from '$lib/server.svelte';
 
   let { children } = $props();
 
@@ -23,6 +24,7 @@
   let mainPadBottom = $derived(player.current ? 'pb-36' : 'pb-20');
 
   onMount(async () => {
+    server.init();
     auth.init();
 
     // Si no hay sesión y no estamos en una página pública, ir al login

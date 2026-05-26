@@ -2,6 +2,8 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import { auth } from '$lib/auth.svelte';
+  import { server } from '$lib/server.svelte';
+  import ServerPicker from '$lib/components/ServerPicker.svelte';
 
   let username = $state('');
   let email = $state('');
@@ -11,6 +13,10 @@
 
   async function submit() {
     if (busy) return;
+    if (server.needsPick) {
+      error = 'Elige primero un servidor bbeat.';
+      return;
+    }
     busy = true;
     error = null;
     try {
@@ -31,6 +37,8 @@
       <img src="/logo.png" alt="bbeat — tu música, libre" class="mx-auto w-56" />
       <p class="mt-3 text-xs text-slate-500">crear cuenta</p>
     </header>
+
+    <ServerPicker />
 
     <form onsubmit={(e) => { e.preventDefault(); submit(); }} class="space-y-3">
       <label class="block">
@@ -72,7 +80,7 @@
 
       <button
         type="submit"
-        disabled={busy || !username.trim() || !email.trim() || password.length < 6}
+        disabled={busy || !username.trim() || !email.trim() || password.length < 6 || server.needsPick}
         class="w-full rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
       >
         {busy ? 'Creando…' : 'Crear cuenta'}
