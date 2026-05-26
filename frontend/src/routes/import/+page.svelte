@@ -7,8 +7,7 @@
     type IngestPreview,
     type IngestOverrides,
     type Job,
-    type Source,
-    type SpotifyAuthStatus
+    type Source
   } from '$lib/api';
   import { jobs } from '$lib/jobs.svelte';
   import { Check, ChevronDown, ChevronRight, Clock, Disc3, List, Loader2, Music2, RefreshCw, Trash2, X } from 'lucide-svelte';
@@ -21,7 +20,6 @@
   let preview = $state<IngestPreview | null>(null);
   let previewError = $state<string | null>(null);
   let lastImportMsg = $state<string | null>(null);
-  let auth = $state<SpotifyAuthStatus | null>(null);
   let albums = $state<Album[]>([]);
   let expanded = $state<Record<string, boolean>>({});
 
@@ -73,7 +71,6 @@
   const detectedSource = $derived(detectSource(url));
 
   onMount(async () => {
-    auth = await api.spotifyAuthStatus().catch(() => null);
     await jobs.refresh();
     refreshAlbums();
   });
@@ -256,20 +253,6 @@
 <div class="mx-auto max-w-2xl px-4 pt-6">
   <header class="mb-5 flex flex-wrap items-baseline justify-between gap-2">
     <h1 class="text-2xl font-bold">Importar</h1>
-    {#if auth}
-      <a
-        href="/settings"
-        class="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-xs hover:bg-slate-800"
-      >
-        {#if auth.cookies_configured}
-          <span class="size-2 rounded-full bg-cyan-500"></span>
-          <span>Votify · alta calidad</span>
-        {:else}
-          <span class="size-2 rounded-full bg-amber-500"></span>
-          <span>yt-dlp · sin cookies</span>
-        {/if}
-      </a>
-    {/if}
   </header>
 
   <!-- Tabs -->

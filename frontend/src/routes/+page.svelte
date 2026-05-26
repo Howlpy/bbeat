@@ -19,7 +19,6 @@
     formatDuration,
     type Album,
     type LibraryStats,
-    type SpotifyAuthStatus,
     type Track
   } from '$lib/api';
   import { auth } from '$lib/auth.svelte';
@@ -32,24 +31,21 @@
   let recentTracks = $state<Track[]>([]);
   let recentAlbums = $state<Album[]>([]);
   let topTracks = $state<(Track & { plays: number })[]>([]);
-  let authStatus = $state<SpotifyAuthStatus | null>(null);
   let error = $state<string | null>(null);
   let offlineMode = $state(false);
   let scanning = $state(false);
 
   async function load() {
     try {
-      const [s, r, a, top] = await Promise.all([
+      const [s, r, top] = await Promise.all([
         api.stats(),
         api.recent(12),
-        api.spotifyAuthStatus().catch(() => null),
         api.topTracks({ limit: 8 }).catch(() => ({ items: [] }))
       ]);
       stats = s;
       recentTracks = r.tracks ?? [];
       recentAlbums = r.albums ?? [];
       topTracks = top.items ?? [];
-      authStatus = a;
     } catch (e) {
       if (isOfflineError(e)) offlineMode = true;
       else error = e instanceof Error ? e.message : String(e);
@@ -324,26 +320,6 @@
             </li>
           {/each}
         </ul>
-      </section>
-    {/if}
-
-    <!-- Estado del backend -->
-    {#if authStatus}
-      <section class="rounded border border-slate-800 bg-slate-900 px-3 py-2 text-xs">
-        <div class="flex items-center gap-2">
-          {#if authStatus.cookies_configured}
-            <span class="size-2 rounded-full bg-cyan-500"></span>
-            <span class="text-slate-300">
-              Descargas con <b>Votify</b> + cookies (calidad alta si Premium)
-            </span>
-          {:else}
-            <span class="size-2 rounded-full bg-amber-500"></span>
-            <span class="text-slate-300">
-              Descargas con <b>yt-dlp</b> (YouTube Music · 128-256 kbps)
-            </span>
-          {/if}
-          <a href="/settings" class="ml-auto text-cyan-400 hover:underline">ajustar →</a>
-        </div>
       </section>
     {/if}
   {/if}
