@@ -10,6 +10,7 @@ import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.config import settings
@@ -152,12 +153,12 @@ def count_users() -> int:
 
 
 def find_user_by_login(login: str) -> Optional[User]:
-    """Busca por username o email."""
+    """Busca por username (sin distinguir mayúsculas) o email."""
     login = login.strip().lower()
     with session_scope() as s:
         u = s.exec(
             select(User).where(
-                (User.username == login) | (User.email == login)
+                (func.lower(User.username) == login) | (User.email == login)
             )
         ).first()
         if u:
