@@ -10,6 +10,7 @@
   let password = $state('');
   let busy = $state(false);
   let error = $state<string | null>(null);
+  let pending = $state(false);
 
   async function submit() {
     if (busy) return;
@@ -21,6 +22,11 @@
     error = null;
     try {
       const r = await api.register(username.trim(), email.trim(), password);
+      if (!r.token) {
+        // Cuenta creada pero pendiente de que un admin la apruebe.
+        pending = true;
+        return;
+      }
       auth.set(r.token, r.user);
       await goto('/');
     } catch (e) {
@@ -38,6 +44,16 @@
       <p class="mt-3 text-xs text-slate-500">crear cuenta</p>
     </header>
 
+    {#if pending}
+      <div class="rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-5 text-center">
+        <p class="text-sm font-medium text-cyan-200">Cuenta creada ✓</p>
+        <p class="mt-2 text-xs text-slate-400">
+          Está <b>pendiente de aprobación</b> por el administrador. Cuando te aprueben
+          podrás iniciar sesión.
+        </p>
+        <a href="/login" class="mt-4 inline-block text-xs text-cyan-400 hover:underline">Volver a entrar</a>
+      </div>
+    {:else}
     <ServerPicker />
 
     <form onsubmit={(e) => { e.preventDefault(); submit(); }} class="space-y-3">
@@ -91,5 +107,6 @@
       ¿Ya tienes cuenta?
       <a href="/login" class="text-cyan-400 hover:underline">Entrar</a>
     </p>
+    {/if}
   </div>
 </div>

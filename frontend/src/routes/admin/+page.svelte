@@ -1,13 +1,34 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { AlertTriangle, ArrowDown, ArrowUp, Ban, CheckCircle2, Trash2 } from 'lucide-svelte';
+  import { AlertTriangle, ArrowDown, ArrowUp, Ban, CheckCircle2, Clock, Check, Trash2 } from 'lucide-svelte';
   import { api } from '$lib/api';
   import { auth, type AuthUser } from '$lib/auth.svelte';
 
   let users = $state<AuthUser[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
+
+  const pending = $derived(users.filter((u) => !u.is_approved));
+
+  async function approve(u: AuthUser) {
+    try {
+      await api.updateUser(u.id, { is_approved: true });
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function reject(u: AuthUser) {
+    if (!confirm(`¿Rechazar y borrar la solicitud de ${u.username}?`)) return;
+    try {
+      await api.deleteUser(u.id);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   async function load() {
     loading = true;
@@ -72,6 +93,32 @@
       <AlertTriangle size={16} /> {error}
     </p>
   {:else}
+    {#if pending.length}
+      <section class="mb-5 rounded-md border border-amber-900/40 bg-amber-950/15 p-3">
+        <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-300">
+          <Clock size={15} /> Pendientes de aprobación ({pending.length})
+        </h2>
+        <ul class="space-y-2">
+          {#each pending as u (u.id)}
+            <li class="flex flex-wrap items-center gap-2">
+              <div class="min-w-0 flex-1">
+                <span class="font-medium">{u.username}</span>
+                <span class="block truncate text-xs text-slate-500">{u.email}</span>
+              </div>
+              <button
+                onclick={() => approve(u)}
+                class="inline-flex items-center gap-1 rounded bg-cyan-500 px-2.5 py-1 text-xs font-semibold text-slate-950 transition hover:bg-cyan-400"
+              ><Check size={13} /> Aprobar</button>
+              <button
+                onclick={() => reject(u)}
+                class="inline-flex items-center gap-1 rounded border border-red-900/50 px-2.5 py-1 text-xs text-red-300 transition hover:bg-red-950/40"
+              ><Trash2 size={13} /> Rechazar</button>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+
     <ul class="divide-y divide-slate-900 rounded-md border border-slate-800">
       {#each users as u (u.id)}
         <li class="flex flex-wrap items-center gap-3 p-3">
@@ -79,6 +126,7 @@
             <div class="flex items-baseline gap-2">
               <span class="font-medium">{u.username}</span>
               {#if u.is_admin}<span class="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">admin</span>{/if}
+              {#if !u.is_approved}<span class="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">pendiente</span>{/if}
               {#if !u.is_active}<span class="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-300">bloqueado</span>{/if}
               {#if u.id === auth.user?.id}<span class="text-[10px] text-slate-500">(tú)</span>{/if}
             </div>

@@ -45,6 +45,9 @@ def _migrate_schema() -> None:
         ("tracks", "external_id", "TEXT"),
         ("tracks", "source_url", "TEXT"),
         ("tracks", "has_cover", "INTEGER DEFAULT 0"),
+        # Aprobación de cuentas: los usuarios que ya existían se aprueban
+        # (DEFAULT 1); los nuevos los inserta el ORM con 0 (pendientes).
+        ("users", "is_approved", "INTEGER NOT NULL DEFAULT 1"),
     ]
     with engine.begin() as conn:
         for table, col, type_decl in columns_to_add:

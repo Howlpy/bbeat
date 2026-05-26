@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.db import get_session, session_scope
@@ -22,6 +23,7 @@ def _user_to_dict(u: User) -> dict:
         "email": u.email,
         "is_admin": u.is_admin,
         "is_active": u.is_active,
+        "is_approved": u.is_approved,
         "created_at": u.created_at.isoformat() if u.created_at else None,
     }
 
@@ -45,32 +47,37 @@ class AuthResponse(BaseModel):
     user: dict
 
 
-@router.post("/auth/register", response_model=AuthResponse)
+@router.post("/auth/register")
 def register(body: RegisterIn) -> dict:
-    # Validación de unicidad
+    # Validación de unicidad (case-insensitive en username)
     with session_scope() as s:
         existing = s.exec(
             select(User).where(
-                (User.username == body.username) | (User.email == body.email.lower())
+                (func.lower(User.username) == body.username.strip().lower())
+                | (User.email == body.email.lower())
             )
         ).first()
         if existing:
             raise HTTPException(409, "username o email ya existe")
         first_user = len(s.exec(select(User)).all()) == 0
 
+    # El primer usuario es admin y entra aprobado; el resto quedan PENDIENTES
+    # de que un admin los apruebe en /admin.
     user = auth_svc.create_user(
         username=body.username,
         email=body.email,
         password=body.password,
-        is_admin=first_user,  # primer usuario es admin automáticamente
+        is_admin=first_user,
+        is_approved=first_user,
     )
     if first_user:
         log.info("primer usuario %s creado como ADMIN", user.username)
-        # Asignar álbumes existentes (de antes del multi-user) al admin como públicos
         _assign_orphaned_albums_to(user.id)
+        token = auth_svc.create_token(user.id, user.username, user.is_admin)
+        return {"token": token, "user": _user_to_dict(user)}
 
-    token = auth_svc.create_token(user.id, user.username, user.is_admin)
-    return {"token": token, "user": _user_to_dict(user)}
+    log.info("registro pendiente de aprobación: %s", user.username)
+    return {"pending": True, "user": _user_to_dict(user)}
 
 
 @router.post("/auth/login", response_model=AuthResponse)
@@ -80,6 +87,8 @@ def login(body: LoginIn) -> dict:
         raise HTTPException(401, "credenciales inválidas")
     if not user.is_active:
         raise HTTPException(403, "cuenta bloqueada")
+    if not user.is_approved:
+        raise HTTPException(403, "tu cuenta está pendiente de aprobación por el administrador")
     token = auth_svc.create_token(user.id, user.username, user.is_admin)
     return {"token": token, "user": _user_to_dict(user)}
 
@@ -117,6 +126,7 @@ def list_users(_: User = Depends(auth_svc.require_admin)) -> dict:
 class AdminUpdateUser(BaseModel):
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
+    is_approved: Optional[bool] = None
 
 
 @admin_router.patch("/users/{user_id}")
@@ -135,6 +145,8 @@ def admin_update_user(
             u.is_active = body.is_active
         if body.is_admin is not None:
             u.is_admin = body.is_admin
+        if body.is_approved is not None:
+            u.is_approved = body.is_approved
         s.add(u)
         s.flush()
         s.expunge(u)

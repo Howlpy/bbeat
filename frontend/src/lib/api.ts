@@ -223,7 +223,7 @@ export const api = {
 
   // ── Auth ──
   register: (username: string, email: string, password: string) =>
-    json<{ token: string; user: import('./auth.svelte').AuthUser }>('/api/auth/register', {
+    json<{ token?: string; user: import('./auth.svelte').AuthUser; pending?: boolean }>('/api/auth/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username, email, password }),
@@ -239,7 +239,7 @@ export const api = {
   me: () => json<import('./auth.svelte').AuthUser>('/api/auth/me'),
   listUsers: () =>
     json<{ total: number; items: import('./auth.svelte').AuthUser[] }>('/api/admin/users'),
-  updateUser: (id: number, body: { is_active?: boolean; is_admin?: boolean }) =>
+  updateUser: (id: number, body: { is_active?: boolean; is_admin?: boolean; is_approved?: boolean }) =>
     json<import('./auth.svelte').AuthUser>(`/api/admin/users/${id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },

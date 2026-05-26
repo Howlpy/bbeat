@@ -116,6 +116,8 @@ def get_current_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "usuario no existe")
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "cuenta bloqueada")
+    if not user.is_approved:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "cuenta pendiente de aprobación")
     return user
 
 
@@ -171,6 +173,7 @@ def create_user(
     email: str,
     password: str,
     is_admin: bool = False,
+    is_approved: bool = False,
 ) -> User:
     with session_scope() as s:
         user = User(
@@ -179,6 +182,7 @@ def create_user(
             password_hash=hash_password(password),
             is_admin=is_admin,
             is_active=True,
+            is_approved=is_approved,
         )
         s.add(user)
         s.flush()

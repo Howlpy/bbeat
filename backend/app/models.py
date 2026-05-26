@@ -17,6 +17,10 @@ class User(SQLModel, table=True):
     password_hash: str = Field()
     is_admin: bool = Field(default=False, index=True)
     is_active: bool = Field(default=True, index=True)
+    # Aprobación por admin: los registros nuevos entran pendientes (False) y no
+    # pueden acceder hasta que un admin los aprueba. Los usuarios que ya existían
+    # antes de esta columna quedan aprobados por la migración (DEFAULT 1).
+    is_approved: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=_now)
 
 
