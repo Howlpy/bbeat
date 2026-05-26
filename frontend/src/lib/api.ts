@@ -67,6 +67,7 @@ import { auth } from './auth.svelte';
 import { goto } from '$app/navigation';
 import { apiUrl } from './config';
 import { net, OfflineError } from './net.svelte';
+import { cacheGet, cachePut } from './apicache';
 
 /** Añade ?token=XXX a URLs internas /api/library/cover|stream para que <img> y <audio>
  * (que no pueden mandar Authorization header) puedan acceder. En la app nativa
@@ -91,6 +92,7 @@ function tokenizeUrls(node: any): any {
 
 async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; skipAuth?: boolean }): Promise<T> {
   const { timeoutMs = 30_000, skipAuth = false, ...fetchInit } = init ?? {};
+  const isGet = !fetchInit.method || fetchInit.method.toUpperCase() === 'GET';
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   // Inyecta Authorization si tenemos token y no es un endpoint público
@@ -122,15 +124,22 @@ async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; s
       throw new Error(`${res.status} ${res.statusText}${detail}`);
     }
     const data = await res.json();
+    // Cachea las respuestas GET para poder mostrarlas luego sin conexión.
+    if (isGet) cachePut(url, data);
     return tokenizeUrls(data) as T;
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
       throw new Error(`Tiempo agotado (${Math.round(timeoutMs / 1000)}s) — ${url}`);
     }
     // fetch lanza TypeError cuando no se pudo establecer la conexión (sin red,
-    // DNS, etc.). Lo normalizamos a un error de offline reconocible y amable.
+    // DNS, etc.). Sin red: si es un GET y lo tenemos cacheado, devolvemos lo
+    // último visto (UI tipo Spotify offline); si no, error de offline.
     if (e instanceof TypeError) {
       net.online = false;
+      if (isGet) {
+        const cached = await cacheGet(url);
+        if (cached !== undefined) return tokenizeUrls(cached) as T;
+      }
       throw new OfflineError();
     }
     throw e;

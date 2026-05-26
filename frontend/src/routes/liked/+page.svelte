@@ -4,6 +4,7 @@
   import { api, type Track } from '$lib/api';
   import { player } from '$lib/player.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
+  import DownloadAllButton from '$lib/components/DownloadAllButton.svelte';
 
   let tracks = $state<Track[]>([]);
   let total = $state(0);
@@ -60,6 +61,7 @@
       >
         <Shuffle size={16} /> Aleatorio
       </button>
+      <DownloadAllButton {tracks} label="Descargar todo" />
     </div>
   {/if}
 
