@@ -9,9 +9,15 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "preview:https": "BBEAT_HTTPS=1 vite preview --host 0.0.0.0",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "build:native": "BBEAT_NATIVE=1 BBEAT_BUILD_DIR=build-native VITE_API_BASE=https://bbeat.howl.wtf vite build",
+    "sync:android": "npm run build:native && cap sync android",
+    "apk": "npm run sync:android && cd android && ./gradlew assembleRelease"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.3.4",
     "@sveltejs/adapter-static": "^3.0.8",
     "@sveltejs/kit": "^2.15.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
@@ -24,6 +30,11 @@
     "vite": "^6.0.7"
   },
   "dependencies": {
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/local-notifications": "^8.2.0",
+    "@capawesome/capacitor-android-edge-to-edge-support": "^8.0.8",
+    "@capgo/capacitor-media-session": "^8.0.24",
     "lucide-svelte": "^1.0.1"
   }
 }

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bbeat</string>
+    <string name="title_activity_main">Bbeat</string>
+    <string name="package_name">wtf.howl.bbeat</string>
+    <string name="custom_url_scheme">wtf.howl.bbeat</string>
+</resources>

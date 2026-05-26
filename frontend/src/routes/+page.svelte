@@ -27,6 +27,7 @@
   import { auth } from '$lib/auth.svelte';
   import { jobs } from '$lib/jobs.svelte';
   import { player } from '$lib/player.svelte';
+  import { isOfflineError } from '$lib/net.svelte';
 
   let stats = $state<LibraryStats | null>(null);
   let recentTracks = $state<Track[]>([]);
@@ -51,7 +52,7 @@
       topTracks = top.items ?? [];
       authStatus = a;
     } catch (e) {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) offlineMode = true;
+      if (isOfflineError(e)) offlineMode = true;
       else error = e instanceof Error ? e.message : String(e);
     }
   }

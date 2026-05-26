@@ -11,7 +11,7 @@
 
   async function loadAll() {
     const [h, c] = await Promise.all([
-      fetch('/api/setup/status').then((r) => r.json()),
+      api.health(),
       api.spotifyAuthStatus()
     ]);
     setupComplete = h.setup_complete;

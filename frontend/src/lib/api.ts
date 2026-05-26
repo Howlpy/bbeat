@@ -65,15 +65,18 @@ export type ScanState = {
 
 import { auth } from './auth.svelte';
 import { goto } from '$app/navigation';
+import { apiUrl } from './config';
+import { net, OfflineError } from './net.svelte';
 
 /** Añade ?token=XXX a URLs internas /api/library/cover|stream para que <img> y <audio>
- * (que no pueden mandar Authorization header) puedan acceder. */
+ * (que no pueden mandar Authorization header) puedan acceder. En la app nativa
+ * además las hace absolutas contra API_BASE (no hay backend en el mismo origen). */
 function tokenizeUrls(node: any): any {
   if (node === null || node === undefined) return node;
   if (typeof node === 'string') {
     if (auth.token && (node.startsWith('/api/library/stream/') || node.startsWith('/api/library/cover/'))) {
       const sep = node.includes('?') ? '&' : '?';
-      return `${node}${sep}token=${encodeURIComponent(auth.token)}`;
+      return `${apiUrl(node)}${sep}token=${encodeURIComponent(auth.token)}`;
     }
     return node;
   }
@@ -96,7 +99,8 @@ async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; s
     headers.set('Authorization', `Bearer ${auth.token}`);
   }
   try {
-    const res = await fetch(url, { ...fetchInit, headers, signal: ctrl.signal });
+    const res = await fetch(apiUrl(url), { ...fetchInit, headers, signal: ctrl.signal });
+    net.online = true; // hubo respuesta del servidor → hay red
     if (res.status === 401 && !skipAuth) {
       // Token inválido/expirado → logout y redirect
       auth.logout();
@@ -122,6 +126,12 @@ async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; s
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
       throw new Error(`Tiempo agotado (${Math.round(timeoutMs / 1000)}s) — ${url}`);
+    }
+    // fetch lanza TypeError cuando no se pudo establecer la conexión (sin red,
+    // DNS, etc.). Lo normalizamos a un error de offline reconocible y amable.
+    if (e instanceof TypeError) {
+      net.online = false;
+      throw new OfflineError();
     }
     throw e;
   } finally {

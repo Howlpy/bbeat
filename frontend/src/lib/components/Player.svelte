@@ -6,14 +6,16 @@
   import NowPlaying from './NowPlaying.svelte';
   import Queue from './Queue.svelte';
 
-  let audioEl: HTMLAudioElement;
+  let audioA: HTMLAudioElement;
+  let audioB: HTMLAudioElement;
   let volumeOpen = $state(false);
   let volumePanel = $state<HTMLDivElement | null>(null);
   let nowPlayingOpen = $state(false);
   let queueOpen = $state(false);
 
   onMount(() => {
-    player.attach(audioEl);
+    // Dos elementos: activo + en espera (precarga de la siguiente pista).
+    player.attach(audioA, audioB);
   });
 
   function onVolume(e: Event) {
@@ -40,7 +42,8 @@
   }
 </script>
 
-<audio bind:this={audioEl} preload="metadata"></audio>
+<audio bind:this={audioA} preload="auto"></audio>
+<audio bind:this={audioB} preload="auto"></audio>
 
 {#if player.current}
   <!-- Mini player anclado al bottom -->

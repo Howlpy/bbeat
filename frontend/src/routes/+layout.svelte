@@ -7,10 +7,13 @@
   import '../app.css';
   import Player from '$lib/components/Player.svelte';
   import BottomNav from '$lib/components/BottomNav.svelte';
+  import { WifiOff } from 'lucide-svelte';
+  import { Capacitor } from '@capacitor/core';
   import { player } from '$lib/player.svelte';
   import { jobs } from '$lib/jobs.svelte';
   import { auth } from '$lib/auth.svelte';
   import { offline } from '$lib/offline.svelte';
+  import { net } from '$lib/net.svelte';
 
   let { children } = $props();
 
@@ -32,6 +35,12 @@
     if (auth.isLoggedIn) {
       jobs.start();
       offline.init();
+      // En la app nativa, pedir permiso de notificaciones (Android 13+) para que
+      // aparezca el control de media en la notificación/bloqueo.
+      if (Capacitor.isNativePlatform()) {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        LocalNotifications.requestPermissions().catch(() => {});
+      }
     }
 
     if (dev && 'serviceWorker' in navigator) {
@@ -61,6 +70,14 @@
     <p class="text-slate-500">Cargando…</p>
   </main>
 {:else}
+  {#if !net.online}
+    <a
+      href="/downloads"
+      class="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-2 bg-amber-600/95 px-3 py-1.5 text-xs font-medium text-amber-50 backdrop-blur"
+    >
+      <WifiOff size={14} /> Sin conexión · toca para ir a Descargas
+    </a>
+  {/if}
   <main class="min-h-screen {mainPadBottom}">
     {#key page.url.pathname}
       <div in:fly={{ y: 10, duration: 220 }}>

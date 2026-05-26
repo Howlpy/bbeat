@@ -40,7 +40,13 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        configured = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        # Orígenes del WebView de la app nativa (Capacitor): Android sirve el
+        # frontend desde https://localhost, iOS desde capacitor://localhost.
+        # Siempre permitidos para que la APK pueda hablar con la API aunque el
+        # .env no los liste.
+        native = ["https://localhost", "capacitor://localhost"]
+        return list(dict.fromkeys(configured + native))
 
     @property
     def setup_complete(self) -> bool:

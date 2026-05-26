@@ -65,3 +65,6 @@ tmp/
 # backups de la BD
 data/*.bak
 data/*.bak-*
+
+# build de la app nativa (Capacitor)
+frontend/build-native/

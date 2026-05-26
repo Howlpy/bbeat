@@ -1,5 +1,6 @@
 import { api, type Track } from './api';
 import { offline } from './offline.svelte';
+import { media } from './media';
 
 const VOLUME_KEY = "bbeat:volume";
 const MUTED_KEY = "bbeat:muted";
@@ -58,7 +59,22 @@ class PlayerState {
   current = $derived<Track | null>(this.queue[this.index] ?? null);
   effectiveVolume = $derived(this.muted ? 0 : this.volume);
 
-  audio: HTMLAudioElement | null = null;
+  // Dos elementos <audio>: uno ACTIVO (sonando) y otro EN ESPERA con la
+  // siguiente pista ya precargada. Al terminar una pista intercambiamos y
+  // reproducimos el que ya está bufferizado, en vez de hacer src+load+play()
+  // sobre un elemento en frío — eso último es justo lo que el SO estrangula
+  // con la pantalla bloqueada, cortando el auto-avance en móvil.
+  private els: HTMLAudioElement[] = [];
+  private activeIdx = 0;
+  /** id de la pista precargada en el elemento en espera (null = nada). */
+  private preloadedId: number | null = null;
+
+  private get el(): HTMLAudioElement | null {
+    return this.els[this.activeIdx] ?? null;
+  }
+  private get standby(): HTMLAudioElement | null {
+    return this.els[1 - this.activeIdx] ?? null;
+  }
 
   /** Orden sin barajar de la cola actual (para poder restaurarlo al quitar shuffle). */
   private baseQueue: Track[] = [];
@@ -70,32 +86,42 @@ class PlayerState {
   /** Activo durante una transición de pista para suprimir el pause espurio. */
   private switching = false;
 
-  attach(el: HTMLAudioElement) {
-    this.audio = el;
-    el.volume = this.effectiveVolume;
+  attach(a: HTMLAudioElement, b: HTMLAudioElement) {
+    this.els = [a, b];
+    for (const el of this.els) {
+      el.volume = this.effectiveVolume;
+      el.preload = 'auto';
 
-    el.addEventListener('timeupdate', () => {
-      this.position = el.currentTime;
-      this.updatePositionState();
-    });
-    el.addEventListener('loadedmetadata', () => {
-      this.duration = el.duration;
-      this.updatePositionState();
-    });
-    el.addEventListener('ended', () => this.next(true));
-    el.addEventListener('play', () => {
-      this.isPlaying = true;
-      this.wantsPlay = true;
-      this.setPlaybackState('playing');
-    });
-    el.addEventListener('pause', () => {
-      // Cuando estamos cambiando de pista, el <audio> emite pause espurio
-      // entre el load() y el nuevo play(). Si lo dejamos pasar, Android
-      // ve playbackState='paused' un instante y descarta la notificación.
-      if (this.switching) return;
-      this.isPlaying = false;
-      this.setPlaybackState('paused');
-    });
+      el.addEventListener('timeupdate', () => {
+        if (el !== this.el) return;
+        this.position = el.currentTime;
+        this.updatePositionState();
+      });
+      el.addEventListener('loadedmetadata', () => {
+        if (el !== this.el) return;
+        this.duration = el.duration;
+        this.updatePositionState();
+      });
+      el.addEventListener('ended', () => {
+        if (el !== this.el) return;
+        this.next(true);
+      });
+      el.addEventListener('play', () => {
+        if (el !== this.el) return;
+        this.isPlaying = true;
+        this.wantsPlay = true;
+        this.setPlaybackState('playing');
+      });
+      el.addEventListener('pause', () => {
+        if (el !== this.el) return;
+        // Al cambiar de pista el <audio> emite un pause espurio entre el
+        // load() y el nuevo play(). Si lo dejamos pasar, Android ve
+        // playbackState='paused' un instante y descarta la notificación.
+        if (this.switching) return;
+        this.isPlaying = false;
+        this.setPlaybackState('paused');
+      });
+    }
 
     // Safety net: si Chrome pausa el audio al cambiar de pestaña/app
     // y luego volvemos, reanudar si el usuario estaba reproduciendo.
@@ -104,18 +130,23 @@ class PlayerState {
         if (
           document.visibilityState === 'visible' &&
           this.wantsPlay &&
-          this.audio &&
-          this.audio.paused
+          this.el &&
+          this.el.paused
         ) {
-          this.audio.play().catch(() => {});
+          this.el.play().catch(() => {});
         }
       });
     }
   }
 
+  /** URL de reproducción de una pista: blob/fichero local si está descargada, si no el stream. */
+  private srcFor(t: Track): string {
+    return offline.audioUrl(t.id) ?? t.stream_url;
+  }
+
   pauseExplicit() {
     this.wantsPlay = false;
-    this.audio?.pause();
+    this.el?.pause();
   }
 
   playTracks(tracks: Track[], startIndex = 0) {
@@ -157,6 +188,7 @@ class PlayerState {
       this.queue = [...base];
       this.index = cur ? Math.max(0, this.queue.findIndex((t) => t.id === cur.id)) : this.index;
     }
+    this.preloadNext();
   }
 
   private persistShuffle() {
@@ -170,10 +202,12 @@ class PlayerState {
 
   enqueue(track: Track) {
     this.queue = [...this.queue, track];
+    this.preloadNext();
   }
 
   private loadCurrent(autoplay: boolean) {
-    if (!this.audio || !this.current) return;
+    const el = this.el;
+    if (!el || !this.current) return;
     // Marca que estamos cambiando para suprimir el pause espurio del <audio>.
     this.switching = true;
     // Mantén playbackState='playing' en MediaSession durante la transición
@@ -182,16 +216,17 @@ class PlayerState {
     // metadata DEBE ir antes del .play() para que el OS enganche la sesión
     this.updateMediaSession();
 
-    // Si la pista está descargada, reproduce desde el blob local (offline).
-    this.audio.src = offline.audioUrl(this.current.id) ?? this.current.stream_url;
-    this.audio.load();
+    el.src = this.srcFor(this.current);
+    el.load();
 
     const cur = this.current;
     const done = () => {
       this.switching = false;
+      // Con la pista en marcha, precarga la siguiente en el elemento en espera.
+      this.preloadNext();
     };
     if (autoplay) {
-      this.audio.play().then(() => {
+      el.play().then(() => {
         done();
         // Registrar la reproducción una sola vez por pista (historial + top).
         if (cur && this.playLogged !== cur.id) {
@@ -207,14 +242,39 @@ class PlayerState {
     }
   }
 
+  /** Índice al que saltaría el auto-avance (o null si no hay siguiente). */
+  private autoNextIndex(): number | null {
+    if (this.index < this.queue.length - 1) return this.index + 1;
+    if (this.repeat === 'all' && this.queue.length) return 0;
+    return null;
+  }
+
+  /** Precarga la siguiente pista en el elemento en espera (sin reproducirla). */
+  private preloadNext() {
+    const sb = this.standby;
+    if (!sb) return;
+    // En repeat-one la "siguiente" es la misma que suena: no hace falta espera.
+    if (this.repeat === 'one') return;
+    const ni = this.autoNextIndex();
+    if (ni === null) return;
+    const t = this.queue[ni];
+    if (!t) return;
+    if (this.preloadedId === t.id && sb.src) return; // ya precargada
+    sb.src = this.srcFor(t);
+    sb.preload = 'auto';
+    sb.load();
+    this.preloadedId = t.id;
+  }
+
   toggle() {
-    if (!this.audio) return;
-    if (this.audio.paused) {
+    const el = this.el;
+    if (!el) return;
+    if (el.paused) {
       this.wantsPlay = true;
-      this.audio.play();
+      el.play();
     } else {
       this.wantsPlay = false;
-      this.audio.pause();
+      el.pause();
     }
   }
 
@@ -225,16 +285,64 @@ class PlayerState {
       this.loadCurrent(true);
       return;
     }
-    if (this.index < this.queue.length - 1) {
-      this.index += 1;
-      this.loadCurrent(true);
-    } else if (this.repeat === 'all' && this.queue.length) {
-      this.index = 0;
-      this.loadCurrent(true);
-    } else {
-      this.audio?.pause();
+    const ni = this.autoNextIndex();
+    if (ni === null) {
+      this.el?.pause();
       this.isPlaying = false;
+      return;
     }
+    const target = this.queue[ni];
+    const sb = this.standby;
+    // Auto-avance con la siguiente ya precargada y lista → intercambia y
+    // reproduce el elemento en espera. play() sobre algo bufferizado NO se
+    // estrangula con la pantalla bloqueada (a diferencia de un load() en frío).
+    if (auto && sb && this.preloadedId === target?.id && sb.readyState >= 2) {
+      this.advanceBySwap(ni);
+    } else {
+      this.index = ni;
+      this.loadCurrent(true);
+    }
+  }
+
+  /** Avanza intercambiando al elemento en espera (precargado). */
+  private advanceBySwap(ni: number) {
+    const old = this.el;
+    const nw = this.standby;
+    if (!nw) {
+      this.index = ni;
+      this.loadCurrent(true);
+      return;
+    }
+    this.switching = true;
+    this.setPlaybackState('playing');
+    this.index = ni;
+    this.activeIdx = 1 - this.activeIdx; // a partir de aquí this.el === nw
+    this.preloadedId = null;
+    this.updateMediaSession();
+
+    old?.pause();
+    if (old) {
+      try { old.currentTime = 0; } catch { /* ignore */ }
+    }
+
+    nw.volume = this.effectiveVolume;
+    this.duration = isFinite(nw.duration) ? nw.duration : 0;
+    this.position = nw.currentTime;
+    this.updatePositionState();
+
+    const cur = this.current;
+    nw.play().then(() => {
+      this.switching = false;
+      if (cur && this.playLogged !== cur.id) {
+        this.playLogged = cur.id;
+        api.recordPlay(cur.id).catch(() => {});
+      }
+      this.preloadNext(); // ahora precarga la siguiente en el elemento liberado
+    }, (err) => {
+      console.warn('[bbeat] play tras swap rechazado, recargo en frío:', err);
+      this.switching = false;
+      this.loadCurrent(true);
+    });
   }
 
   cycleRepeat() {
@@ -246,6 +354,7 @@ class PlayerState {
         // ignorar
       }
     }
+    this.preloadNext();
   }
 
   // ─── Cola ──────────────────────────────────────────────────────
@@ -259,6 +368,8 @@ class PlayerState {
     if (wasEmpty) {
       this.index = 0;
       this.loadCurrent(true);
+    } else {
+      this.preloadNext();
     }
   }
 
@@ -271,6 +382,7 @@ class PlayerState {
     const at = this.index + 1;
     this.queue = [...this.queue.slice(0, at), t, ...this.queue.slice(at)];
     this.baseQueue = [...this.baseQueue, t];
+    this.preloadNext();
   }
 
   /** Salta a una posición concreta de la cola. */
@@ -290,11 +402,12 @@ class PlayerState {
       if (this.index >= this.queue.length) this.index = Math.max(0, this.queue.length - 1);
       if (this.queue.length) this.loadCurrent(this.isPlaying);
       else {
-        this.audio?.pause();
+        this.el?.pause();
         this.isPlaying = false;
       }
-    } else if (i < this.index) {
-      this.index -= 1;
+    } else {
+      if (i < this.index) this.index -= 1;
+      this.preloadNext();
     }
   }
 
@@ -310,8 +423,9 @@ class PlayerState {
   }
 
   prev() {
-    if (this.audio && this.audio.currentTime > 3) {
-      this.audio.currentTime = 0;
+    const el = this.el;
+    if (el && el.currentTime > 3) {
+      el.currentTime = 0;
       return;
     }
     if (this.index > 0) {
@@ -321,7 +435,7 @@ class PlayerState {
   }
 
   seek(seconds: number) {
-    if (this.audio) this.audio.currentTime = seconds;
+    if (this.el) this.el.currentTime = seconds;
   }
 
   setVolume(v: number) {
@@ -338,7 +452,8 @@ class PlayerState {
   }
 
   private applyVolume() {
-    if (this.audio) this.audio.volume = this.effectiveVolume;
+    // Aplica a ambos elementos para que el que está en espera arranque al volumen correcto.
+    for (const el of this.els) el.volume = this.effectiveVolume;
   }
 
   private persistVolume() {
@@ -351,91 +466,58 @@ class PlayerState {
     }
   }
 
-  // ─── Media Session API ────────────────────────────────────────
-  private hasMediaSession(): boolean {
-    return typeof navigator !== 'undefined' && 'mediaSession' in navigator;
-  }
+  // ─── Media Session (web navigator + notificación nativa) ──────
+  private actionHandlersSet = false;
 
   private updateMediaSession() {
-    if (!this.hasMediaSession()) {
-      console.warn('[bbeat] navigator.mediaSession NO disponible en este navegador');
-      return;
-    }
+    if (!media.available) return;
     const t = this.current;
-    if (!t) {
-      navigator.mediaSession.metadata = null;
-      return;
-    }
+    if (!t) return;
 
-    // URL absoluta obligatoria — Chrome ignora rutas relativas
-    const artwork = t.cover_url
-      ? [
-          {
-            src: new URL(t.cover_url, window.location.origin).toString(),
-            sizes: '512x512',
-            type: 'image/jpeg'
-          }
-        ]
-      : [];
+    // URL absoluta obligatoria. Si la pista está descargada, usa la carátula
+    // local (sigue visible offline); si no, la remota.
+    const local = offline.coverUrl(t.id);
+    const artwork = local
+      ? [{ src: local, sizes: '512x512', type: 'image/jpeg' }]
+      : t.cover_url
+        ? [{ src: new URL(t.cover_url, window.location.origin).toString(), sizes: '512x512', type: 'image/jpeg' }]
+        : [];
 
-    navigator.mediaSession.metadata = new MediaMetadata({
+    media.setMetadata({
       title: t.title,
       artist: t.artist_name,
       album: t.album_title ?? '',
       artwork
     });
 
-    console.log('[bbeat] MediaSession metadata set:', {
-      title: t.title,
-      artist: t.artist_name,
-      album: t.album_title,
-      artwork_src: artwork[0]?.src,
-      isSecureContext: typeof window !== 'undefined' && window.isSecureContext,
-      protocol: typeof window !== 'undefined' && window.location.protocol
-    });
-
-    const safe = (name: MediaSessionAction, fn: () => void) => {
-      try {
-        navigator.mediaSession.setActionHandler(name, fn);
-      } catch {
-        // navegador no soporta esta acción, no pasa nada
-      }
-    };
-
-    safe('play', () => this.audio?.play());
-    safe('pause', () => this.audio?.pause());
-    safe('nexttrack', () => this.next());
-    safe('previoustrack', () => this.prev());
-    safe('seekbackward', () => this.seek(Math.max(0, (this.audio?.currentTime ?? 0) - 10)));
-    safe('seekforward', () =>
-      this.seek(Math.min(this.audio?.duration ?? 0, (this.audio?.currentTime ?? 0) + 10))
+    // Los handlers no dependen de la pista; basta registrarlos una vez.
+    if (this.actionHandlersSet) return;
+    this.actionHandlersSet = true;
+    media.setActionHandler('play', () => this.el?.play());
+    media.setActionHandler('pause', () => this.el?.pause());
+    media.setActionHandler('nexttrack', () => this.next());
+    media.setActionHandler('previoustrack', () => this.prev());
+    media.setActionHandler('seekbackward', () => this.seek(Math.max(0, (this.el?.currentTime ?? 0) - 10)));
+    media.setActionHandler('seekforward', () =>
+      this.seek(Math.min(this.el?.duration ?? 0, (this.el?.currentTime ?? 0) + 10))
     );
-    try {
-      navigator.mediaSession.setActionHandler('seekto', (d) => {
-        if (d.seekTime !== undefined) this.seek(d.seekTime);
-      });
-    } catch {
-      // ignorar
-    }
+    media.setActionHandler('seekto', (d) => {
+      if (d.seekTime != null) this.seek(d.seekTime);
+    });
   }
 
-  private setPlaybackState(state: MediaSessionPlaybackState) {
-    if (!this.hasMediaSession()) return;
-    navigator.mediaSession.playbackState = state;
+  private setPlaybackState(state: 'none' | 'paused' | 'playing') {
+    media.setPlaybackState(state);
   }
 
   private updatePositionState() {
-    if (!this.hasMediaSession() || !this.audio) return;
-    if (!isFinite(this.audio.duration) || this.audio.duration <= 0) return;
-    try {
-      navigator.mediaSession.setPositionState({
-        duration: this.audio.duration,
-        position: this.audio.currentTime,
-        playbackRate: this.audio.playbackRate || 1.0
-      });
-    } catch {
-      // algunos navegadores fallan si los valores son raros, lo ignoramos
-    }
+    const el = this.el;
+    if (!el || !isFinite(el.duration) || el.duration <= 0) return;
+    media.setPositionState({
+      duration: el.duration,
+      position: el.currentTime,
+      playbackRate: el.playbackRate || 1.0
+    });
   }
 }
 
