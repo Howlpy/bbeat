@@ -57,11 +57,30 @@ versionName "1.1"      // string visible
 - `frontend/src/lib/player.svelte.ts` — doble `<audio>` (activo + en espera precargado). El auto-avance intercambia al elemento ya bufferizado en vez de `load()` en frío → no se estrangula con la pantalla bloqueada. **Esto mejora también la PWA web.**
 - `backend/app/config.py` — CORS permite siempre `https://localhost` / `capacitor://localhost` (orígenes del WebView nativo).
 
-## Si el segundo plano fallara en algún dispositivo (plan B)
+## Plugins nativos (Capacitor)
 
-La hipótesis es que el WebView de la app (a diferencia de una pestaña de navegador) sigue reproduciendo bloqueado. Si en tu móvil concreto Android mata el audio al bloquear:
+- `@capacitor/filesystem` — descargas offline a disco.
+- `@capgo/capacitor-media-session` — notificación / control de bloqueo nativo + *foreground service* (`mediaPlayback`). El WebView no crea esa notificación por sí solo. Unificado con la web en `src/lib/media.ts`.
+- `@capawesome/capacitor-android-edge-to-edge-support` — mete los insets al WebView (no se solapa con barras de estado/gestos). Colores en `capacitor.config.ts` → `EdgeToEdge`.
+- `@capacitor/local-notifications` — solo para pedir el permiso `POST_NOTIFICATIONS` (Android 13+) al arrancar.
 
-1. Añadir un *foreground service* nativo (notificación persistente mientras suena) en el proyecto Android, arrancado al empezar a reproducir.
-2. Declarar `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MEDIA_PLAYBACK` en el manifest.
+**Permisos añadidos a mano** en `android/app/src/main/AndroidManifest.xml` (el plugin de media no los trae): `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (Android 14+) y `POST_NOTIFICATIONS` (Android 13+). Sin ellos, peta al reproducir o no se ve la notificación.
 
-No se incluye de inicio para no meter dependencias frágiles; se añade si las pruebas en dispositivo lo piden.
+## Icono / splash
+
+Fuente: `frontend/assets/icon.png` (1024, rasterizado del SVG maskable con sharp). Regenerar los recursos Android:
+
+```bash
+npx capacitor-assets generate --android --iconBackgroundColor '#0F1626' --iconBackgroundColorDark '#0F1626'
+```
+
+⚠️ Ese comando **reformatea `AndroidManifest.xml`**: tras correrlo, comprueba que siguen los dos permisos de arriba.
+
+## Publicar una release
+
+```bash
+gh release create vX.Y ~/bbeat-vX.Y.apk --repo Howlpy/bbeat --target main \
+  --title "Bbeat Android vX.Y" --notes "..."
+```
+
+El repo es **privado**: para bajar la APK al móvil hay que estar logueado en GitHub (app móvil o `gh release download`). La APK no va dentro del árbol de git (es binario), solo como asset de release. El keystore/`.env`/`secrets` están en `.gitignore` — nunca se suben.
