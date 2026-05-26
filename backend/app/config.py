@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     spotify_client_secret: str = Field("", alias="SPOTIFY_CLIENT_SECRET")
 
     download_backend: Literal["votify", "yt-dlp"] = Field("votify", alias="BBEAT_DOWNLOAD_BACKEND")
-    audio_format: Literal["ogg", "mp3", "flac"] = Field("ogg", alias="BBEAT_AUDIO_FORMAT")
+    # opus = preferimos el stream Opus de YouTube y lo copiamos al contenedor
+    # (sin recodificar): mínimo tamaño, máxima calidad. Es el default.
+    audio_format: Literal["opus", "ogg", "m4a", "mp3", "flac"] = Field("opus", alias="BBEAT_AUDIO_FORMAT")
     audio_quality: str = Field("auto", alias="BBEAT_AUDIO_QUALITY")
     max_concurrent_jobs: int = Field(1, alias="BBEAT_MAX_CONCURRENT_JOBS")
     fallback_ytdlp: bool = Field(True, alias="BBEAT_FALLBACK_YTDLP")

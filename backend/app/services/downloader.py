@@ -30,6 +30,22 @@ AUDIO_EXTS = {".ogg", ".opus", ".m4a", ".mp3", ".flac", ".webm", ".aac"}
 DURATION_TOLERANCE_MS = 15000
 
 
+def _ytdlp_format_and_pp() -> tuple[str, list[dict]]:
+    """Selector de formato + postprocesador de yt-dlp según settings.audio_format.
+
+    Por defecto (opus): preferimos el stream Opus nativo de YouTube y lo copiamos
+    al contenedor con FFmpegExtractAudio (yt-dlp hace `-c:a copy` cuando el códec
+    ya coincide, así que NO recodifica) → mínimo tamaño, máxima calidad. Si no hay
+    opus disponible cae a bestaudio. Para mp3/m4a/flac sí recodifica al pedido.
+    """
+    fmt = settings.audio_format
+    if fmt in ("opus", "ogg"):
+        return "bestaudio[acodec=opus]/bestaudio/best", [
+            {"key": "FFmpegExtractAudio", "preferredcodec": "opus"}
+        ]
+    return "bestaudio/best", [{"key": "FFmpegExtractAudio", "preferredcodec": fmt}]
+
+
 @dataclass
 class DownloadResult:
     file_path: Optional[Path]
@@ -226,13 +242,14 @@ def download_with_ytdlp(
 
     # ─── Pasada 2: descargar candidato a candidato hasta que uno funcione ───
     out_tmpl = str(out_dir / f"ytdlp-{meta.spotify_id}.%(ext)s")
+    fmt_selector, postprocessors = _ytdlp_format_and_pp()
     download_opts = {
-        "format": "bestaudio/best",
+        "format": fmt_selector,
         "outtmpl": out_tmpl,
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
+        "postprocessors": postprocessors,
         "concurrent_fragment_downloads": 1,
         "socket_timeout": 30,
         "extractor_args": {"youtube": {"player_client": ["web", "android"]}},
@@ -321,13 +338,14 @@ def download_with_ytdlp_direct(
     safe_id = meta.spotify_id.replace(":", "_").replace("/", "_")
     out_tmpl = str(out_dir / f"direct-{safe_id}.%(ext)s")
 
+    fmt_selector, postprocessors = _ytdlp_format_and_pp()
     opts = {
-        "format": "bestaudio/best",
+        "format": fmt_selector,
         "outtmpl": out_tmpl,
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
+        "postprocessors": postprocessors,
         "concurrent_fragment_downloads": 1,
         "socket_timeout": 30,
     }
