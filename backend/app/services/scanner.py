@@ -13,6 +13,7 @@ from mutagen.flac import FLAC, Picture
 from mutagen.id3 import APIC
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
+from mutagen.oggopus import OggOpus
 from mutagen.oggvorbis import OggVorbis
 from sqlmodel import Session, select
 
@@ -91,7 +92,12 @@ def _extract_tags(audio) -> dict:
 
     def g(*keys):
         for k in keys:
-            v = t.get(k) if hasattr(t, "get") else None
+            try:
+                v = t.get(k) if hasattr(t, "get") else None
+            except (KeyError, ValueError):
+                # Claves estilo MP4 ('\xa9day', '\xa9nam'…) no son válidas en
+                # Vorbis/Opus: mutagen lanza ValueError. Las ignoramos.
+                v = None
             if v:
                 return v
         return None
@@ -121,7 +127,10 @@ def _extract_cover_bytes(audio) -> Optional[bytes]:
         covers = audio.tags.get("covr")
         if covers:
             return bytes(covers[0])
-    if isinstance(audio, OggVorbis) and audio.tags:
+    # OggVorbis y OggOpus son clases hermanas (no una subclase de la otra) pero
+    # ambas guardan la carátula igual: FLAC Picture en base64 en
+    # 'metadata_block_picture'. Sin OggOpus, los .opus se quedaban sin carátula.
+    if isinstance(audio, (OggVorbis, OggOpus)) and audio.tags:
         b64 = audio.tags.get("metadata_block_picture")
         if b64:
             import base64
