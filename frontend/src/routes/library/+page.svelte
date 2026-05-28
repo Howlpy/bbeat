@@ -113,6 +113,6 @@
       {query ? 'Sin resultados.' : 'Biblioteca vacía. Importa algo desde /import.'}
     </p>
   {:else}
-    <TrackList bind:tracks onchanged={load} />
+    <TrackList bind:tracks showAlbum={false} onchanged={load} />
   {/if}
 </div>
