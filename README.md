@@ -2,7 +2,7 @@
 
 Servidor de música personal self-hosted. Webapp responsive mobile-first (+ app nativa de Android) que descarga música automáticamente desde URLs públicas y la sirve a tus dispositivos.
 
-Pegas una URL de Spotify, YouTube o SoundCloud y Bbeat extrae la metadata, descarga el audio, lo etiqueta y organiza (`Artista/Álbum/NN - Título.ext`), lo indexa y lo deja listo para reproducir. Si la pista ya existe (mismo ID de origen) no la vuelve a bajar: solo la enlaza al destino que elijas.
+Pegas una URL de Spotify, YouTube o SoundCloud y Bbeat extrae la metadata, descarga el audio, lo etiqueta y organiza (`Artista/Álbum/NN - Título.ext`), lo indexa y lo deja listo para reproducir. Si la pista ya existe no la vuelve a bajar (detecta el duplicado por ID de origen y, si el ID no casa, por título + artista + duración): solo la enlaza al destino que elijas.
 
 Pensado para uso personal o entre amigos en una instancia compartida: cada usuario tiene sus favoritos, su historial y su "Wrapped", y puede **descargar canciones para escucharlas sin conexión**.
 
@@ -25,7 +25,7 @@ Listo para uso real, probado en producción.
 | Ingesta Spotify / YouTube / SoundCloud + playlists y mixes (con deselección) | listo |
 | Playlists multi-artista (una colección "Various Artists", no N álbumes) | listo |
 | Biblioteca por "guardados" (Guardados / Explorar), álbumes con dueño | listo |
-| Auth JWT + admin (registrar/banear/promover) · dedup por ID externo | listo |
+| Auth JWT + admin (registrar/banear/promover) · dedup por ID externo + título/artista/duración | listo |
 | Subir ficheros locales, editar/borrar pistas y álbumes desde la UI | listo |
 
 > **Pool global:** Pistas, álbumes, búsqueda y streaming son compartidos — cualquier usuario autenticado ve y reproduce todo el catálogo de la instancia. Lo que define tu biblioteca personal es **guardar**; el dueño de un álbum solo controla quién puede editarlo. Pensado para instancias entre gente de confianza.
@@ -82,7 +82,6 @@ Lo más simple es ponerlo detrás de **Cloudflare**: un record `A` a tu IP con p
 - Cola persistente (sobrevive al cierre, con posición)
 - Soporte Subsonic API (clientes tipo Symfonium / DSub)
 - Editar/mover pistas en bulk · importar de Apple Music / Deezer
-- Dedup por título+artista+duración (hoy solo por ID externo)
 
 ## Licencia
 

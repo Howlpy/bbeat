@@ -168,6 +168,64 @@ def _link_track_to_album(session, track_id: int, album_id: int, position: Option
     return True
 
 
+# ─── Dedup difuso (misma canción desde cualquier fuente) ──────
+
+# Margen de duración para considerar dos pistas la MISMA. Generoso para tolerar
+# el relleno de silencio típico entre fuentes (Spotify vs YouTube), pero corto
+# frente a remixes/extendidos (que además suelen llevar otro título).
+DEDUP_DURATION_TOL_MS = 10_000
+
+
+def _norm_match(s: Optional[str]) -> str:
+    """Normaliza para comparar (minúsculas, sin acentos, sin signos)."""
+    return downloader._norm_text(s or "")
+
+
+def _artist_matches(a: str, b: str) -> bool:
+    """Artistas 'iguales' siendo tolerante con créditos/sufijos de canal."""
+    if not a or not b:
+        return False
+    return a == b or a in b or b in a
+
+
+def _build_track_index(session) -> dict[str, list[tuple[Track, str]]]:
+    """Índice título_normalizado → [(Track, artista_normalizado)] para dedup."""
+    rows = session.exec(
+        select(Track, Artist.name).join(Artist, Artist.id == Track.artist_id)
+    ).all()
+    idx: dict[str, list[tuple[Track, str]]] = {}
+    for track, artist_name in rows:
+        idx.setdefault(_norm_match(track.title), []).append((track, _norm_match(artist_name)))
+    return idx
+
+
+def _is_same_track(meta: spotify.TrackMeta, track: Track, track_artist_norm: str) -> bool:
+    """Confirma que un candidato (mismo título normalizado) es la misma canción:
+    artista solapado y duración dentro de tolerancia. Conservador a propósito."""
+    if not _artist_matches(_norm_match(meta.primary_artist), track_artist_norm):
+        return False
+    md, td = meta.duration_ms or 0, track.duration_ms or 0
+    if md and td and abs(md - td) > DEDUP_DURATION_TOL_MS:
+        return False
+    return True
+
+
+def _find_existing_track(
+    session, meta: spotify.TrackMeta, index: dict[str, list[tuple[Track, str]]]
+) -> Optional[Track]:
+    """¿Ya está esta canción en la biblioteca? Mira (1) el id externo exacto y,
+    si no, (2) título normalizado + artista + duración, para cazar la MISMA
+    canción venga de Spotify, YouTube, SoundCloud o subida local."""
+    if meta.spotify_id:
+        t = session.exec(select(Track).where(Track.external_id == meta.spotify_id)).first()
+        if t:
+            return t
+    for track, artist_norm in index.get(_norm_match(meta.title), []):
+        if _is_same_track(meta, track, artist_norm):
+            return track
+    return None
+
+
 def create_jobs_from_url(
     url: str,
     overrides: Optional[IngestOverrides] = None,
@@ -208,15 +266,22 @@ def create_jobs_from_url(
             for m in result.tracks:
                 m.album = ""
 
+        track_index = _build_track_index(session)
+        batch_seen: list[tuple[str, str, int]] = []  # (titulo_n, artista_n, dur) ya encolados
+
         for meta in result.tracks:
             _apply_overrides(meta, overrides)
 
-            # Dedup: ¿ya tenemos esta pista descargada?
-            existing_track = session.exec(
-                select(Track).where(Track.external_id == meta.spotify_id)
-            ).first()
-
+            # Dedup contra la biblioteca: id externo exacto y, si no, parecido
+            # (título+artista+duración) para cazar la MISMA canción desde Spotify,
+            # YouTube, SoundCloud o subida local aunque el id externo sea distinto.
+            existing_track = _find_existing_track(session, meta, track_index)
             if existing_track:
+                # Casada por parecido y sin id externo: se lo asignamos para que la
+                # próxima vez case por id exacto (y no overwritear si ya tenía uno).
+                if not existing_track.external_id and meta.spotify_id:
+                    existing_track.external_id = meta.spotify_id
+                    session.add(existing_track)
                 target = playlist_album_id or _resolve_target_album(session, overrides, user_id, meta)
                 added_to = None
                 if target:
@@ -228,6 +293,17 @@ def create_jobs_from_url(
                     "track_id": existing_track.id,
                     "added_to_album_id": added_to,
                 })
+                continue
+
+            # Dedup DENTRO de esta misma importación (la misma canción repetida en
+            # la playlist, o desde dos vídeos de YouTube distintos).
+            tn, an, dm = _norm_match(meta.title), _norm_match(meta.primary_artist), meta.duration_ms or 0
+            if any(
+                tn == bt and _artist_matches(an, ba)
+                and not (dm and bd and abs(dm - bd) > DEDUP_DURATION_TOL_MS)
+                for bt, ba, bd in batch_seen
+            ):
+                skipped.append(meta.spotify_id)
                 continue
 
             # ¿Ya hay un job idéntico pendiente o en curso?
@@ -246,7 +322,11 @@ def create_jobs_from_url(
             target_for_job = playlist_album_id or _resolve_target_album(session, overrides, user_id, meta)
 
             job = Job(
-                source_url=url,
+                # source_url debe ser el de la PISTA individual (el resolver lo
+                # construye como watch?v=<id>), nunca el de la playlist: si no,
+                # la descarga directa baja la playlist entera y un solo vídeo
+                # caído tumba todas las pistas.
+                source_url=meta.source_url or url,
                 source_kind=result.kind,
                 spotify_track_id=meta.spotify_id,
                 title=meta.title,
@@ -267,6 +347,7 @@ def create_jobs_from_url(
             session.add(job)
             session.flush()
             created.append(job.id)
+            batch_seen.append((tn, an, dm))
 
     wake()
     return {
@@ -348,8 +429,17 @@ def process_job(job_id: int) -> None:
             _mark_failed(job_id, dl_result.backend, dl_result.error or "download failed")
             return
 
-        # Si no hay carátula (típico en playlists de Spotify resueltas sin cookies),
-        # usar la miniatura del vídeo de YouTube del que se descargó.
+        # Las playlists de Spotify resuelven SIN portada por pista (el item no la
+        # trae). Si es una pista de Spotify (id sin prefijo yt:/sc:), pedimos su
+        # portada real por id antes de caer a la miniatura de YouTube.
+        if not meta.cover_url and meta.spotify_id and not meta.spotify_id.startswith(("yt:", "sc:")):
+            try:
+                meta.cover_url = spotify.fetch_track_meta(meta.spotify_id).cover_url
+            except Exception:
+                pass
+
+        # Si aún no hay carátula, usar la miniatura del vídeo de YouTube del que
+        # se descargó.
         if not meta.cover_url and dl_result.source_url:
             vid = _yt_video_id(dl_result.source_url)
             if vid:
@@ -367,6 +457,11 @@ def process_job(job_id: int) -> None:
         # Index en BD
         _update_job_progress(job_id, 99, "indexando")
         track_id = scanner.index_file(final_path)
+        if track_id is None:
+            # Se descargó pero no se pudo indexar: marcar fallido en vez de
+            # 'done' fantasma (descarga completa pero la pista no sale en la app).
+            _mark_failed(job_id, dl_result.backend, f"indexado falló: {final_path.name}")
+            return
 
         with session_scope() as s:
             job = s.get(Job, job_id)
