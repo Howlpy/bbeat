@@ -16,6 +16,7 @@ IDs opacos con prefijo de tipo: ar-/al-/tr-/pl-.
 from __future__ import annotations
 
 import random
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -32,6 +33,7 @@ from app.api.stream import (
 from app.config import settings
 from app.models import (
     Album,
+    AlbumSave,
     AlbumTrack,
     Artist,
     Play,
@@ -39,8 +41,15 @@ from app.models import (
     TrackLike,
     User,
 )
+from app.services import access as access_svc
+from app.services import library as library_svc
 
-from .auth import ERR_MISSING_PARAM, ERR_NOT_FOUND, SubsonicError
+from .auth import (
+    ERR_MISSING_PARAM,
+    ERR_NOT_AUTHORIZED,
+    ERR_NOT_FOUND,
+    SubsonicError,
+)
 
 IGNORED_ARTICLES = "The El La Los Las Le Les"
 
@@ -576,6 +585,163 @@ def getPlaylist(params, user, session) -> dict:
     return {"playlist": body}
 
 
+# ─── Playlists: escritura (create/update/delete) ─────────────────
+# Una playlist Subsonic es una lista ORDENADA de referencias a canciones. En
+# bbeat se materializa como un Album kind='playlist' con la pertenencia en
+# AlbumTrack (position = orden). Estas operaciones NUNCA tocan ficheros de audio.
+
+_NORM_RE = re.compile(r"\s+")
+
+
+def _normalize(text: str) -> str:
+    return _NORM_RE.sub(" ", (text or "").strip().lower()) or "playlist"
+
+
+def _parse_playlist_id(raw: str | None) -> int | None:
+    return _parse_id(raw, "pl-") or _parse_id(raw, "al-")
+
+
+def _song_ids_from(params: dict, key: str) -> list[int]:
+    out = []
+    for raw in params.get("_lists", {}).get(key, []):
+        tid = _parse_id(raw, "tr-")
+        if tid:
+            out.append(tid)
+    return out
+
+
+def _require_mutate(album: Album, user: User) -> None:
+    if not access_svc.can_mutate_album(album, user):
+        raise SubsonicError(ERR_NOT_AUTHORIZED, "No tienes permiso para modificar esta playlist")
+
+
+def _append_songs(session: Session, album_id: int, song_ids: list[int], start_pos: int) -> None:
+    """Añade canciones al final de la playlist (dedup: una pista no se repite)."""
+    existing = {
+        r for r in session.exec(
+            select(AlbumTrack.track_id).where(AlbumTrack.album_id == album_id)
+        ).all()
+    }
+    pos = start_pos
+    for sid in song_ids:
+        if sid in existing or not session.get(Track, sid):
+            continue
+        session.add(AlbumTrack(album_id=album_id, track_id=sid, position=pos))
+        existing.add(sid)
+        pos += 1
+
+
+def _clear_songs(session: Session, album_id: int) -> None:
+    for at in session.exec(select(AlbumTrack).where(AlbumTrack.album_id == album_id)).all():
+        session.delete(at)
+    session.flush()
+
+
+def _delete_playlist_keep_tracks(session: Session, album: Album) -> None:
+    """Borra la playlist (contenedor + enlaces + guardados) SIN borrar ficheros.
+    Las pistas cuyo album_id apuntaba a esta colección pasan a sueltas."""
+    album_id = album.id
+    _clear_songs(session, album_id)
+    for sv in session.exec(select(AlbumSave).where(AlbumSave.album_id == album_id)).all():
+        session.delete(sv)
+    for t in session.exec(select(Track).where(Track.album_id == album_id)).all():
+        t.album_id = None
+        session.add(t)
+    session.flush()
+    library_svc._delete_album_record(session, album_id)  # borra carátula + fila Album
+
+
+def createPlaylist(params, user, session) -> dict:
+    """Crea una playlist nueva (con `name`) o reemplaza las canciones de una
+    existente (con `playlistId`). Devuelve la playlist resultante (Subsonic ≥1.14)."""
+    pl_id = _parse_playlist_id(params.get("playlistId"))
+    song_ids = _song_ids_from(params, "songId")
+
+    if pl_id:
+        album = session.get(Album, pl_id)
+        if not album:
+            raise SubsonicError(ERR_NOT_FOUND, "Playlist no encontrada")
+        _require_mutate(album, user)
+        _clear_songs(session, album.id)
+        _append_songs(session, album.id, song_ids, 0)
+        target_id = album.id
+    else:
+        name = (params.get("name") or "").strip() or "Nueva playlist"
+        artist = library_svc._get_or_create_artist(session, "Various Artists")
+        album = Album(
+            title=name,
+            title_normalized=_normalize(name),
+            artist_id=artist.id,
+            kind="playlist",
+            owner_id=user.id,
+        )
+        session.add(album)
+        session.flush()
+        _append_songs(session, album.id, song_ids, 0)
+        if not session.get(AlbumSave, (user.id, album.id)):
+            session.add(AlbumSave(user_id=user.id, album_id=album.id))
+        target_id = album.id
+
+    session.flush()
+    return getPlaylist({"id": f"pl-{target_id}", "_lists": {}}, user, session)
+
+
+def updatePlaylist(params, user, session) -> dict:
+    """Modifica una playlist: renombrar, añadir canciones, quitar por índice."""
+    pl_id = _parse_playlist_id(params.get("playlistId"))
+    album = session.get(Album, pl_id) if pl_id else None
+    if not album:
+        raise SubsonicError(ERR_NOT_FOUND, "Playlist no encontrada")
+    _require_mutate(album, user)
+
+    # Renombrar (comment/public no aplican en bbeat → se ignoran sin error)
+    name = params.get("name")
+    if name is not None and name.strip():
+        album.title = name.strip()
+        album.title_normalized = _normalize(name)
+        session.add(album)
+
+    # Quitar por índice (0-based, sobre el orden actual) ANTES de añadir
+    remove_idx = set()
+    for raw in params.get("_lists", {}).get("songIndexToRemove", []):
+        try:
+            remove_idx.add(int(raw))
+        except (TypeError, ValueError):
+            pass
+    if remove_idx:
+        current = session.exec(
+            select(AlbumTrack).where(AlbumTrack.album_id == album.id)
+            .order_by(AlbumTrack.position)
+        ).all()
+        for i, at in enumerate(current):
+            if i in remove_idx:
+                session.delete(at)
+        session.flush()
+
+    # Añadir al final
+    to_add = _song_ids_from(params, "songIdToAdd")
+    if to_add:
+        remaining = session.exec(
+            select(AlbumTrack).where(AlbumTrack.album_id == album.id)
+            .order_by(AlbumTrack.position)
+        ).all()
+        start = (max((r.position or 0) for r in remaining) + 1) if remaining else 0
+        _append_songs(session, album.id, to_add, start)
+
+    session.flush()
+    return {}
+
+
+def deletePlaylist(params, user, session) -> dict:
+    pl_id = _parse_playlist_id(params.get("id"))
+    album = session.get(Album, pl_id) if pl_id else None
+    if not album:
+        raise SubsonicError(ERR_NOT_FOUND, "Playlist no encontrada")
+    _require_mutate(album, user)
+    _delete_playlist_keep_tracks(session, album)
+    return {}
+
+
 # ─── Anotaciones ─────────────────────────────────────────────────
 
 
@@ -735,6 +901,9 @@ HANDLERS = {
     "search3": search3,
     "getPlaylists": getPlaylists,
     "getPlaylist": getPlaylist,
+    "createPlaylist": createPlaylist,
+    "updatePlaylist": updatePlaylist,
+    "deletePlaylist": deletePlaylist,
     "star": star,
     "unstar": unstar,
     "scrobble": scrobble,
@@ -746,4 +915,7 @@ HANDLERS = {
 }
 
 # Acciones que escriben en BD → la sesión debe hacer commit tras el handler.
-WRITE_ACTIONS = {"star", "unstar", "scrobble", "setRating"}
+WRITE_ACTIONS = {
+    "star", "unstar", "scrobble", "setRating",
+    "createPlaylist", "updatePlaylist", "deletePlaylist",
+}

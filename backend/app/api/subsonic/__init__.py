@@ -29,19 +29,26 @@ router = APIRouter(prefix="/rest", tags=["subsonic"])
 
 
 async def _collect_params(request: Request) -> dict:
-    """Funde query params y form (POST), preservando los `id` repetidos."""
+    """Funde query params y form (POST). Guarda el último valor de cada clave en
+    `params[k]`, y TODOS los valores repetidos en `params["_lists"][k]` (Subsonic
+    repite parámetros: `id`, `songId`, `songIdToAdd`, `songIndexToRemove`…)."""
     params: dict = {}
-    for key in request.query_params:
-        params[key] = request.query_params[key]
-    id_list = list(request.query_params.getlist("id"))
+    lists: dict[str, list[str]] = {}
 
+    def absorb(multi) -> None:
+        for key in set(multi.keys()):
+            vals = multi.getlist(key)
+            if not vals:
+                continue
+            lists.setdefault(key, []).extend(vals)
+            params[key] = vals[-1]
+
+    absorb(request.query_params)
     if request.method == "POST":
-        form = await request.form()
-        for key in form:
-            params[key] = form[key]
-        id_list += list(form.getlist("id"))
+        absorb(await request.form())
 
-    params["id_list"] = id_list
+    params["_lists"] = lists
+    params["id_list"] = lists.get("id", [])
     range_header = request.headers.get("range")
     if range_header:
         params["_range"] = range_header

@@ -15,7 +15,7 @@ Listo para uso real, probado en producción.
 | Pieza | Estado |
 |---|---|
 | **App nativa de Android** (Capacitor): offline real a disco, segundo plano, multi-servidor | listo |
-| **API Subsonic**: navegar, buscar, reproducir, playlists, favoritos y scrobble desde clientes de terceros (iPhone, etc.) | listo |
+| **API Subsonic**: navegar, buscar, reproducir, crear/editar playlists, favoritos y scrobble desde clientes de terceros (iPhone, etc.) | listo |
 | Reproductor con Media Session (controles en lockscreen), cola, shuffle/repeat | listo |
 | "Now Playing" full-screen con color de la portada + letras sincronizadas (LRCLIB) | listo |
 | Favoritos, historial, "más escuchadas" y **Wrapped** | listo |
@@ -80,7 +80,9 @@ Bbeat implementa la [API Subsonic](http://www.subsonic.org/pages/api.jsp), el es
 1. En **Ajustes → Acceso Subsonic**, genera tu **token** (es un secreto aparte de tu contraseña).
 2. En el cliente, añade un servidor con la **URL** de tu instancia, tu **usuario** y el **token como contraseña**.
 
-Clientes recomendados: **Amperfy**, **play:Sub** o **substreamer** (iOS); **Symfonium**, **Tempo** o **DSub** (Android); **Sonixd** / **Feishin** (escritorio). Funciona el browsing por artistas/álbumes/canciones, búsqueda, playlists, favoritos (estrella ↔ "me gusta") y scrobble (alimenta tu historial y Wrapped).
+Clientes recomendados: **Amperfy**, **play:Sub** o **substreamer** (iOS); **Symfonium**, **Tempo** o **DSub** (Android); **Sonixd** / **Feishin** (escritorio). Funciona el browsing por artistas/álbumes/canciones, búsqueda, crear/editar/borrar playlists, favoritos (estrella ↔ "me gusta") y scrobble (alimenta tu historial y Wrapped).
+
+> Las playlists creadas desde un cliente Subsonic son las mismas que ves en la app de Bbeat (colecciones multi-artista). Borrar una playlist solo elimina la lista, **nunca los ficheros de audio**. Solo puedes editar/borrar las playlists de las que eres dueño.
 
 > Por qué un token y no tu contraseña: Subsonic exige poder validar `md5(contraseña+salt)`, pero Bbeat guarda las contraseñas con bcrypt (irreversible). El token dedicado es regenerable y revocable desde Ajustes en cualquier momento. El stream no transcodifica (sirve el Opus tal cual).
 
@@ -91,7 +93,7 @@ Lo más simple es ponerlo detrás de **Cloudflare**: un record `A` a tu IP con p
 ## Roadmap
 
 - Cola persistente (sobrevive al cierre, con posición)
-- Subsonic: transcode on-the-fly (`maxBitRate`) y crear/editar playlists desde el cliente
+- Subsonic: transcode on-the-fly (`maxBitRate`) para clientes que no reproduzcan Opus
 - Editar/mover pistas en bulk · importar de Apple Music / Deezer
 
 ## Licencia
