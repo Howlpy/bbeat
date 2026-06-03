@@ -48,6 +48,8 @@ def _migrate_schema() -> None:
         # Aprobación de cuentas: los usuarios que ya existían se aprueban
         # (DEFAULT 1); los nuevos los inserta el ORM con 0 (pendientes).
         ("users", "is_approved", "INTEGER NOT NULL DEFAULT 1"),
+        # Token de acceso para clientes Subsonic (NULL = sin activar).
+        ("users", "subsonic_token", "TEXT"),
     ]
     with engine.begin() as conn:
         for table, col, type_decl in columns_to_add:

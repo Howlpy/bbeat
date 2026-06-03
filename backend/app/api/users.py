@@ -24,6 +24,7 @@ def _user_to_dict(u: User) -> dict:
         "is_admin": u.is_admin,
         "is_active": u.is_active,
         "is_approved": u.is_approved,
+        "subsonic_token": u.subsonic_token,
         "created_at": u.created_at.isoformat() if u.created_at else None,
     }
 
@@ -96,6 +97,38 @@ def login(body: LoginIn) -> dict:
 @router.get("/auth/me")
 def me(user: User = Depends(auth_svc.get_current_user)) -> dict:
     return _user_to_dict(user)
+
+
+# ─── Token de acceso Subsonic ─────────────────────────────────
+# Secreto dedicado para clientes Subsonic (iPhone y demás). No reutilizamos el
+# password porque es bcrypt (irreversible) y el protocolo exige poder recomputar
+# md5(token+salt) o validar el password en claro.
+
+
+@router.post("/auth/subsonic-token")
+def generate_subsonic_token(
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Genera (o regenera) el token Subsonic del usuario y lo devuelve."""
+    import secrets
+
+    db_user = session.get(User, user.id)
+    db_user.subsonic_token = secrets.token_urlsafe(24)
+    session.add(db_user)
+    return {"subsonic_token": db_user.subsonic_token}
+
+
+@router.delete("/auth/subsonic-token")
+def revoke_subsonic_token(
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Revoca el token Subsonic (los clientes dejan de poder conectarse)."""
+    db_user = session.get(User, user.id)
+    db_user.subsonic_token = None
+    session.add(db_user)
+    return {"subsonic_token": None}
 
 
 def _assign_orphaned_albums_to(user_id: int) -> int:

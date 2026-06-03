@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.api import auth, health, ingest, jobs, library, stream
+from app.api import subsonic
 from app.api import users as users_api
 from app.config import settings
 from app.db import init_db
@@ -57,6 +58,9 @@ def create_app() -> FastAPI:
     app.include_router(ingest.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
+    # API Subsonic: va en /rest (sin /api). Debe registrarse ANTES del catch-all
+    # del SPA, o las peticiones /rest/* las absorbería el fallback de index.html.
+    app.include_router(subsonic.router)
 
     # ─── Servir frontend estático (modo prod) ────────────────────
     # En dev (Vite), no existe el build y este mount no se monta.

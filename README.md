@@ -4,7 +4,7 @@ Servidor de música personal self-hosted. Webapp responsive mobile-first (+ app 
 
 Pegas una URL de Spotify, YouTube o SoundCloud y Bbeat extrae la metadata, descarga el audio, lo etiqueta y organiza (`Artista/Álbum/NN - Título.ext`), lo indexa y lo deja listo para reproducir. Si la pista ya existe no la vuelve a bajar (detecta el duplicado por ID de origen y, si el ID no casa, por título + artista + duración): solo la enlaza al destino que elijas.
 
-Pensado para uso personal o entre amigos en una instancia compartida: cada usuario tiene sus favoritos, su historial y su "Wrapped", y puede **descargar canciones para escucharlas sin conexión**.
+Pensado para uso personal o entre amigos en una instancia compartida: cada usuario tiene sus favoritos, su historial y su "Wrapped", y puede **descargar canciones para escucharlas sin conexión**. Además habla la **API Subsonic**, así que puedes escuchar tu música desde cualquier cliente compatible (ideal para iPhone: Amperfy, play:Sub, substreamer… o Symfonium en cualquier plataforma).
 
 > Aviso: exponer Bbeat a internet es bajo tu responsabilidad (ToS de las plataformas, copyright). Trae auth, pero el rate limiting aún no está incluido.
 
@@ -15,6 +15,7 @@ Listo para uso real, probado en producción.
 | Pieza | Estado |
 |---|---|
 | **App nativa de Android** (Capacitor): offline real a disco, segundo plano, multi-servidor | listo |
+| **API Subsonic**: navegar, buscar, reproducir, playlists, favoritos y scrobble desde clientes de terceros (iPhone, etc.) | listo |
 | Reproductor con Media Session (controles en lockscreen), cola, shuffle/repeat | listo |
 | "Now Playing" full-screen con color de la portada + letras sincronizadas (LRCLIB) | listo |
 | Favoritos, historial, "más escuchadas" y **Wrapped** | listo |
@@ -72,6 +73,17 @@ El audio viene de YouTube vía yt-dlp (se prefiere el stream Opus y se copia sin
 
 > No usamos la API pública de Spotify porque desde nov-2024 exige Premium en el dev app hasta para `search`; SpotifyScraper cubre la metadata sin credenciales.
 
+## Clientes Subsonic (iPhone y demás)
+
+Bbeat implementa la [API Subsonic](http://www.subsonic.org/pages/api.jsp), el estándar de facto de los servidores de música self-hosted. Sirve para escuchar desde apps de terceros — útil sobre todo en iPhone, donde no hay app nativa de Bbeat.
+
+1. En **Ajustes → Acceso Subsonic**, genera tu **token** (es un secreto aparte de tu contraseña).
+2. En el cliente, añade un servidor con la **URL** de tu instancia, tu **usuario** y el **token como contraseña**.
+
+Clientes recomendados: **Amperfy**, **play:Sub** o **substreamer** (iOS); **Symfonium**, **Tempo** o **DSub** (Android); **Sonixd** / **Feishin** (escritorio). Funciona el browsing por artistas/álbumes/canciones, búsqueda, playlists, favoritos (estrella ↔ "me gusta") y scrobble (alimenta tu historial y Wrapped).
+
+> Por qué un token y no tu contraseña: Subsonic exige poder validar `md5(contraseña+salt)`, pero Bbeat guarda las contraseñas con bcrypt (irreversible). El token dedicado es regenerable y revocable desde Ajustes en cualquier momento. El stream no transcodifica (sirve el Opus tal cual).
+
 ## Exponer a internet (opcional)
 
 Lo más simple es ponerlo detrás de **Cloudflare**: un record `A` a tu IP con proxy activado, port forward del router al puerto del backend, y SSL/TLS en modo Flexible + Always Use HTTPS. Para mayor seguridad, **Cloudflare Tunnel + Access** (sin abrir puertos). Recuerda que el rate limiting aún no está incluido.
@@ -80,7 +92,7 @@ Lo más simple es ponerlo detrás de **Cloudflare**: un record `A` a tu IP con p
 
 - Rate limiting + protección anti-abuso para instancias públicas
 - Cola persistente (sobrevive al cierre, con posición)
-- Soporte Subsonic API (clientes tipo Symfonium / DSub)
+- Subsonic: transcode on-the-fly (`maxBitRate`) y crear/editar playlists desde el cliente
 - Editar/mover pistas en bulk · importar de Apple Music / Deezer
 
 ## Licencia

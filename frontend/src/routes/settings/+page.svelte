@@ -1,13 +1,62 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { AlertTriangle, Brush, CheckCircle2, Trash2, Upload } from 'lucide-svelte';
+  import { browser } from '$app/environment';
+  import { AlertTriangle, Brush, CheckCircle2, Copy, KeyRound, RefreshCw, Smartphone, Trash2, Upload } from 'lucide-svelte';
   import { api, formatBytes, type SpotifyAuthStatus } from '$lib/api';
+  import { auth } from '$lib/auth.svelte';
+  import { server } from '$lib/server.svelte';
 
   let setupComplete = $state<boolean | null>(null);
   let cookies = $state<SpotifyAuthStatus | null>(null);
   let uploading = $state(false);
   let message = $state<{ kind: 'ok' | 'err'; text: string } | null>(null);
   let fileInput = $state<HTMLInputElement | null>(null);
+
+  // ── Acceso Subsonic ──
+  let subToken = $state<string | null>(auth.user?.subsonic_token ?? null);
+  let subBusy = $state(false);
+  let subCopied = $state<'url' | 'user' | 'token' | null>(null);
+  const subServerUrl = $derived(
+    server.base || (browser ? window.location.origin : 'https://tu-servidor')
+  );
+
+  function persistUser(token: string | null) {
+    subToken = token;
+    if (auth.token && auth.user) {
+      auth.set(auth.token, { ...auth.user, subsonic_token: token });
+    }
+  }
+
+  async function genToken() {
+    subBusy = true;
+    try {
+      const r = await api.generateSubsonicToken();
+      persistUser(r.subsonic_token);
+    } catch (e) {
+      message = { kind: 'err', text: e instanceof Error ? e.message : String(e) };
+    } finally {
+      subBusy = false;
+    }
+  }
+
+  async function revokeToken() {
+    if (!confirm('¿Revocar el token? Los clientes Subsonic dejarán de conectarse.')) return;
+    subBusy = true;
+    try {
+      await api.revokeSubsonicToken();
+      persistUser(null);
+    } finally {
+      subBusy = false;
+    }
+  }
+
+  async function copy(text: string, which: 'url' | 'user' | 'token') {
+    try {
+      await navigator.clipboard.writeText(text);
+      subCopied = which;
+      setTimeout(() => (subCopied = null), 1500);
+    } catch {}
+  }
 
   async function loadAll() {
     const [h, c] = await Promise.all([
@@ -138,6 +187,77 @@
     se podrán editar desde aquí en una fase próxima. Por ahora viven en
     <code class="bg-slate-900 px-1">backend/.env</code>.
   </p>
+
+  <section class="mt-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
+    <h2 class="mb-2 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+      <Smartphone size={14} /> Acceso Subsonic (iPhone y otros clientes)
+    </h2>
+    <p class="mb-3 text-xs text-slate-400">
+      Bbeat habla el protocolo <strong>Subsonic</strong>, así que puedes escuchar tu
+      música desde apps de terceros —ideal si tienes iPhone. Genera un token y úsalo
+      como contraseña en el cliente (tu contraseña normal no sirve ahí).
+    </p>
+
+    {#if subToken}
+      <div class="space-y-2">
+        {#each [
+          { label: 'Servidor', value: subServerUrl, key: 'url' as const },
+          { label: 'Usuario', value: auth.user?.username ?? '', key: 'user' as const },
+          { label: 'Contraseña (token)', value: subToken, key: 'token' as const }
+        ] as row}
+          <div class="flex items-center gap-2">
+            <span class="w-36 shrink-0 text-xs text-slate-500">{row.label}</span>
+            <code class="min-w-0 flex-1 truncate rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs text-slate-200">{row.value}</code>
+            <button
+              onclick={() => copy(row.value, row.key)}
+              class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1.5 text-xs text-slate-400 transition hover:bg-slate-800"
+              title="Copiar"
+            >
+              <Copy size={13} /> {subCopied === row.key ? '¡Copiado!' : 'Copiar'}
+            </button>
+          </div>
+        {/each}
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          onclick={genToken}
+          disabled={subBusy}
+          class="inline-flex items-center gap-2 rounded border border-slate-800 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 disabled:opacity-50"
+        >
+          <RefreshCw size={14} /> Regenerar
+        </button>
+        <button
+          onclick={revokeToken}
+          disabled={subBusy}
+          class="inline-flex items-center gap-2 rounded border border-slate-800 px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-red-400 disabled:opacity-50"
+        >
+          <Trash2 size={14} /> Revocar
+        </button>
+      </div>
+    {:else}
+      <button
+        onclick={genToken}
+        disabled={subBusy}
+        class="inline-flex items-center gap-2 rounded border border-cyan-700/50 bg-cyan-950/30 px-3 py-2 text-sm text-cyan-200 transition hover:bg-cyan-950/50 disabled:opacity-50"
+      >
+        <KeyRound size={14} /> {subBusy ? 'Generando…' : 'Generar token de acceso'}
+      </button>
+    {/if}
+
+    <details class="mt-4 text-xs text-slate-500">
+      <summary class="cursor-pointer">¿Qué app uso?</summary>
+      <ul class="mt-2 list-disc space-y-1 pl-5">
+        <li><strong>iPhone/iPad:</strong> Amperfy (gratis), play:Sub o substreamer.</li>
+        <li><strong>Android:</strong> Symfonium, Tempo o DSub (aunque tienes la app nativa de Bbeat).</li>
+        <li>Multiplataforma de escritorio: Sonixd, Feishin.</li>
+      </ul>
+      <p class="mt-2">
+        En el cliente, añade un servidor con la URL, tu usuario y el token como
+        contraseña. Si te pide "versión mínima", cualquiera vale.
+      </p>
+    </details>
+  </section>
 
   <section class="mt-8 rounded-lg border border-slate-800 bg-slate-900 p-4">
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">

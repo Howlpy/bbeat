@@ -21,6 +21,11 @@ class User(SQLModel, table=True):
     # pueden acceder hasta que un admin los aprueba. Los usuarios que ya existían
     # antes de esta columna quedan aprobados por la migración (DEFAULT 1).
     is_approved: bool = Field(default=False, index=True)
+    # Token dedicado para clientes Subsonic. Es un secreto aparte del password
+    # (que es bcrypt, irreversible) porque el protocolo Subsonic exige poder
+    # recomputar md5(token+salt) o validar el password en claro. Regenerable
+    # desde /settings; None = el usuario aún no ha activado el acceso Subsonic.
+    subsonic_token: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=_now)
 
 

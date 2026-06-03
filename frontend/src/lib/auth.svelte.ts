@@ -7,6 +7,7 @@ export type AuthUser = {
   is_admin: boolean;
   is_active: boolean;
   is_approved: boolean;
+  subsonic_token?: string | null;
   created_at: string | null;
 };
 

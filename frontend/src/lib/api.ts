@@ -246,6 +246,11 @@ export const api = {
       skipAuth: true
     }),
   me: () => json<import('./auth.svelte').AuthUser>('/api/auth/me'),
+  // ── Token Subsonic (acceso desde clientes externos: iPhone, etc.) ──
+  generateSubsonicToken: () =>
+    json<{ subsonic_token: string }>('/api/auth/subsonic-token', { method: 'POST' }),
+  revokeSubsonicToken: () =>
+    json<{ subsonic_token: null }>('/api/auth/subsonic-token', { method: 'DELETE' }),
   listUsers: () =>
     json<{ total: number; items: import('./auth.svelte').AuthUser[] }>('/api/admin/users'),
   updateUser: (id: number, body: { is_active?: boolean; is_admin?: boolean; is_approved?: boolean }) =>
