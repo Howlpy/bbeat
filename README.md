@@ -90,7 +90,6 @@ Lo más simple es ponerlo detrás de **Cloudflare**: un record `A` a tu IP con p
 
 ## Roadmap
 
-- Rate limiting + protección anti-abuso para instancias públicas
 - Cola persistente (sobrevive al cierre, con posición)
 - Subsonic: transcode on-the-fly (`maxBitRate`) y crear/editar playlists desde el cliente
 - Editar/mover pistas en bulk · importar de Apple Music / Deezer
