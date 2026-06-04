@@ -43,6 +43,7 @@ from app.models import (
 )
 from app.services import access as access_svc
 from app.services import library as library_svc
+from app.services import presence as presence_svc
 
 from .auth import (
     ERR_MISSING_PARAM,
@@ -52,6 +53,22 @@ from .auth import (
 )
 
 IGNORED_ARTICLES = "The El La Los Las Le Les"
+
+# Presencia corta para un scrobble "ya reproducido" (submission=true): la pista
+# acaba de sonar, la mostramos un momento sin dejarla clavada en el feed.
+TTL_SUBSONIC_PLAYED = 60
+
+
+def _mark_now_playing(session: Session, user: User, track_id: int, ttl: float) -> None:
+    """Registra presencia en vivo para un evento Subsonic (now-playing/stream)."""
+    try:
+        from app.api.library import track_payload_by_id
+
+        payload = track_payload_by_id(session, track_id, user)
+        if payload:
+            presence_svc.touch(user.id, user.username, payload, "subsonic", ttl)
+    except Exception:  # noqa: BLE001 — la presencia nunca debe romper el stream/scrobble
+        pass
 
 
 # ─── Helpers de IDs y formato ────────────────────────────────────
@@ -765,12 +782,17 @@ def unstar(params, user, session) -> dict:
 
 
 def scrobble(params, user, session) -> dict:
+    # submission=false es la notificación "now playing"; true es "ya reproducido".
     submission = str(params.get("submission", "true")).lower() != "false"
-    if submission:
-        for raw in params.get("id_list", []):
-            tid = _parse_id(raw, "tr-")
-            if tid and session.get(Track, tid):
-                session.add(Play(user_id=user.id, track_id=tid))
+    for raw in params.get("id_list", []):
+        tid = _parse_id(raw, "tr-")
+        if not (tid and session.get(Track, tid)):
+            continue
+        if submission:
+            session.add(Play(user_id=user.id, track_id=tid))
+            _mark_now_playing(session, user, tid, TTL_SUBSONIC_PLAYED)
+        else:
+            _mark_now_playing(session, user, tid, presence_svc.TTL_SUBSONIC_NOW)
     return {}
 
 
@@ -819,6 +841,9 @@ def stream(params, user, session):
     track = session.get(Track, tid) if tid else None
     if not track:
         raise SubsonicError(ERR_NOT_FOUND, "Canción no encontrada")
+    # Presencia en vivo: cubre clientes que no mandan now-playing. TTL ≈ duración.
+    dur_secs = (track.duration_ms or 0) / 1000 or presence_svc.TTL_SUBSONIC_NOW
+    _mark_now_playing(session, user, tid, min(dur_secs, presence_svc.TTL_SUBSONIC_STREAM_MAX))
     return _stream_response(track, params)
 
 

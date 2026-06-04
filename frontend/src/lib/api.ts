@@ -16,6 +16,30 @@ export type Track = {
   liked?: boolean;
 };
 
+/** Una presencia "sonando ahora" en el feed en vivo del server. */
+export type NowPlaying = {
+  user_id: number;
+  username: string;
+  source: 'web' | 'subsonic';
+  started_at: string;
+  track: Track;
+};
+
+/** Resumen tipo Wrapped del usuario (GET /me/stats). */
+export type MyStats = {
+  total_plays: number;
+  total_minutes: number;
+  unique_tracks: number;
+  liked_count: number;
+  top_tracks: (Track & { plays: number })[];
+  top_artists: { id: number; name: string; plays: number }[];
+  clock: number[]; // 24 posiciones, plays por hora del día
+  streak_days: number;
+  first_play: string | null;
+  last_play: string | null;
+  prev: { plays: number; minutes: number } | null;
+};
+
 export type AlbumKind = 'album' | 'playlist';
 
 export type Album = {
@@ -390,6 +414,33 @@ export const api = {
   likedTracks: () => json<{ total: number; items: Track[] }>('/api/library/liked'),
   recordPlay: (id: number) =>
     json<{ ok: boolean }>(`/api/library/tracks/${id}/play`, { method: 'POST' }),
+  // ── Sonando ahora (presencia en vivo) ──
+  nowPlayingPing: (trackId: number) =>
+    json<{ ok: boolean }>('/api/library/now-playing', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ track_id: trackId })
+    }).catch(() => null),
+  nowPlayingStop: () =>
+    json<{ ok: boolean }>('/api/library/now-playing', { method: 'DELETE' }).catch(() => null),
+  /** Abre el stream SSE de 'sonando ahora'. Devuelve el EventSource (ciérralo con .close()). */
+  nowPlayingStream: (onItems: (items: NowPlaying[]) => void): EventSource => {
+    const url = apiUrl(
+      `/api/library/now-playing/stream?token=${encodeURIComponent(auth.token ?? '')}`
+    );
+    const es = new EventSource(url);
+    es.onmessage = (ev) => {
+      try {
+        // tokenizeUrls añade ?token= a cover_url/stream_url (las <img>/<audio>
+        // no pueden mandar Authorization). El SSE no pasa por json(), así que
+        // hay que aplicarlo aquí también.
+        onItems(tokenizeUrls(JSON.parse(ev.data)) as NowPlaying[]);
+      } catch {
+        /* keepalive u otro frame no-JSON: ignorar */
+      }
+    };
+    return es;
+  },
   topTracks: (opts: { limit?: number; days?: number; scope?: 'me' | 'server' } = {}) => {
     const q = new URLSearchParams();
     if (opts.limit !== undefined) q.set('limit', String(opts.limit));
@@ -403,14 +454,7 @@ export const api = {
       `/api/library/history?limit=${limit}`
     ),
   myStats: (days?: number) =>
-    json<{
-      total_plays: number;
-      total_minutes: number;
-      unique_tracks: number;
-      liked_count: number;
-      top_tracks: (Track & { plays: number })[];
-      top_artists: { id: number; name: string; plays: number }[];
-    }>(`/api/library/me/stats${days ? '?days=' + days : ''}`),
+    json<MyStats>(`/api/library/me/stats${days ? '?days=' + days : ''}`),
   activity: (limit = 30) =>
     json<{ items: (Track & { username: string; played_at: string | null })[] }>(
       `/api/library/activity?limit=${limit}`
