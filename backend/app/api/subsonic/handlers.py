@@ -29,8 +29,8 @@ from app.api.stream import (
     CONTENT_TYPES,
     TRANSCODE_FORMATS,
     _iter_file_range,
-    _iter_transcode,
     _parse_range,
+    get_transcoded,
 )
 from app.config import settings
 from app.models import (
@@ -792,16 +792,33 @@ def _stream_response(track: Track, params: dict) -> Response:
     except ValueError:
         raise SubsonicError(ERR_NOT_FOUND, "Ruta inválida")
 
-    # Si el cliente pide un formato concreto (transcoding), usar ffmpeg.
+    # Si el cliente pide un formato concreto (transcoding), servir desde cache.
     requested_fmt = (params.get("format") or "").lower().strip()
     native_fmt = (track.file_format or "").lower()
     if requested_fmt and requested_fmt != "raw" and requested_fmt != native_fmt:
         fmt = requested_fmt if requested_fmt in TRANSCODE_FORMATS else "mp3"
         media_type, _ = TRANSCODE_FORMATS[fmt]
-        return StreamingResponse(
-            _iter_transcode(path, fmt),
-            media_type=media_type,
-            headers={"Cache-Control": "private, max-age=3600"},
+        cached_path = get_transcoded(track.id, path, fmt)
+        cached_size = cached_path.stat().st_size
+        base_headers = {"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600"}
+        range_header = params.get("_range")
+        if range_header:
+            parsed = _parse_range(range_header, cached_size)
+            if parsed:
+                start, end = parsed
+                return StreamingResponse(
+                    _iter_file_range(cached_path, start, end),
+                    status_code=206,
+                    media_type=media_type,
+                    headers={
+                        **base_headers,
+                        "Content-Range": f"bytes {start}-{end}/{cached_size}",
+                        "Content-Length": str(end - start + 1),
+                    },
+                )
+        return FileResponse(
+            cached_path, media_type=media_type,
+            headers={**base_headers, "Content-Length": str(cached_size)},
         )
 
     file_size = path.stat().st_size

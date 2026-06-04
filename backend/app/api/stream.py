@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Iterator
 
@@ -14,6 +15,8 @@ from app.config import settings
 from app.db import get_session
 from app.models import Album, Track, User
 from app.services import auth as auth_svc
+
+log = __import__("logging").getLogger("bbeat.stream")
 
 router = APIRouter(prefix="/library", tags=["stream"])
 
@@ -37,22 +40,35 @@ TRANSCODE_FORMATS = {
 }
 
 
-def _iter_transcode(path: Path, fmt: str) -> Iterator[bytes]:
-    """Lanza ffmpeg y hace streaming de su stdout en chunks."""
+def _transcode_to_cache(src: Path, dest: Path, fmt: str) -> None:
+    """Transcodifica src → dest usando ffmpeg. Escribe en temporal y hace rename
+    atómico para que un fallo a mitad no deje un fichero corrupto en cache."""
     _, ffmpeg_args = TRANSCODE_FORMATS[fmt]
+    tmp = dest.with_suffix(".tmp")
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
-        "-i", str(path),
+        "-threads", "1",          # un core por tarea, evita picos de CPU
+        "-i", str(src),
         *ffmpeg_args,
-        "pipe:1",
+        str(tmp),
     ]
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as proc:
-        assert proc.stdout is not None
-        while True:
-            chunk = proc.stdout.read(CHUNK_SIZE)
-            if not chunk:
-                break
-            yield chunk
+    try:
+        subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL)
+        tmp.rename(dest)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def get_transcoded(track_id: int, src: Path, fmt: str) -> Path:
+    """Devuelve la ruta del fichero transcodificado, generándolo si no existe."""
+    cache_dir = settings.transcache_dir
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cached = cache_dir / f"{track_id}.{fmt}"
+    if not cached.is_file():
+        log.info("transcoding track %d → %s", track_id, fmt)
+        _transcode_to_cache(src, cached, fmt)
+    return cached
 
 
 def _parse_range(header: str, file_size: int) -> tuple[int, int] | None:
