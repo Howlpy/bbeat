@@ -85,6 +85,8 @@ class PlayerState {
   private wantsPlay = false;
   /** Activo durante una transición de pista para suprimir el pause espurio. */
   private switching = false;
+  /** Heartbeat de 'sonando ahora' mientras hay reproducción. */
+  private nowPlayingTimer: ReturnType<typeof setInterval> | null = null;
 
   attach(a: HTMLAudioElement, b: HTMLAudioElement) {
     this.els = [a, b];
@@ -111,6 +113,7 @@ class PlayerState {
         this.isPlaying = true;
         this.wantsPlay = true;
         this.setPlaybackState('playing');
+        this.startNowPlaying();
       });
       el.addEventListener('pause', () => {
         if (el !== this.el) return;
@@ -120,6 +123,7 @@ class PlayerState {
         if (this.switching) return;
         this.isPlaying = false;
         this.setPlaybackState('paused');
+        this.stopNowPlaying();
       });
     }
 
@@ -147,6 +151,27 @@ class PlayerState {
   pauseExplicit() {
     this.wantsPlay = false;
     this.el?.pause();
+  }
+
+  /** Marca 'sonando ahora' la pista actual y mantiene el heartbeat (~25s). */
+  private startNowPlaying() {
+    const cur = this.current;
+    if (!cur) return;
+    api.nowPlayingPing(cur.id);
+    if (this.nowPlayingTimer) return;
+    this.nowPlayingTimer = setInterval(() => {
+      const c = this.current;
+      if (c && this.isPlaying) api.nowPlayingPing(c.id);
+    }, 25_000);
+  }
+
+  /** Para el heartbeat y sale del feed en vivo. */
+  private stopNowPlaying() {
+    if (this.nowPlayingTimer) {
+      clearInterval(this.nowPlayingTimer);
+      this.nowPlayingTimer = null;
+    }
+    api.nowPlayingStop();
   }
 
   playTracks(tracks: Track[], startIndex = 0) {
