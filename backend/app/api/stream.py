@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 from typing import Iterator
 
@@ -27,6 +28,31 @@ CONTENT_TYPES = {
     "aac": "audio/aac",
     "wav": "audio/wav",
 }
+
+# Formatos que Subsonic puede pedir vía parámetro `format`
+TRANSCODE_FORMATS = {
+    "mp3": ("audio/mpeg", ["-f", "mp3", "-codec:a", "libmp3lame", "-q:a", "2"]),
+    "aac": ("audio/aac", ["-f", "adts", "-codec:a", "aac", "-b:a", "192k"]),
+    "ogg": ("audio/ogg", ["-f", "ogg", "-codec:a", "libvorbis", "-q:a", "6"]),
+}
+
+
+def _iter_transcode(path: Path, fmt: str) -> Iterator[bytes]:
+    """Lanza ffmpeg y hace streaming de su stdout en chunks."""
+    _, ffmpeg_args = TRANSCODE_FORMATS[fmt]
+    cmd = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error",
+        "-i", str(path),
+        *ffmpeg_args,
+        "pipe:1",
+    ]
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as proc:
+        assert proc.stdout is not None
+        while True:
+            chunk = proc.stdout.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            yield chunk
 
 
 def _parse_range(header: str, file_size: int) -> tuple[int, int] | None:

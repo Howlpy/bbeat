@@ -27,7 +27,9 @@ from sqlmodel import Session, select
 
 from app.api.stream import (
     CONTENT_TYPES,
+    TRANSCODE_FORMATS,
     _iter_file_range,
+    _iter_transcode,
     _parse_range,
 )
 from app.config import settings
@@ -789,8 +791,21 @@ def _stream_response(track: Track, params: dict) -> Response:
         path.relative_to(settings.music_dir.resolve())
     except ValueError:
         raise SubsonicError(ERR_NOT_FOUND, "Ruta inválida")
+
+    # Si el cliente pide un formato concreto (transcoding), usar ffmpeg.
+    requested_fmt = (params.get("format") or "").lower().strip()
+    native_fmt = (track.file_format or "").lower()
+    if requested_fmt and requested_fmt != "raw" and requested_fmt != native_fmt:
+        fmt = requested_fmt if requested_fmt in TRANSCODE_FORMATS else "mp3"
+        media_type, _ = TRANSCODE_FORMATS[fmt]
+        return StreamingResponse(
+            _iter_transcode(path, fmt),
+            media_type=media_type,
+            headers={"Cache-Control": "private, max-age=3600"},
+        )
+
     file_size = path.stat().st_size
-    media_type = CONTENT_TYPES.get((track.file_format or "").lower(), "application/octet-stream")
+    media_type = CONTENT_TYPES.get(native_fmt, "application/octet-stream")
     base_headers = {"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600"}
 
     range_header = params.get("_range")
