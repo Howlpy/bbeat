@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { Home, Music2, Disc3, Download, Settings, Shield, LogOut, Flame, HardDriveDownload } from 'lucide-svelte';
+  import { Home, Music2, Disc3, Download, Settings, Shield, LogOut, Flame, HardDriveDownload, Radio } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { jobs } from '$lib/jobs.svelte';
   import { auth } from '$lib/auth.svelte';
@@ -84,6 +84,11 @@
                 <div class="mt-0.5 text-cyan-400">administrador</div>
               {/if}
             </div>
+            <a
+              href="/live"
+              onclick={() => (menuOpen = false)}
+              class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+            ><Radio size={16} /> Sonando ahora</a>
             <a
               href="/wrapped"
               onclick={() => (menuOpen = false)}
