@@ -53,9 +53,20 @@
   async function copy(text: string, which: 'url' | 'user' | 'token') {
     try {
       await navigator.clipboard.writeText(text);
-      subCopied = which;
-      setTimeout(() => (subCopied = null), 1500);
-    } catch {}
+    } catch {
+      // Fallback for iOS Safari where clipboard API may fail
+      const el = document.createElement('input');
+      el.value = text;
+      el.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(el);
+      el.focus();
+      el.select();
+      el.setSelectionRange(0, text.length);
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    subCopied = which;
+    setTimeout(() => (subCopied = null), 1500);
   }
 
   async function loadAll() {
@@ -207,10 +218,16 @@
         ] as row}
           <div class="flex items-center gap-2">
             <span class="w-36 shrink-0 text-xs text-slate-500">{row.label}</span>
-            <code class="min-w-0 flex-1 truncate rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs text-slate-200">{row.value}</code>
+            <input
+              type="text"
+              readonly
+              value={row.value}
+              class="min-w-0 flex-1 rounded border border-slate-800 bg-slate-950 px-2 py-1.5 font-mono text-xs text-slate-200 outline-none"
+            />
             <button
+              type="button"
               onclick={() => copy(row.value, row.key)}
-              class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1.5 text-xs text-slate-400 transition hover:bg-slate-800"
+              class="inline-flex shrink-0 items-center gap-1 rounded border border-slate-800 px-2 py-1.5 text-xs text-slate-400 transition hover:bg-slate-800"
               title="Copiar"
             >
               <Copy size={13} /> {subCopied === row.key ? '¡Copiado!' : 'Copiar'}
@@ -221,6 +238,7 @@
 
       <div class="mt-3 flex flex-wrap items-center gap-2">
         <button
+          type="button"
           onclick={genToken}
           disabled={subBusy}
           class="inline-flex items-center gap-2 rounded border border-slate-800 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 disabled:opacity-50"
@@ -228,6 +246,7 @@
           <RefreshCw size={14} /> Regenerar
         </button>
         <button
+          type="button"
           onclick={revokeToken}
           disabled={subBusy}
           class="inline-flex items-center gap-2 rounded border border-slate-800 px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-red-400 disabled:opacity-50"
