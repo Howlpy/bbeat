@@ -35,6 +35,7 @@
     "@capacitor/local-notifications": "^8.2.0",
     "@capawesome/capacitor-android-edge-to-edge-support": "^8.0.8",
     "@capgo/capacitor-media-session": "^8.0.24",
+    "html-to-image": "^1.11.13",
     "lucide-svelte": "^1.0.1"
   }
 }

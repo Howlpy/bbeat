@@ -1,10 +1,13 @@
+import asyncio
+import json
 import shutil
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
@@ -16,7 +19,7 @@ from app.services import access as access_svc
 from app.services import auth as auth_svc
 from app.services import library as library_svc
 from app.services import lyrics as lyrics_svc
-from app.services import organizer, scanner, spotify
+from app.services import organizer, presence as presence_svc, scanner, spotify
 
 router = APIRouter(prefix="/library", tags=["library"])
 
@@ -876,6 +879,98 @@ def record_play(
     return {"ok": True}
 
 
+# ─── Sonando ahora (presencia en vivo) ────────────────────────
+
+
+def track_payload_by_id(session: Session, track_id: int, user: User) -> Optional[dict]:
+    """Resuelve el payload de UI de una pista por id (o None si no existe).
+
+    Reutilizable desde la API Subsonic para registrar presencia con el mismo
+    formato que consume el feed `/live`.
+    """
+    row = session.exec(
+        select(Track, Artist, Album)
+        .join(Artist, Track.artist_id == Artist.id)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(Track.id == track_id)
+    ).first()
+    if not row:
+        return None
+    track, artist, album = row
+    liked = track_id in _user_liked_set(session, user)
+    return _track_payload(track, artist, album, liked)
+
+
+class NowPlayingIn(BaseModel):
+    track_id: int
+
+
+@router.post("/now-playing")
+def now_playing_ping(
+    body: NowPlayingIn,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Heartbeat del player web: 'estoy escuchando esta pista ahora mismo'."""
+    payload = track_payload_by_id(session, body.track_id, user)
+    if not payload:
+        raise HTTPException(404, "track no encontrado")
+    presence_svc.touch(user.id, user.username, payload, "web", presence_svc.TTL_WEB)
+    return {"ok": True}
+
+
+@router.delete("/now-playing")
+def now_playing_stop(
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
+    """El player web paró/pausó: salir del feed en vivo."""
+    presence_svc.clear(user.id)
+    return {"ok": True}
+
+
+@router.get("/now-playing/stream")
+async def now_playing_stream(
+    request: Request,
+    user: User = Depends(auth_svc.get_current_user),
+) -> StreamingResponse:
+    """Feed SSE de 'sonando ahora' en el server (todos los usuarios).
+
+    Emite la lista completa de presencias cada vez que cambia; entre cambios
+    manda un comentario keepalive para que la conexión no muera tras proxies.
+    Autentica vía `?token=` (EventSource no puede mandar cabeceras).
+    """
+
+    async def event_stream():
+        last = None
+        idle = 0
+        # Snapshot inicial nada más conectar.
+        while True:
+            if await request.is_disconnected():
+                break
+            items = presence_svc.snapshot()
+            serialized = json.dumps(items, ensure_ascii=False, sort_keys=True)
+            if serialized != last:
+                last = serialized
+                idle = 0
+                yield f"data: {serialized}\n\n"
+            else:
+                idle += 1
+                if idle >= 7:  # ~14s sin cambios → keepalive
+                    idle = 0
+                    yield ": keepalive\n\n"
+            await asyncio.sleep(2)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.get("/top")
 def top_tracks(
     limit: int = Query(20, ge=1, le=100),
@@ -985,6 +1080,63 @@ def my_stats(
         {"id": aid, "name": name, "plays": n} for aid, name, n in session.exec(ta).all()
     ]
 
+    # Reloj de escucha: plays por hora del día (0-23), dentro del rango.
+    clock = [0] * 24
+    clock_rows = session.exec(
+        _scoped(select(func.strftime("%H", Play.played_at), func.count(Play.id)))
+        .group_by(func.strftime("%H", Play.played_at))
+    ).all()
+    for h, c in clock_rows:
+        try:
+            clock[int(h)] = c
+        except (TypeError, ValueError):
+            pass
+
+    # Primer y último play (siempre histórico, no acotado por el rango).
+    first_played, last_played = session.exec(
+        select(func.min(Play.played_at), func.max(Play.played_at)).where(Play.user_id == user.id)
+    ).one()
+
+    def _iso(v):
+        if v is None:
+            return None
+        return v.isoformat() if hasattr(v, "isoformat") else str(v)
+
+    # Racha: días UTC consecutivos con ≥1 play, terminando hoy (o ayer si aún no
+    # has escuchado nada hoy, para no romper una racha todavía viva).
+    day_rows = session.exec(
+        select(func.distinct(func.date(Play.played_at))).where(Play.user_id == user.id)
+    ).all()
+    days_set = {(r[0] if isinstance(r, (tuple, list)) else r) for r in day_rows}
+    today = datetime.utcnow().date()
+    cursor = today if today.isoformat() in days_set else today - timedelta(days=1)
+    streak_days = 0
+    while cursor.isoformat() in days_set:
+        streak_days += 1
+        cursor -= timedelta(days=1)
+
+    # Comparativa con el periodo anterior de igual longitud (solo si hay rango).
+    prev = None
+    if cutoff is not None:
+        prev_cut = cutoff - timedelta(days=days)
+
+        def _prev(stmt):
+            return stmt.where(
+                Play.user_id == user.id,
+                Play.played_at >= prev_cut,
+                Play.played_at < cutoff,
+            )
+
+        prev_plays = session.exec(_prev(select(func.count(Play.id)))).one()
+        prev_ms = session.exec(
+            _prev(
+                select(func.coalesce(func.sum(Track.duration_ms), 0))
+                .select_from(Play)
+                .join(Track, Track.id == Play.track_id)
+            )
+        ).one()
+        prev = {"plays": prev_plays, "minutes": round((prev_ms or 0) / 60000)}
+
     return {
         "total_plays": total_plays,
         "total_minutes": round((total_ms or 0) / 60000),
@@ -992,6 +1144,11 @@ def my_stats(
         "liked_count": len(liked),
         "top_tracks": top_tracks,
         "top_artists": top_artists,
+        "clock": clock,
+        "streak_days": streak_days,
+        "first_play": _iso(first_played),
+        "last_play": _iso(last_played),
+        "prev": prev,
     }
 
 

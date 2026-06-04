@@ -11,7 +11,8 @@
     Flame,
     Heart,
     WifiOff,
-    HardDriveDownload
+    HardDriveDownload,
+    Radio
   } from 'lucide-svelte';
   import {
     api,
@@ -19,6 +20,7 @@
     formatDuration,
     type Album,
     type LibraryStats,
+    type NowPlaying,
     type Track
   } from '$lib/api';
   import { auth } from '$lib/auth.svelte';
@@ -31,6 +33,7 @@
   let recentTracks = $state<Track[]>([]);
   let recentAlbums = $state<Album[]>([]);
   let topTracks = $state<(Track & { plays: number })[]>([]);
+  let live = $state<NowPlaying[]>([]);
   let error = $state<string | null>(null);
   let offlineMode = $state(false);
   let scanning = $state(false);
@@ -75,7 +78,12 @@
     player.playTracks(topTracks, i);
   }
 
-  onMount(load);
+  onMount(() => {
+    load();
+    // Feed en vivo "sonando ahora" (se cierra al salir de la home).
+    const es = api.nowPlayingStream((items) => (live = items));
+    return () => es.close();
+  });
 
   const greeting = $derived.by(() => {
     const h = new Date().getHours();
@@ -205,6 +213,44 @@
         Tu biblioteca está vacía. Pega una URL en
         <a href="/import" class="underline">/import</a> para empezar.
       </p>
+    {/if}
+
+    <!-- Sonando ahora (en vivo) -->
+    {#if live.length > 0}
+      <section class="mb-8">
+        <header class="mb-3 flex items-baseline justify-between">
+          <h2 class="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
+            <Radio size={14} class="text-fuchsia-400" />
+            <span class="relative flex items-center gap-1.5">
+              Sonando ahora
+              <span class="inline-block size-2 animate-pulse rounded-full bg-emerald-500"></span>
+            </span>
+          </h2>
+          <a href="/live" class="text-xs text-fuchsia-400 hover:underline">ver todo →</a>
+        </header>
+        <ul class="space-y-1.5">
+          {#each live.slice(0, 3) as p (p.user_id)}
+            <li class="flex items-center gap-3 rounded border border-slate-800/60 bg-slate-900/40 px-3 py-2">
+              {#if p.track.cover_url}
+                <img src={p.track.cover_url} alt="" class="size-9 flex-none rounded object-cover" />
+              {:else}
+                <div class="grid size-9 flex-none place-items-center rounded bg-slate-800 text-slate-600"><Music2 size={13} /></div>
+              {/if}
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm">{p.track.title}</div>
+                <div class="truncate text-xs text-slate-500">
+                  <span class="text-fuchsia-400">{p.username}</span> · {p.track.artist_name}
+                </div>
+              </div>
+              <button
+                onclick={() => player.playTracks([p.track], 0)}
+                class="grid size-8 flex-none place-items-center rounded-full text-fuchsia-400 transition hover:bg-slate-800"
+                title="Reproducir"
+              ><Play size={14} fill="currentColor" /></button>
+            </li>
+          {/each}
+        </ul>
+      </section>
     {/if}
 
     <!-- Álbumes recientes -->
