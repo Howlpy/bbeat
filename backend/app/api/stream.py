@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import re
+import subprocess
+import threading
+import uuid
 from pathlib import Path
 from typing import Iterator
 
@@ -13,6 +16,8 @@ from app.config import settings
 from app.db import get_session
 from app.models import Album, Track, User
 from app.services import auth as auth_svc
+
+log = __import__("logging").getLogger("bbeat.stream")
 
 router = APIRouter(prefix="/library", tags=["stream"])
 
@@ -27,6 +32,49 @@ CONTENT_TYPES = {
     "aac": "audio/aac",
     "wav": "audio/wav",
 }
+
+# Formatos que Subsonic puede pedir vía parámetro `format`
+TRANSCODE_FORMATS = {
+    "mp3": ("audio/mpeg", ["-f", "mp3", "-codec:a", "libmp3lame", "-q:a", "2"]),
+    "aac": ("audio/aac", ["-f", "adts", "-codec:a", "aac", "-b:a", "192k"]),
+    "ogg": ("audio/ogg", ["-f", "ogg", "-codec:a", "libvorbis", "-q:a", "6"]),
+}
+
+# Limita los procesos ffmpeg simultáneos para no saturar la CPU del host.
+_transcode_sem = threading.Semaphore(max(1, settings.transcode_concurrency))
+
+
+def _transcode_to_cache(src: Path, dest: Path, fmt: str) -> None:
+    """Transcodifica src → dest usando ffmpeg. Escribe en un temporal único y hace
+    rename atómico para que un fallo a mitad (o dos transcodes a la vez) no deje un
+    fichero corrupto en cache. El semáforo acota el pico de CPU."""
+    _, ffmpeg_args = TRANSCODE_FORMATS[fmt]
+    tmp = dest.with_name(f"{dest.name}.{uuid.uuid4().hex}.tmp")
+    cmd = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error",
+        "-threads", "1",          # un core por tarea, evita picos de CPU
+        "-i", str(src),
+        *ffmpeg_args,
+        str(tmp),
+    ]
+    with _transcode_sem:
+        try:
+            subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL)
+            tmp.rename(dest)
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
+
+
+def get_transcoded(track_id: int, src: Path, fmt: str) -> Path:
+    """Devuelve la ruta del fichero transcodificado, generándolo si no existe."""
+    cache_dir = settings.transcache_dir
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cached = cache_dir / f"{track_id}.{fmt}"
+    if not cached.is_file():
+        log.info("transcoding track %d → %s", track_id, fmt)
+        _transcode_to_cache(src, cached, fmt)
+    return cached
 
 
 def _parse_range(header: str, file_size: int) -> tuple[int, int] | None:
