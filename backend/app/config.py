@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     music_dir: Path = Field(BACKEND_ROOT.parent / "data" / "music", alias="BBEAT_MUSIC_DIR")
     covers_dir: Path = Field(BACKEND_ROOT.parent / "data" / "covers", alias="BBEAT_COVERS_DIR")
     secrets_dir: Path = Field(BACKEND_ROOT.parent / "data" / "secrets", alias="BBEAT_SECRETS_DIR")
+    transcache_dir: Path = Field(BACKEND_ROOT.parent / "data" / "transcache", alias="BBEAT_TRANSCACHE_DIR")
     db_path: Path = Field(BACKEND_ROOT.parent / "data" / "library.db", alias="BBEAT_DB_PATH")
 
     # Deprecated: ya no se usan. Se mantienen como opcionales por compatibilidad
@@ -36,6 +37,9 @@ class Settings(BaseSettings):
     audio_format: Literal["opus", "ogg", "m4a", "mp3", "flac"] = Field("opus", alias="BBEAT_AUDIO_FORMAT")
     audio_quality: str = Field("auto", alias="BBEAT_AUDIO_QUALITY")
     max_concurrent_jobs: int = Field(1, alias="BBEAT_MAX_CONCURRENT_JOBS")
+    # Máximo de procesos ffmpeg de transcoding Subsonic simultáneos. Limita el
+    # pico de CPU cuando varios clientes piden formatos no cacheados a la vez.
+    transcode_concurrency: int = Field(2, alias="BBEAT_TRANSCODE_CONCURRENCY")
     fallback_ytdlp: bool = Field(True, alias="BBEAT_FALLBACK_YTDLP")
 
     cors_origins: str = Field("http://localhost:5173", alias="BBEAT_CORS_ORIGINS")
@@ -57,7 +61,7 @@ class Settings(BaseSettings):
         return self.music_dir.exists() and self.data_dir.exists()
 
     def ensure_dirs(self) -> None:
-        for d in (self.data_dir, self.music_dir, self.covers_dir, self.secrets_dir):
+        for d in (self.data_dir, self.music_dir, self.covers_dir, self.secrets_dir, self.transcache_dir):
             d.mkdir(parents=True, exist_ok=True)
 
 

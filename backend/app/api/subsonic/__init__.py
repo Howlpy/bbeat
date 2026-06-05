@@ -16,6 +16,7 @@ import logging
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 from sqlmodel import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.db import get_session
 from fastapi import Depends
@@ -74,7 +75,10 @@ async def dispatch(
         handler = handlers.HANDLERS.get(action)
         if handler is None:
             raise SubsonicError(ERR_GENERIC, f"Acción no soportada: {action}")
-        result = handler(params, user, session)
+        # Los handlers son síncronos y pueden hacer trabajo bloqueante (ffmpeg en
+        # stream/download); ejecútalos en el threadpool para no congelar el event
+        # loop. El engine usa check_same_thread=False, así que la session es segura.
+        result = await run_in_threadpool(handler, params, user, session)
     except SubsonicError as e:
         return serialize.error(e.code, e.message, fmt, callback)
     except Exception:  # noqa: BLE001
