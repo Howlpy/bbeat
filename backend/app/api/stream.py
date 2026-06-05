@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import re
 import subprocess
-import tempfile
+import threading
+import uuid
 from pathlib import Path
 from typing import Iterator
 
@@ -39,12 +40,16 @@ TRANSCODE_FORMATS = {
     "ogg": ("audio/ogg", ["-f", "ogg", "-codec:a", "libvorbis", "-q:a", "6"]),
 }
 
+# Limita los procesos ffmpeg simultáneos para no saturar la CPU del host.
+_transcode_sem = threading.Semaphore(max(1, settings.transcode_concurrency))
+
 
 def _transcode_to_cache(src: Path, dest: Path, fmt: str) -> None:
-    """Transcodifica src → dest usando ffmpeg. Escribe en temporal y hace rename
-    atómico para que un fallo a mitad no deje un fichero corrupto en cache."""
+    """Transcodifica src → dest usando ffmpeg. Escribe en un temporal único y hace
+    rename atómico para que un fallo a mitad (o dos transcodes a la vez) no deje un
+    fichero corrupto en cache. El semáforo acota el pico de CPU."""
     _, ffmpeg_args = TRANSCODE_FORMATS[fmt]
-    tmp = dest.with_suffix(".tmp")
+    tmp = dest.with_name(f"{dest.name}.{uuid.uuid4().hex}.tmp")
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
         "-threads", "1",          # un core por tarea, evita picos de CPU
@@ -52,12 +57,13 @@ def _transcode_to_cache(src: Path, dest: Path, fmt: str) -> None:
         *ffmpeg_args,
         str(tmp),
     ]
-    try:
-        subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL)
-        tmp.rename(dest)
-    except Exception:
-        tmp.unlink(missing_ok=True)
-        raise
+    with _transcode_sem:
+        try:
+            subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL)
+            tmp.rename(dest)
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
 
 
 def get_transcoded(track_id: int, src: Path, fmt: str) -> Path:

@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     audio_format: Literal["opus", "ogg", "m4a", "mp3", "flac"] = Field("opus", alias="BBEAT_AUDIO_FORMAT")
     audio_quality: str = Field("auto", alias="BBEAT_AUDIO_QUALITY")
     max_concurrent_jobs: int = Field(1, alias="BBEAT_MAX_CONCURRENT_JOBS")
+    # Máximo de procesos ffmpeg de transcoding Subsonic simultáneos. Limita el
+    # pico de CPU cuando varios clientes piden formatos no cacheados a la vez.
+    transcode_concurrency: int = Field(2, alias="BBEAT_TRANSCODE_CONCURRENCY")
     fallback_ytdlp: bool = Field(True, alias="BBEAT_FALLBACK_YTDLP")
 
     cors_origins: str = Field("http://localhost:5173", alias="BBEAT_CORS_ORIGINS")
