@@ -133,7 +133,7 @@
       {#each albums as album (album.id)}
         <a href="/albums/{album.id}" class="group relative block">
           {#if album.cover_url}
-            <img
+            <img loading="lazy" decoding="async"
               src={album.cover_url}
               alt={album.title}
               class="aspect-square w-full rounded object-cover transition group-hover:opacity-80"

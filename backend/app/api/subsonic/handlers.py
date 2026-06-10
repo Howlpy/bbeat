@@ -15,7 +15,6 @@ IDs opacos con prefijo de tipo: ar-/al-/tr-/pl-.
 """
 from __future__ import annotations
 
-import random
 import re
 from datetime import datetime
 from pathlib import Path
@@ -430,9 +429,7 @@ def _albums_query_ordered(session: Session, list_type: str, size: int, offset: i
     elif list_type == "byYear":
         base = base.order_by(Album.year)
     elif list_type == "random":
-        rows = session.exec(base).all()
-        random.shuffle(rows)
-        return rows[offset:offset + size]
+        return session.exec(base.order_by(func.random()).limit(size)).all()
     elif list_type == "starred":
         return []  # bbeat no marca álbumes con estrella (solo canciones)
     else:  # frequent y desconocidos → por novedad
@@ -466,14 +463,17 @@ def getAlbumList(params, user, session) -> dict:
 
 def getRandomSongs(params, user, session) -> dict:
     size = min(int(params.get("size", 10) or 10), 500)
-    ids = session.exec(select(Track.id)).all()
-    random.shuffle(ids)
-    songs = []
-    for tid in ids[:size]:
-        row = _resolve_song_row(session, tid)
-        if row:
-            songs.append(_song(*row))
-    return {"randomSongs": {"song": songs}}
+    # ORDER BY RANDOM() LIMIT N: SQLite elige N filas al azar sin materializar
+    # toda la tabla en Python ni hacer N+1 (antes: cargaba TODOS los ids, los
+    # barajaba y resolvía uno a uno). Un solo query con los joins ya hechos.
+    rows = session.exec(
+        select(Track, Artist, Album)
+        .join(Artist, Artist.id == Track.artist_id)
+        .outerjoin(Album, Album.id == Track.album_id)
+        .order_by(func.random())
+        .limit(size)
+    ).all()
+    return {"randomSongs": {"song": [_song(t, ar, al) for t, ar, al in rows]}}
 
 
 def _starred_songs(session: Session, user: User) -> list[dict]:

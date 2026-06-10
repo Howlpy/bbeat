@@ -116,7 +116,7 @@
         <button onclick={() => player.playTracks(tracks, i)} class="flex min-w-0 flex-1 items-center gap-3 text-left">
           <span class="relative size-10 flex-none">
             {#if t.cover_url}
-              <img src={t.cover_url} alt="" class="size-10 rounded object-cover" />
+              <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 rounded object-cover" />
             {:else}
               <div class="grid size-10 place-items-center rounded bg-slate-800 text-slate-600">
                 <Music2 size={14} />
@@ -183,7 +183,7 @@
     <div class="flex justify-center pt-2.5"><span class="h-1 w-10 rounded-full bg-slate-600"></span></div>
     <div class="flex items-center gap-3 px-4 py-3">
       {#if t.cover_url}
-        <img src={t.cover_url} alt="" class="size-12 flex-none rounded object-cover" />
+        <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-12 flex-none rounded object-cover" />
       {:else}
         <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-slate-600"><Music2 size={18} /></div>
       {/if}

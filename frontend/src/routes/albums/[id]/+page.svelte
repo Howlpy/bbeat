@@ -139,7 +139,7 @@
   {:else if album}
     {#if album.cover_url}
       <div class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80 overflow-hidden">
-        <img
+        <img loading="lazy" decoding="async"
           src={album.cover_url}
           alt=""
           class="size-full scale-125 object-cover opacity-25 blur-2xl"
@@ -150,7 +150,7 @@
     <div class="mb-6 flex flex-col items-start gap-4 sm:flex-row sm:items-end">
       <div class="relative flex-none">
         {#if album.cover_url}
-          <img
+          <img loading="lazy" decoding="async"
             src={album.cover_url}
             alt=""
             class="size-40 rounded object-cover shadow-xl shadow-cyan-500/10"

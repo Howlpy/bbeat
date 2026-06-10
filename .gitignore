@@ -9,6 +9,7 @@ data/music/
 data/covers/
 data/logs/
 data/downloads/
+data/transcache/
 data/library.db
 data/library.db-journal
 data/library.db-wal

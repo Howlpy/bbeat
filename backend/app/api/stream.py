@@ -66,14 +66,50 @@ def _transcode_to_cache(src: Path, dest: Path, fmt: str) -> None:
             raise
 
 
+def _purge_transcache(cache_dir: Path) -> None:
+    """Si la caché supera el tope, borra los ficheros menos usados recientemente
+    (por mtime) hasta volver bajo el límite. Evita que data/transcache/ crezca sin
+    fin en el disco del host. Best-effort: cualquier error de FS se ignora."""
+    max_mb = settings.transcache_max_mb
+    if max_mb <= 0:
+        return
+    try:
+        files = [
+            (f, f.stat()) for f in cache_dir.iterdir()
+            if f.is_file() and not f.name.endswith(".tmp")
+        ]
+    except OSError:
+        return
+    total = sum(st.st_size for _, st in files)
+    limit = max_mb * 1024 * 1024
+    if total <= limit:
+        return
+    # Más antiguos primero (LRU aproximado por mtime).
+    for f, st in sorted(files, key=lambda fs: fs[1].st_mtime):
+        if total <= limit:
+            break
+        try:
+            f.unlink()
+            total -= st.st_size
+        except OSError:
+            pass
+
+
 def get_transcoded(track_id: int, src: Path, fmt: str) -> Path:
     """Devuelve la ruta del fichero transcodificado, generándolo si no existe."""
     cache_dir = settings.transcache_dir
     cache_dir.mkdir(parents=True, exist_ok=True)
     cached = cache_dir / f"{track_id}.{fmt}"
-    if not cached.is_file():
-        log.info("transcoding track %d → %s", track_id, fmt)
-        _transcode_to_cache(src, cached, fmt)
+    if cached.is_file():
+        # Marca el uso para que la purga LRU respete lo que se reproduce a menudo.
+        try:
+            cached.touch()
+        except OSError:
+            pass
+        return cached
+    log.info("transcoding track %d → %s", track_id, fmt)
+    _transcode_to_cache(src, cached, fmt)
+    _purge_transcache(cache_dir)
     return cached
 
 

@@ -220,7 +220,7 @@
               >
                 <span class="w-5 flex-none text-center font-mono text-xs text-slate-600">{i + 1}</span>
                 {#if t.cover_url}
-                  <img src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
+                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
                 {:else}
                   <div class="grid size-10 flex-none place-items-center rounded bg-slate-800 text-slate-600"><Music2 size={14} /></div>
                 {/if}

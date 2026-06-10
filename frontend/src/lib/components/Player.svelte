@@ -64,7 +64,7 @@
         aria-label="Abrir reproductor"
       >
         {#if player.current.cover_url}
-          <img
+          <img loading="lazy" decoding="async"
             src={player.current.cover_url}
             alt=""
             class="size-12 flex-none rounded object-cover sm:size-14"

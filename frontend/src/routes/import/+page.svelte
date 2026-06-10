@@ -343,7 +343,7 @@
     <section class="mt-4 overflow-hidden rounded-lg border border-cyan-900/40 bg-slate-900">
       <div class="flex items-start gap-3 p-4">
         {#if preview.tracks[0]?.cover_url}
-          <img src={preview.tracks[0].cover_url} alt="" class="size-20 flex-none rounded object-cover" />
+          <img loading="lazy" decoding="async" src={preview.tracks[0].cover_url} alt="" class="size-20 flex-none rounded object-cover" />
         {:else}
           <div class="grid size-20 flex-none place-items-center rounded bg-slate-800 text-slate-600">
             <Music2 size={28} />
@@ -583,7 +583,7 @@
               class="flex w-full items-center gap-3 p-3 text-left hover:bg-slate-800/50"
             >
               {#if g.cover_url}
-                <img src={g.cover_url} alt="" class="size-12 flex-none rounded object-cover" />
+                <img loading="lazy" decoding="async" src={g.cover_url} alt="" class="size-12 flex-none rounded object-cover" />
               {:else}
                 <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-slate-500">
                   {#if g.kind === 'album'}

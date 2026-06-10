@@ -181,7 +181,7 @@
       {#if activeTab === 'cover'}
         <div class="relative aspect-square w-full max-w-md">
           {#if player.current.cover_url}
-            <img
+            <img loading="lazy" decoding="async"
               src={player.current.cover_url}
               alt=""
               class="size-full rounded-lg object-cover"
