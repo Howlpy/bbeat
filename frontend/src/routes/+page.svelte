@@ -232,7 +232,7 @@
           {#each live.slice(0, 3) as p (p.user_id)}
             <li class="flex items-center gap-3 rounded border border-slate-800/60 bg-slate-900/40 px-3 py-2">
               {#if p.track.cover_url}
-                <img src={p.track.cover_url} alt="" class="size-9 flex-none rounded object-cover" />
+                <img loading="lazy" decoding="async" src={p.track.cover_url} alt="" class="size-9 flex-none rounded object-cover" />
               {:else}
                 <div class="grid size-9 flex-none place-items-center rounded bg-slate-800 text-slate-600"><Music2 size={13} /></div>
               {/if}
@@ -266,7 +266,7 @@
           {#each recentAlbums.slice(0, 6) as album (album.id)}
             <a href="/albums/{album.id}" class="group">
               {#if album.cover_url}
-                <img
+                <img loading="lazy" decoding="async"
                   src={album.cover_url}
                   alt={album.title}
                   class="aspect-square w-full rounded object-cover transition group-hover:opacity-80"
@@ -303,7 +303,7 @@
               >
                 <span class="w-5 flex-none text-center font-mono text-xs text-slate-600">{i + 1}</span>
                 {#if t.cover_url}
-                  <img src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
+                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
                 {:else}
                   <div class="grid size-10 flex-none place-items-center rounded bg-slate-800 text-slate-600">
                     <Music2 size={14} />
@@ -344,7 +344,7 @@
                 class:bg-slate-800={isCurrent}
               >
                 {#if t.cover_url}
-                  <img src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
+                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
                 {:else}
                   <div class="grid size-10 flex-none place-items-center rounded bg-slate-800 text-slate-600">
                     <Music2 size={14} />

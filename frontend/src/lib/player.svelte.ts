@@ -81,8 +81,6 @@ class PlayerState {
   /** track_id cuya reproducción ya hemos registrado, para no contar dos veces. */
   private playLogged: number | null = null;
 
-  /** Recuerda si el usuario tenía la pista en play cuando la pestaña pasa a background. */
-  private wantsPlay = false;
   /** Activo durante una transición de pista para suprimir el pause espurio. */
   private switching = false;
   /** Heartbeat de 'sonando ahora' mientras hay reproducción. */
@@ -111,7 +109,6 @@ class PlayerState {
       el.addEventListener('play', () => {
         if (el !== this.el) return;
         this.isPlaying = true;
-        this.wantsPlay = true;
         this.setPlaybackState('playing');
         this.startNowPlaying();
       });
@@ -127,20 +124,10 @@ class PlayerState {
       });
     }
 
-    // Safety net: si Chrome pausa el audio al cambiar de pestaña/app
-    // y luego volvemos, reanudar si el usuario estaba reproduciendo.
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => {
-        if (
-          document.visibilityState === 'visible' &&
-          this.wantsPlay &&
-          this.el &&
-          this.el.paused
-        ) {
-          this.el.play().catch(() => {});
-        }
-      });
-    }
+    // Nota: NO reanudamos automáticamente al volver a primer plano. Si el
+    // usuario (o el SO) paró la reproducción, se queda parada hasta que se
+    // pulse play de nuevo. Antes había un "safety net" en visibilitychange que
+    // la reactivaba sola al reabrir la app — comportamiento no deseado.
   }
 
   /** URL de reproducción de una pista: blob/fichero local si está descargada, si no el stream. */
@@ -149,7 +136,6 @@ class PlayerState {
   }
 
   pauseExplicit() {
-    this.wantsPlay = false;
     this.el?.pause();
   }
 
@@ -295,10 +281,8 @@ class PlayerState {
     const el = this.el;
     if (!el) return;
     if (el.paused) {
-      this.wantsPlay = true;
       el.play();
     } else {
-      this.wantsPlay = false;
       el.pause();
     }
   }

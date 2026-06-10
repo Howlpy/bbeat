@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from typing import Iterator
 
+from sqlalchemy import event
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.config import settings
@@ -15,6 +16,19 @@ engine = create_engine(
     echo=False,
     connect_args=_connect_args(),
 )
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, _record) -> None:
+    """WAL permite lectores concurrentes con un escritor (worker de jobs +
+    requests en threadpool); busy_timeout evita 'database is locked' esperando
+    en vez de fallar; synchronous=NORMAL es seguro con WAL y reduce fsyncs."""
+    cur = dbapi_conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA synchronous=NORMAL")
+    cur.execute("PRAGMA busy_timeout=5000")
+    cur.execute("PRAGMA foreign_keys=ON")
+    cur.close()
 
 
 def init_db() -> None:

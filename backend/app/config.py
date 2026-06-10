@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Máximo de procesos ffmpeg de transcoding Subsonic simultáneos. Limita el
     # pico de CPU cuando varios clientes piden formatos no cacheados a la vez.
     transcode_concurrency: int = Field(2, alias="BBEAT_TRANSCODE_CONCURRENCY")
+    # Tope de la caché de transcoding en disco (MB). Al superarlo se borran los
+    # ficheros menos usados recientemente. 0 = sin límite.
+    transcache_max_mb: int = Field(1024, alias="BBEAT_TRANSCACHE_MAX_MB")
     fallback_ytdlp: bool = Field(True, alias="BBEAT_FALLBACK_YTDLP")
 
     cors_origins: str = Field("http://localhost:5173", alias="BBEAT_CORS_ORIGINS")

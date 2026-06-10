@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -49,6 +50,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Comprime HTML/JS/CSS/JSON de respuesta (no toca audio/imágenes, ya
+    # comprimidos). Alivia el ancho de banda del frontend en una conexión casera.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     app.include_router(health.router, prefix="/api")
     app.include_router(users_api.router, prefix="/api")
@@ -73,13 +77,27 @@ def create_app() -> FastAPI:
         # Catch-all para SPA: cualquier path no-API devuelve el fichero
         # estático correspondiente, o index.html para deep links.
         index_html = build_dir / "index.html"
+        build_root = build_dir.resolve()
 
         @app.get("/{full_path:path}", include_in_schema=False)
         async def spa_fallback(full_path: str, request: Request):
             # Las rutas /api/* ya están registradas arriba, no llegamos aquí.
-            file_path = build_dir / full_path
-            if full_path and file_path.is_file():
-                return FileResponse(file_path)
+            if full_path:
+                # CONTENCIÓN: resolver y exigir que el fichero quede DENTRO del
+                # build. Sin esto, '..%2f..' (o '../') se sirve fuera de build/
+                # y filtra .env, claves JWT, etc. — path traversal crítico.
+                candidate = (build_dir / full_path).resolve()
+                try:
+                    candidate.relative_to(build_root)
+                except ValueError:
+                    return FileResponse(index_html)
+                if candidate.is_file():
+                    return FileResponse(candidate)
+                # Un path con pinta de fichero (tiene extensión) que no existe es
+                # un 404 real, no el SPA: así los escáneres que piden /admin/config.php
+                # reciben 404 en vez de un 200 con el index.
+                if "." in Path(full_path).name:
+                    return FileResponse(index_html, status_code=404)
             return FileResponse(index_html)
     else:
         log.info("Sin build de frontend (modo dev). Usa npm run dev para servirlo.")
