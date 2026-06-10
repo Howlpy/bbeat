@@ -59,6 +59,9 @@ Todo en `backend/.env` (ver `.env.example`). Lo más relevante:
 | `BBEAT_DEBUG` | `false` | `true` = autoreload (no usar en prod) |
 | `BBEAT_MUSIC_DIR` | `../data/music` | Dónde se guarda la biblioteca |
 | `BBEAT_AUDIO_FORMAT` | `opus` | Formato de descarga (opus = copia del stream Opus, sin recodificar) |
+| `BBEAT_MAX_CONCURRENT_JOBS` | `1` | Descargas en paralelo (ojo con la RAM en hosts pequeños) |
+| `BBEAT_TRANSCODE_CONCURRENCY` | `2` | Procesos ffmpeg simultáneos de transcoding Subsonic (limita pico de CPU) |
+| `BBEAT_TRANSCACHE_MAX_MB` | `1024` | Tope en disco de la cache de transcoding; al superarlo purga los menos usados (0 = sin límite) |
 | `BBEAT_CORS_ORIGINS` | `http://localhost:5173` | Orígenes extra; los del WebView nativo se permiten siempre |
 
 Los secretos (JWT key, cookies opcionales de Spotify) viven en `data/secrets/` con permisos `600`. La carpeta `data/` está fuera de git.
@@ -84,7 +87,9 @@ Clientes recomendados: **Amperfy**, **play:Sub** o **substreamer** (iOS); **Symf
 
 > Las playlists creadas desde un cliente Subsonic son las mismas que ves en la app de Bbeat (colecciones multi-artista). Borrar una playlist solo elimina la lista, **nunca los ficheros de audio**. Solo puedes editar/borrar las playlists de las que eres dueño.
 
-> Por qué un token y no tu contraseña: Subsonic exige poder validar `md5(contraseña+salt)`, pero Bbeat guarda las contraseñas con bcrypt (irreversible). El token dedicado es regenerable y revocable desde Ajustes en cualquier momento. El stream no transcodifica (sirve el Opus tal cual).
+> Por qué un token y no tu contraseña: Subsonic exige poder validar `md5(contraseña+salt)`, pero Bbeat guarda las contraseñas con bcrypt (irreversible). El token dedicado es regenerable y revocable desde Ajustes en cualquier momento.
+
+> Transcoding: por defecto el stream sirve el Opus tal cual. Si un cliente pide otro formato (`format=mp3|aac|ogg`), Bbeat transcodifica on-the-fly con FFmpeg y cachea el resultado en disco. El nº de procesos ffmpeg y el tamaño de la cache se ajustan con `BBEAT_TRANSCODE_CONCURRENCY` y `BBEAT_TRANSCACHE_MAX_MB`.
 
 ## Exponer a internet (opcional)
 
@@ -93,7 +98,6 @@ Lo más simple es ponerlo detrás de **Cloudflare**: un record `A` a tu IP con p
 ## Roadmap
 
 - Cola persistente (sobrevive al cierre, con posición)
-- Subsonic: transcode on-the-fly (`maxBitRate`) para clientes que no reproduzcan Opus
 - Editar/mover pistas en bulk · importar de Apple Music / Deezer
 
 ## Licencia
