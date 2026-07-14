@@ -19,7 +19,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import session_scope
-from app.models import Album, Artist, Track
+from app.models import Album, AlbumTrack, Artist, Track
 
 log = logging.getLogger("bbeat.scanner")
 
@@ -306,6 +306,7 @@ def _index_one(session: Session, path: Path) -> str:
     if track is None:
         track = Track(file_path=rel_path, **fields)
         session.add(track)
+        session.flush()  # asegura track.id para la relación AlbumTrack
         status = "added"
     else:
         status = "skipped"
@@ -315,6 +316,25 @@ def _index_one(session: Session, path: Path) -> str:
                 status = "updated"
         if status == "updated":
             session.add(track)
+
+    # AlbumTrack es la relación canónica que consume la UI y Subsonic. El
+    # escáner también debe crearla para música existente/importada, no solo el
+    # worker de descargas.
+    if album and track.id:
+        linked = session.exec(
+            select(AlbumTrack).where(
+                AlbumTrack.album_id == album.id,
+                AlbumTrack.track_id == track.id,
+            )
+        ).first()
+        if not linked:
+            session.add(
+                AlbumTrack(
+                    album_id=album.id,
+                    track_id=track.id,
+                    position=track.track_number,
+                )
+            )
 
     # Carátula propia de la pista (independiente del álbum).
     if cover_bytes and not track.has_cover:
