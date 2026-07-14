@@ -1,12 +1,7 @@
-"""Backends de descarga de audio: Votify (primario) + yt-dlp (fallback)."""
+"""Descarga de audio mediante yt-dlp."""
 from __future__ import annotations
 
 import logging
-import os
-import shutil
-import subprocess
-import sys
-import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -152,82 +147,6 @@ def _score_candidate(
         reasons.append("noartist")
 
     return score, ",".join(reasons)
-
-
-def cookies_path() -> Path:
-    return settings.secrets_dir / "spotify_cookies.txt"
-
-
-def cookies_available() -> bool:
-    p = cookies_path()
-    return p.exists() and p.stat().st_size > 0
-
-
-# ─── Votify ─────────────────────────────────────────────────────
-
-
-def _votify_quality() -> str:
-    """Mapea BBEAT_AUDIO_QUALITY a las cadenas que entiende Votify."""
-    q = settings.audio_quality
-    if q in ("auto", "160"):
-        return "vorbis-low"
-    if q == "320":
-        return "vorbis-high,vorbis-low"  # cae a baja si la cuenta no tiene premium
-    if q == "96":
-        return "vorbis-low"
-    return "vorbis-low"
-
-
-def download_with_votify(meta: TrackMeta) -> DownloadResult:
-    cookies = cookies_path()
-    if not cookies_available():
-        return DownloadResult(None, "votify", "cookies not configured")
-
-    spotify_url = f"https://open.spotify.com/track/{meta.spotify_id}"
-
-    with tempfile.TemporaryDirectory(prefix="bbeat-votify-") as tmp:
-        tmp_dir = Path(tmp)
-        cmd = [
-            sys.executable,
-            "-m",
-            "votify",
-            "-c",
-            str(cookies),
-            "-o",
-            str(tmp_dir),
-            "--audio-quality",
-            _votify_quality(),
-            "--no-config-file",
-            "--no-exceptions",
-            "--log-level",
-            "WARNING",
-            spotify_url,
-        ]
-        # protobuf C-ext vs librespot 0.0.10 → tenemos que forzar la implementación python
-        env = {**os.environ, "PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": "python"}
-        log.info("votify ▶ %s", meta.search_query)
-        try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=180, env=env)
-        except subprocess.TimeoutExpired:
-            return DownloadResult(None, "votify", "timeout 180s")
-
-        if res.returncode != 0:
-            err = (res.stderr or res.stdout or "").strip().splitlines()
-            tail = "  ".join(err[-5:])[:500] if err else f"exit {res.returncode}"
-            return DownloadResult(None, "votify", tail)
-
-        audio = [p for p in tmp_dir.rglob("*") if p.suffix.lower() in AUDIO_EXTS and p.is_file()]
-        if not audio:
-            return DownloadResult(None, "votify", "no audio output")
-
-        # Mover fuera del tempdir antes de que se borre
-        src = audio[0]
-        dst = tmp_dir.parent / f"bbeat-votify-{meta.spotify_id}{src.suffix}"
-        shutil.move(str(src), dst)
-        return DownloadResult(dst, "votify")
-
-
-# ─── yt-dlp ────────────────────────────────────────────────────
 
 
 def download_with_ytdlp(
@@ -422,40 +341,10 @@ def download_with_ytdlp_direct(
 def download(
     meta: TrackMeta, progress_cb: Optional[ProgressCb] = None
 ) -> DownloadResult:
-    """Elige backend según el ID/source.
-
-    - `yt:...` o `sc:...` → descarga directa desde la URL original.
-    - Spotify (ID raw) → Votify primario (si hay cookies), fallback yt-dlp por búsqueda.
+    """Descarga directamente URLs de YouTube/SoundCloud o busca en YouTube
+    cuando la pista procede de Spotify.
     """
     sid = meta.spotify_id or ""
     if sid.startswith("yt:") or sid.startswith("sc:"):
         return download_with_ytdlp_direct(meta, progress_cb)
-
-    # Camino Spotify
-    primary = settings.download_backend
-    tried: list[str] = []
-
-    if primary == "votify":
-        r = download_with_votify(meta)
-        tried.append(f"votify: {r.error or 'ok'}")
-        if r.success:
-            return r
-        log.warning("votify falló (%s), fallback yt-dlp...", r.error)
-        if not settings.fallback_ytdlp:
-            r.error = "; ".join(tried)
-            return r
-        r = download_with_ytdlp(meta, progress_cb)
-        tried.append(f"yt-dlp: {r.error or 'ok'}")
-        if not r.success:
-            r.error = "; ".join(tried)
-        return r
-
-    # primary == 'yt-dlp'
-    r = download_with_ytdlp(meta, progress_cb)
-    if r.success or not settings.fallback_ytdlp:
-        return r
-    r2 = download_with_votify(meta)
-    if r2.success:
-        return r2
-    r.error = f"yt-dlp: {r.error}; votify: {r2.error}"
-    return r
+    return download_with_ytdlp(meta, progress_cb)

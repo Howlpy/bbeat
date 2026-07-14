@@ -15,7 +15,4 @@ email-validator==2.2.0
 spotifyscraper==2.1.5
 mutagen==1.47.0
 yt-dlp==2026.3.17
-votify==1.9.9
-librespot>=0.0.10           # versión moderna (la 0.0.1 que pip elige por defecto no auth)
-protobuf>=6.33,<7           # votify usa runtime_version (>= 6.x)
 Pillow==12.2.0

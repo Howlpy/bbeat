@@ -26,12 +26,6 @@ class Settings(BaseSettings):
     transcache_dir: Path = Field(BACKEND_ROOT.parent / "data" / "transcache", alias="BBEAT_TRANSCACHE_DIR")
     db_path: Path = Field(BACKEND_ROOT.parent / "data" / "library.db", alias="BBEAT_DB_PATH")
 
-    # Deprecated: ya no se usan. Se mantienen como opcionales por compatibilidad
-    # con .env antiguos. Bbeat ahora resuelve metadata vía SpotifyScraper (sin auth).
-    spotify_client_id: str = Field("", alias="SPOTIFY_CLIENT_ID")
-    spotify_client_secret: str = Field("", alias="SPOTIFY_CLIENT_SECRET")
-
-    download_backend: Literal["votify", "yt-dlp"] = Field("votify", alias="BBEAT_DOWNLOAD_BACKEND")
     # opus = preferimos el stream Opus de YouTube y lo copiamos al contenedor
     # (sin recodificar): mínimo tamaño, máxima calidad. Es el default.
     audio_format: Literal["opus", "ogg", "m4a", "mp3", "flac"] = Field("opus", alias="BBEAT_AUDIO_FORMAT")
@@ -43,7 +37,6 @@ class Settings(BaseSettings):
     # Tope de la caché de transcoding en disco (MB). Al superarlo se borran los
     # ficheros menos usados recientemente. 0 = sin límite.
     transcache_max_mb: int = Field(1024, alias="BBEAT_TRANSCACHE_MAX_MB")
-    fallback_ytdlp: bool = Field(True, alias="BBEAT_FALLBACK_YTDLP")
 
     cors_origins: str = Field("http://localhost:5173", alias="BBEAT_CORS_ORIGINS")
 

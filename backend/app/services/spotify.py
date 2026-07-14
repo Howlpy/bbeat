@@ -12,8 +12,6 @@ from typing import Optional
 
 from spotify_scraper import SpotifyClient
 
-from app.config import settings
-
 log = logging.getLogger("bbeat.spotify")
 
 URL_PATTERN = re.compile(
@@ -67,12 +65,7 @@ def get_client() -> SpotifyClient:
     global _client
     if _client is not None:
         return _client
-    # Si en algún momento hay cookies subidas, las usamos para metadata enriquecida.
-    cookies_file = settings.secrets_dir / "spotify_cookies.txt"
-    kwargs = {}
-    if cookies_file.exists() and cookies_file.stat().st_size > 0:
-        kwargs["cookie_file"] = str(cookies_file)
-    _client = SpotifyClient(log_level="WARNING", **kwargs)
+    _client = SpotifyClient(log_level="WARNING")
     return _client
 
 
