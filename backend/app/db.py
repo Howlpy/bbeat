@@ -86,15 +86,14 @@ def _migrate_schema() -> None:
         except Exception as e:
             import logging
             logging.warning("backfill external_id falló: %s", e)
-        # Backfill: AlbumTrack desde Track.album_id si la tabla está vacía
+        # Backfill idempotente: Track.album_id debe tener también su relación
+        # AlbumTrack, aunque la tabla ya contenga filas de playlists.
         try:
-            row = conn.exec_driver_sql("SELECT COUNT(*) FROM album_tracks").first()
-            if row and row[0] == 0:
-                conn.exec_driver_sql(
-                    "INSERT INTO album_tracks (album_id, track_id, position, added_at) "
-                    "SELECT album_id, id, track_number, CURRENT_TIMESTAMP FROM tracks "
-                    "WHERE album_id IS NOT NULL"
-                )
+            conn.exec_driver_sql(
+                "INSERT OR IGNORE INTO album_tracks (album_id, track_id, position, added_at) "
+                "SELECT t.album_id, t.id, t.track_number, CURRENT_TIMESTAMP FROM tracks t "
+                "WHERE t.album_id IS NOT NULL"
+            )
         except Exception as e:
             import logging
             logging.warning("backfill album_tracks falló: %s", e)
