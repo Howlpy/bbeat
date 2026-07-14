@@ -181,7 +181,7 @@ class Job(SQLModel, table=True):
     # pending | running | done | failed | skipped (ya existía)
     progress: int = Field(default=0)            # 0-100, solo válido mientras running
     stage: Optional[str] = Field(default=None)  # descarga | tags | etc.
-    backend_used: Optional[str] = Field(default=None)  # votify | yt-dlp
+    backend_used: Optional[str] = Field(default=None)  # yt-dlp
     error: Optional[str] = Field(default=None)
     result_track_id: Optional[int] = Field(
         default=None, foreign_key="tracks.id"

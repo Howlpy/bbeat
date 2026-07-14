@@ -185,7 +185,7 @@ export type Job = {
   status: 'pending' | 'running' | 'done' | 'failed';
   progress: number;          // 0-100
   stage: string | null;      // "descargando", "convirtiendo", "etiquetando"…
-  backend_used: 'votify' | 'yt-dlp' | null;
+  backend_used: 'yt-dlp' | null;
   error: string | null;
   result_track_id: number | null;
   created_at: string | null;
@@ -242,13 +242,6 @@ export type JobStats = {
   done: number;
   failed: number;
   total: number;
-};
-
-export type SpotifyAuthStatus = {
-  cookies_configured: boolean;
-  cookies_path: string;
-  size?: number;
-  mtime?: number;
 };
 
 export const api = {
@@ -486,19 +479,7 @@ export const api = {
   clearJobs: (status?: 'failed' | 'done' | 'pending') => {
     const q = status ? `?status=${status}` : '';
     return json<{ deleted: number }>(`/api/jobs${q}`, { method: 'DELETE' });
-  },
-
-  // ── Cookies Spotify (Votify) ──
-  spotifyAuthStatus: () => json<SpotifyAuthStatus>('/api/auth/spotify/status'),
-  uploadCookies: async (file: File) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    return json<{ ok: boolean; size: number }>('/api/auth/spotify/cookies', {
-      method: 'POST',
-      body: fd
-    });
-  },
-  deleteCookies: () => json<{ ok: boolean }>('/api/auth/spotify/cookies', { method: 'DELETE' })
+  }
 };
 
 export function formatDuration(ms: number | null): string {

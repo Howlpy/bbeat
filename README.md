@@ -72,7 +72,7 @@ Los secretos (JWT key, cookies opcionales de Spotify) viven en `data/secrets/` c
 2. Eliges el destino: **auto** (canción suelta / su álbum / colección multi-artista según el tipo), **nuevo** o **añadir a uno tuyo**; en playlists puedes (des)marcar pistas.
 3. Un worker procesa la cola: busca en YouTube el mejor match (con scoring que penaliza reacciones, directos y vídeos sin relación), descarga el audio en **Opus**, etiqueta, embebe carátula e indexa.
 
-El audio viene de YouTube vía yt-dlp (se prefiere el stream Opus y se copia sin recodificar). Opcionalmente, con cookies de Spotify Premium en `/settings`, puede usar Votify (Ogg Vorbis) — pero Spotify bloquea las audio keys a cuentas Free, así que yt-dlp es el camino por defecto.
+El audio viene de YouTube v?a yt-dlp; se prefiere el stream Opus y se copia sin recodificar.
 
 > No usamos la API pública de Spotify porque desde nov-2024 exige Premium en el dev app hasta para `search`; SpotifyScraper cubre la metadata sin credenciales.
 

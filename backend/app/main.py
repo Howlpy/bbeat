@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import auth, health, ingest, jobs, library, stream
+from app.api import health, ingest, jobs, library, stream
 from app.api import subsonic
 from app.api import users as users_api
 from app.config import settings
@@ -61,7 +61,6 @@ def create_app() -> FastAPI:
     app.include_router(stream.router, prefix="/api")
     app.include_router(ingest.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
-    app.include_router(auth.router, prefix="/api")
     # API Subsonic: va en /rest (sin /api). Debe registrarse ANTES del catch-all
     # del SPA, o las peticiones /rest/* las absorbería el fallback de index.html.
     app.include_router(subsonic.router)

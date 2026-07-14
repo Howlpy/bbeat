@@ -629,22 +629,45 @@ async def _worker_loop() -> None:
     _recover_stale_running_jobs()
     ev = _get_wake_event()
     while True:
-        # Coger el siguiente pendiente
-        with session_scope() as s:
-            job = s.exec(
-                select(Job).where(Job.status == "pending").order_by(Job.created_at)
-            ).first()
-            job_id = job.id if job else None
+        try:
+            # Coger el siguiente pendiente. Toda la iteración está protegida:
+            # antes, un fallo transitorio de SQLite aquí mataba el Task del
+            # worker pero dejaba FastAPI vivo y la cola bloqueada para siempre.
+            with session_scope() as s:
+                job = s.exec(
+                    select(Job).where(Job.status == "pending").order_by(Job.created_at)
+                ).first()
+                job_id = job.id if job else None
 
-        if job_id is not None:
-            await asyncio.to_thread(process_job, job_id)
-        else:
-            # No hay nada: esperar a wake() o un tick periódico de seguridad
-            try:
-                await asyncio.wait_for(ev.wait(), timeout=60)
-            except asyncio.TimeoutError:
-                pass
-            ev.clear()
+            if job_id is not None:
+                await asyncio.to_thread(process_job, job_id)
+            else:
+                # No hay nada: esperar a wake() o un tick periódico de seguridad
+                try:
+                    await asyncio.wait_for(ev.wait(), timeout=60)
+                except asyncio.TimeoutError:
+                    pass
+                ev.clear()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("worker: error en el bucle; reintentando en 5s")
+            await asyncio.sleep(5)
+
+
+def _worker_done(task: asyncio.Task) -> None:
+    """Supervisa el Task: si termina inesperadamente, lo recrea."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        log.error("worker terminó inesperadamente; reiniciando", exc_info=exc)
+    else:
+        log.error("worker terminó inesperadamente sin excepción; reiniciando")
+    try:
+        asyncio.get_running_loop().call_later(1, start_worker)
+    except RuntimeError:
+        pass
 
 
 def start_worker() -> None:
@@ -653,6 +676,7 @@ def start_worker() -> None:
         return
     loop = asyncio.get_event_loop()
     _worker_task = loop.create_task(_worker_loop())
+    _worker_task.add_done_callback(_worker_done)
 
 
 # ─── Listados para la UI ───────────────────────────────────────
