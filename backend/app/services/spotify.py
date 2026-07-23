@@ -65,7 +65,7 @@ def get_client() -> SpotifyClient:
     global _client
     if _client is not None:
         return _client
-    _client = SpotifyClient(log_level="WARNING")
+    _client = SpotifyClient(timeout=30)
     return _client
 
 
@@ -185,12 +185,12 @@ def resolve_url(url: str) -> ResolveResult:
 
     try:
         if kind == "track":
-            track = client.get_track_info(clean_url)
+            track = client.get_track(clean_url).to_dict()
             meta = _track_meta_from_track_endpoint(track, source_url=clean_url, source_kind="track")
             return ResolveResult(kind="track", name=meta.title, tracks=[meta])
 
         if kind == "album":
-            album = client.get_album_info(clean_url)
+            album = client.get_album(clean_url).to_dict()
             album_artist = ", ".join(
                 a.get("name", "") for a in album.get("artists") or [] if a.get("name")
             )
@@ -205,9 +205,11 @@ def resolve_url(url: str) -> ResolveResult:
             )
 
         if kind == "playlist":
-            playlist = client.get_playlist_info(clean_url)
+            # max_tracks=None fuerza la paginación completa. El valor por defecto
+            # de la librería es 100 para proteger llamadas accidentales grandes.
+            playlist = client.get_playlist(clean_url, max_tracks=None).to_dict()
             tracks = [
-                _track_from_playlist_item(it, clean_url)
+                _track_from_playlist_item(it.get("track") or it, clean_url)
                 for it in playlist.get("tracks") or []
             ]
             return ResolveResult(
@@ -231,5 +233,5 @@ def resolve_url(url: str) -> ResolveResult:
 def fetch_track_meta(spotify_id: str) -> TrackMeta:
     """Re-fetch usado por el worker antes de descargar."""
     url = f"https://open.spotify.com/track/{spotify_id}"
-    track = get_client().get_track_info(url)
+    track = get_client().get_track(url).to_dict()
     return _track_meta_from_track_endpoint(track, source_url=url, source_kind="track")
