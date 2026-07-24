@@ -16,7 +16,7 @@
   let mode = $state<'single' | 'new' | 'existing'>('single');
   let albumOv = $state('');
   let artistOv = $state('');
-  let yearOv = $state('');
+  let yearOv = $state<number | undefined>(undefined);
   let targetAlbumId = $state<number | null>(null);
   let uploading = $state(false);
 
@@ -53,34 +53,37 @@
   async function uploadAll() {
     if (uploading || !items.length) return;
     uploading = true;
-    const opts: Parameters<typeof api.uploadTrack>[1] = {};
-    if (mode === 'single') {
-      opts.as_single = true;
-      if (artistOv.trim()) opts.artist = artistOv.trim();
-      if (yearOv.trim()) opts.year = Number(yearOv) || undefined;
-    } else if (mode === 'existing' && targetAlbumId) {
-      opts.target_album_id = targetAlbumId;
-    } else if (mode === 'new') {
-      if (albumOv.trim()) opts.album = albumOv.trim();
-      if (artistOv.trim()) opts.artist = artistOv.trim();
-      if (yearOv.trim()) opts.year = Number(yearOv) || undefined;
-    }
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].status === 'done') continue;
-      items[i] = { ...items[i], status: 'uploading' };
-      try {
-        await api.uploadTrack(items[i].file, { ...opts, title: items[i].title?.trim() || undefined });
-        items[i] = { ...items[i], status: 'done' };
-      } catch (e) {
-        items[i] = {
-          ...items[i],
-          status: 'failed',
-          error: e instanceof Error ? e.message : String(e)
-        };
+    try {
+      const opts: Parameters<typeof api.uploadTrack>[1] = {};
+      if (mode === 'single') {
+        opts.as_single = true;
+        if (artistOv.trim()) opts.artist = artistOv.trim();
+        if (yearOv !== undefined && Number.isFinite(yearOv)) opts.year = yearOv;
+      } else if (mode === 'existing' && targetAlbumId) {
+        opts.target_album_id = targetAlbumId;
+      } else if (mode === 'new') {
+        if (albumOv.trim()) opts.album = albumOv.trim();
+        if (artistOv.trim()) opts.artist = artistOv.trim();
+        if (yearOv !== undefined && Number.isFinite(yearOv)) opts.year = yearOv;
       }
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].status === 'done') continue;
+        items[i] = { ...items[i], status: 'uploading' };
+        try {
+          await api.uploadTrack(items[i].file, { ...opts, title: items[i].title?.trim() || undefined });
+          items[i] = { ...items[i], status: 'done' };
+        } catch (e) {
+          items[i] = {
+            ...items[i],
+            status: 'failed',
+            error: e instanceof Error ? e.message : String(e)
+          };
+        }
+      }
+    } finally {
+      uploading = false;
+      onuploaded?.();
     }
-    uploading = false;
-    onuploaded?.();
   }
 
   function clearDone() {
