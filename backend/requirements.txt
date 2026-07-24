@@ -14,5 +14,5 @@ email-validator==2.2.0
 
 spotifyscraper==3.9.2
 mutagen==1.47.0
-yt-dlp==2026.3.17
+yt-dlp==2026.6.9
 Pillow==12.2.0
