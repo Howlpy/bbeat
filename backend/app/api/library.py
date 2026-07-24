@@ -661,6 +661,7 @@ async def upload_track(
     artist: Optional[str] = Form(None),
     year: Optional[int] = Form(None),
     target_album_id: Optional[int] = Form(None),
+    as_single: bool = Form(False),
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
     """Sube un fichero local y lo añade a la biblioteca con metadata opcional."""
@@ -708,11 +709,18 @@ async def upload_track(
     detected_album = _first("album")
     detected_title = (title or "").strip() or _first("title") or Path(file.filename or "").stem
 
+    if as_single and target_album_id:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(400, "una canción suelta no puede tener álbum destino")
+
     meta = spotify.TrackMeta(
         spotify_id=f"upload:{uuid.uuid4().hex[:12]}",
         title=detected_title,
         artists=[artist or detected_artist],
-        album=(album if album is not None else detected_album) or "",
+        # as_single fuerza album vacío incluso cuando el MP3 trae tags ID3.
+        # organizer.write_tags eliminará album/albumartist/tracknumber antes
+        # de que scanner lo indexe con album_id=None.
+        album="" if as_single else (album if album is not None else detected_album) or "",
         album_artist=artist or detected_artist,
         track_number=1,
         disc_number=1,

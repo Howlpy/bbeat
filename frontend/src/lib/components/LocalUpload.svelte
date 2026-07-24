@@ -13,7 +13,7 @@
 
   let items = $state<Item[]>([]);
   let dragOver = $state(false);
-  let mode = $state<'new' | 'existing'>('new');
+  let mode = $state<'single' | 'new' | 'existing'>('single');
   let albumOv = $state('');
   let artistOv = $state('');
   let yearOv = $state('');
@@ -54,7 +54,11 @@
     if (uploading || !items.length) return;
     uploading = true;
     const opts: Parameters<typeof api.uploadTrack>[1] = {};
-    if (mode === 'existing' && targetAlbumId) {
+    if (mode === 'single') {
+      opts.as_single = true;
+      if (artistOv.trim()) opts.artist = artistOv.trim();
+      if (yearOv.trim()) opts.year = Number(yearOv) || undefined;
+    } else if (mode === 'existing' && targetAlbumId) {
       opts.target_album_id = targetAlbumId;
     } else if (mode === 'new') {
       if (albumOv.trim()) opts.album = albumOv.trim();
@@ -110,9 +114,19 @@
     <!-- Overrides -->
     <div class="rounded-md border border-slate-800 bg-slate-900 p-3">
       <p class="mb-2 text-xs uppercase tracking-wider text-slate-500">Organizar como…</p>
-      <div class="mb-2 flex gap-2 text-xs">
+      <div class="mb-2 grid grid-cols-3 gap-2 text-xs">
         <label
-          class="flex-1 cursor-pointer rounded border px-3 py-1.5 text-center"
+          class="cursor-pointer rounded border px-3 py-1.5 text-center"
+          class:border-cyan-500={mode === 'single'}
+          class:bg-cyan-500={mode === 'single'}
+          class:text-slate-950={mode === 'single'}
+          class:border-slate-800={mode !== 'single'}
+        >
+          <input type="radio" bind:group={mode} value="single" class="sr-only" />
+          Canción suelta
+        </label>
+        <label
+          class="cursor-pointer rounded border px-3 py-1.5 text-center"
           class:border-cyan-500={mode === 'new'}
           class:bg-cyan-500={mode === 'new'}
           class:text-slate-950={mode === 'new'}
@@ -122,7 +136,7 @@
           Álbum nuevo / tags del fichero
         </label>
         <label
-          class="flex-1 cursor-pointer rounded border px-3 py-1.5 text-center"
+          class="cursor-pointer rounded border px-3 py-1.5 text-center"
           class:border-cyan-500={mode === 'existing'}
           class:bg-cyan-500={mode === 'existing'}
           class:text-slate-950={mode === 'existing'}
@@ -133,7 +147,26 @@
         </label>
       </div>
 
-      {#if mode === 'new'}
+      {#if mode === 'single'}
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <input
+            bind:value={artistOv}
+            placeholder="Artista (override)"
+            class="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
+          />
+          <input
+            type="number"
+            bind:value={yearOv}
+            placeholder="Año"
+            min="1900"
+            max="2100"
+            class="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
+          />
+        </div>
+        <p class="mt-1 text-[10px] text-slate-600">
+          Se ignorará el álbum del fichero y quedará como canción suelta. Podrás añadirla a un álbum después.
+        </p>
+      {:else if mode === 'new'}
         <div class="grid grid-cols-2 gap-2 text-sm">
           <input
             bind:value={artistOv}
