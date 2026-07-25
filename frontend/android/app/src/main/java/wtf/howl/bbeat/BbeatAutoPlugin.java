@@ -62,7 +62,8 @@ public class BbeatAutoPlugin extends Plugin {
             call.getString("title", ""),
             call.getString("artist", ""),
             call.getString("album", ""),
-            artworkFrom(call.getData())
+            artworkFrom(call.getData()),
+            -1
         ));
         call.resolve();
     }
@@ -98,7 +99,8 @@ public class BbeatAutoPlugin extends Plugin {
                     item.optString("title", ""),
                     item.optString("artist", ""),
                     item.optString("album", ""),
-                    artworkFrom(item)
+                    artworkFrom(item),
+                    item.optInt("queueIndex", i)
                 ));
             } catch (JSONException ignored) {
             }

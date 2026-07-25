@@ -21,7 +21,7 @@ export interface MediaArtwork { src: string; sizes?: string; type?: string }
 export interface MediaMeta { title: string; artist: string; album?: string; artwork?: MediaArtwork[] }
 export interface ActionDetails { seekTime?: number | null; index?: number | null }
 
-type AutoQueueItem = MediaMeta & { id: number; artwork?: MediaArtwork[] };
+type AutoQueueItem = MediaMeta & { id: number; artwork?: MediaArtwork[]; queueIndex?: number };
 
 interface BbeatAutoPlugin {
   setMetadata(options: MediaMeta): Promise<void>;
@@ -89,6 +89,16 @@ export const media = {
 
   setQueue(items: AutoQueueItem[], currentIndex: number) {
     if (!NATIVE) return;
-    AutoSession.setQueue({ items, currentIndex }).catch(() => {});
+    // MediaSession transporta la cola mediante Binder. Mandar una biblioteca
+    // entera puede superar el límite de la transacción y cerrar Android al
+    // comenzar a reproducir. Android Auto solo necesita una ventana próxima a
+    // la pista actual; queueIndex conserva la posición en la cola completa.
+    const maxNativeItems = 100;
+    const maxStart = Math.max(0, items.length - maxNativeItems);
+    const start = Math.min(Math.max(0, currentIndex - Math.floor(maxNativeItems / 2)), maxStart);
+    const nativeItems = items
+      .slice(start, start + maxNativeItems)
+      .map((item, offset) => ({ ...item, queueIndex: start + offset }));
+    AutoSession.setQueue({ items: nativeItems, currentIndex: currentIndex - start }).catch(() => {});
   }
 };
