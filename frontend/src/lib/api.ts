@@ -416,6 +416,8 @@ export const api = {
     }).catch(() => null),
   nowPlayingStop: () =>
     json<{ ok: boolean }>('/api/library/now-playing', { method: 'DELETE' }).catch(() => null),
+  nowPlayingSnapshot: () =>
+    json<{ items: NowPlaying[] }>('/api/library/now-playing'),
   /** Abre el stream SSE de 'sonando ahora'. Devuelve el EventSource (ciérralo con .close()). */
   nowPlayingStream: (onItems: (items: NowPlaying[]) => void): EventSource => {
     const url = apiUrl(
