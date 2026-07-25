@@ -28,18 +28,29 @@
       activity = recent.items;
     }).catch(() => {});
 
-    const es = api.nowPlayingStream((items) => {
-      live = items;
-      connected = true;
-    });
-    es.onerror = () => (connected = false);
-    es.onopen = () => (connected = true);
+    // Algunos proxies bufferizan SSE. El snapshot cada 3 s mantiene el feed
+    // en directo de forma fiable también detrás de Cloudflare.
+    let stopped = false;
+    const refreshLive = async () => {
+      try {
+        const result = await api.nowPlayingSnapshot();
+        if (!stopped) {
+          live = result.items;
+          connected = true;
+        }
+      } catch {
+        if (!stopped) connected = false;
+      }
+    };
+    refreshLive();
+    const liveTimer = setInterval(refreshLive, 3_000);
 
     // Refresca los "hace X" cada 15s.
     const tick = setInterval(() => (now = Date.now()), 15_000);
 
     return () => {
-      es.close();
+      stopped = true;
+      clearInterval(liveTimer);
       clearInterval(tick);
     };
   });

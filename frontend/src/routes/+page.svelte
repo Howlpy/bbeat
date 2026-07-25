@@ -81,14 +81,25 @@
 
   onMount(() => {
     load();
-    // Feed en vivo "sonando ahora" (se cierra al salir de la home).
-    const es = api.nowPlayingStream((items) => {
-      live = items;
-      liveConnected = true;
-    });
-    es.onopen = () => (liveConnected = true);
-    es.onerror = () => (liveConnected = false);
-    return () => es.close();
+    // Cloudflare puede bufferizar SSE; refresca el snapshot cada 3 s.
+    let stopped = false;
+    const refreshLive = async () => {
+      try {
+        const result = await api.nowPlayingSnapshot();
+        if (!stopped) {
+          live = result.items;
+          liveConnected = true;
+        }
+      } catch {
+        if (!stopped) liveConnected = false;
+      }
+    };
+    refreshLive();
+    const liveTimer = setInterval(refreshLive, 3_000);
+    return () => {
+      stopped = true;
+      clearInterval(liveTimer);
+    };
   });
 
   const greeting = $derived.by(() => {
