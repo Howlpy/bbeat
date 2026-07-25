@@ -36,18 +36,20 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         final String artist;
         final String album;
         final String artwork;
+        final int queueIndex;
 
-        Entry(int id, String title, String artist, String album, String artwork) {
+        Entry(int id, String title, String artist, String album, String artwork, int queueIndex) {
             this.id = id;
             this.title = title;
             this.artist = artist;
             this.album = album;
             this.artwork = artwork;
+            this.queueIndex = queueIndex;
         }
     }
 
     private static BbeatAutoService instance;
-    private static Entry current = new Entry(-1, "BBeat", "", "", "");
+    private static Entry current = new Entry(-1, "BBeat", "", "", "", -1);
     private static List<Entry> queue = new ArrayList<>();
     private static int currentIndex = 0;
     private static String playbackState = "none";
@@ -176,7 +178,7 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         for (int i = 0; i < snapshot.size(); i++) {
             Entry item = snapshot.get(i);
             MediaDescriptionCompat.Builder description = new MediaDescriptionCompat.Builder()
-                .setMediaId("queue:" + i)
+                .setMediaId("queue:" + item.queueIndex)
                 .setTitle(item.title)
                 .setSubtitle(item.artist)
                 .setDescription(item.album);
@@ -212,12 +214,12 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         for (int i = 0; i < snapshot.size(); i++) {
             Entry item = snapshot.get(i);
             MediaDescriptionCompat.Builder description = new MediaDescriptionCompat.Builder()
-                .setMediaId("queue:" + i)
+                .setMediaId("queue:" + item.queueIndex)
                 .setTitle(item.title)
                 .setSubtitle(item.artist)
                 .setDescription(item.album);
             if (!item.artwork.isEmpty()) description.setIconUri(Uri.parse(item.artwork));
-            nativeQueue.add(new MediaSessionCompat.QueueItem(description.build(), item.id));
+            nativeQueue.add(new MediaSessionCompat.QueueItem(description.build(), item.queueIndex));
         }
         session.setQueue(nativeQueue);
         session.setQueueTitle("Cola de BBeat");
@@ -230,12 +232,12 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         String state;
         long position;
         float rate;
-        int selected;
+        long activeQueueItemId;
         synchronized (LOCK) {
             state = playbackState;
             position = positionMs;
             rate = playbackRate;
-            selected = currentIndex;
+            activeQueueItemId = current.queueIndex;
         }
         int nativeState = "playing".equals(state)
             ? PlaybackStateCompat.STATE_PLAYING
@@ -246,7 +248,7 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
             PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID | PlaybackStateCompat.ACTION_STOP;
         session.setPlaybackState(new PlaybackStateCompat.Builder()
             .setActions(actions)
-            .setActiveQueueItemId(selected)
+            .setActiveQueueItemId(activeQueueItemId)
             .setState(nativeState, position, rate)
             .build());
         if (refreshNotification) refreshNotification(state);
