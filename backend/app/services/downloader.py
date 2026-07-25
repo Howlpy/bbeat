@@ -149,6 +149,41 @@ def _score_candidate(
     return score, ",".join(reasons)
 
 
+def _candidate_matches(
+    e: dict,
+    target_secs: float,
+    artist_norm: str,
+    title_norm: str,
+    title_words: set[str],
+) -> bool:
+    """Exige una coincidencia real antes de permitir una descarga.
+
+    El scoring sirve para ordenar candidatos válidos, no para convertir un
+    resultado sin relación en una coincidencia. Título y artista son
+    obligatorios; la duración, cuando existe, debe ser razonablemente cercana.
+    """
+    cand_title = _norm_text(e.get("title") or "")
+    uploader = _norm_text(e.get("uploader") or e.get("channel") or "")
+    cand_words = set(cand_title.split())
+    overlap = len(title_words & cand_words) / max(len(title_words), 1)
+    artist_matches = bool(
+        artist_norm and (artist_norm in cand_title or artist_norm in uploader)
+    )
+    if overlap < 0.5 or not artist_matches:
+        return False
+
+    if any(kw in cand_title and kw not in title_norm for kw in HARD_BAD_KEYWORDS):
+        return False
+
+    duration = e.get("duration") or 0
+    if target_secs and duration:
+        tolerance = max(20.0, target_secs * 0.08)
+        if abs(duration - target_secs) > tolerance:
+            return False
+
+    return True
+
+
 def download_with_ytdlp(
     meta: TrackMeta, progress_cb: Optional[ProgressCb] = None
 ) -> DownloadResult:
@@ -179,31 +214,71 @@ def download_with_ytdlp(
         "ignoreerrors": True,
         "extractor_args": {"youtube": {"player_client": ["web", "android"]}},
     }
-    try:
-        with YoutubeDL(resolve_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch8:{meta.search_query}", download=False)
-    except Exception as e:
-        return DownloadResult(None, "yt-dlp", f"resolve: {str(e)[:400]}")
-
-    entries = [e for e in ((info or {}).get("entries") or []) if e]
-    if not entries:
-        return DownloadResult(None, "yt-dlp", "sin resultados en YouTube")
-
-    # Scoring multi-factor: cuanto menor el score, mejor candidato.
-    target_secs = meta.duration_ms / 1000 if meta.duration_ms else 0
     artist_norm = _norm_text(meta.primary_artist)
     title_norm = _norm_text(meta.title)
     title_words = set(title_norm.split())
+    target_secs = meta.duration_ms / 1000 if meta.duration_ms else 0
+    entries: list[tuple[dict, str]] = []
+    resolve_errors: list[str] = []
 
-    scored: list[tuple[float, dict, str]] = []
-    for e in entries:
+    searches = [
+        ("YouTube exacta", "youtube", f"ytsearch8:{meta.search_query}"),
+        (
+            "YouTube ampliada",
+            "youtube",
+            f"ytsearch30:{meta.primary_artist} canciones {meta.title}",
+        ),
+        ("YouTube por artista", "youtube", f"ytsearch30:{meta.primary_artist}"),
+        ("SoundCloud", "soundcloud", f"scsearch20:{meta.search_query}"),
+    ]
+    for label, provider, query in searches:
+        try:
+            with YoutubeDL(resolve_opts) as ydl:
+                info = ydl.extract_info(query, download=False)
+        except Exception as e:
+            resolve_errors.append(f"{label}: {str(e)[:200]}")
+            log.warning("búsqueda %s falló: %s", label, str(e)[:200])
+            continue
+
+        found = [e for e in ((info or {}).get("entries") or []) if e]
+        found = [
+            e
+            for e in found
+            if _candidate_matches(
+                e, target_secs, artist_norm, title_norm, title_words
+            )
+        ]
+        if found:
+            entries = [(e, provider) for e in found]
+            log.info("%s: %d candidatos fiables", label, len(found))
+            break
+
+    if not entries:
+        if resolve_errors:
+            return DownloadResult(None, "yt-dlp", f"resolve: {resolve_errors[-1][:400]}")
+        return DownloadResult(
+            None,
+            "yt-dlp",
+            "sin coincidencias fiables en YouTube ni SoundCloud",
+        )
+
+    # Scoring multi-factor: cuanto menor el score, mejor candidato.
+    scored: list[tuple[float, dict, str, str]] = []
+    for e, provider in entries:
         score, reasons = _score_candidate(e, target_secs, artist_norm, title_norm, title_words)
-        scored.append((score, e, reasons))
+        scored.append((score, e, reasons, provider))
 
     scored.sort(key=lambda x: x[0])
     log.info("yt-dlp: %d candidatos", len(scored))
-    for rank, (s, e, r) in enumerate(scored[:5], 1):
-        log.info("  #%d score=%+.1f %s · %s", rank, s, r, (e.get("title") or "")[:60])
+    for rank, (s, e, r, provider) in enumerate(scored[:5], 1):
+        log.info(
+            "  #%d %s score=%+.1f %s · %s",
+            rank,
+            provider,
+            s,
+            r,
+            (e.get("title") or "")[:60],
+        )
 
     # ─── Pasada 2: descargar candidato a candidato hasta que uno funcione ───
     out_tmpl = str(out_dir / f"ytdlp-{meta.spotify_id}.%(ext)s")
@@ -224,10 +299,10 @@ def download_with_ytdlp(
         download_opts["progress_hooks"] = [hook]
 
     last_err: Optional[str] = None
-    for sc, cand, _ in scored[:5]:  # probamos hasta 5
+    for sc, cand, _, provider in scored[:5]:  # probamos hasta 5
         video_url = cand.get("webpage_url") or cand.get("url")
         cand_id = cand.get("id", "?")
-        if not video_url and cand_id and cand_id != "?":
+        if provider == "youtube" and not video_url and cand_id and cand_id != "?":
             video_url = f"https://www.youtube.com/watch?v={cand_id}"
         if not video_url:
             continue
@@ -245,6 +320,11 @@ def download_with_ytdlp(
             last_err = "no audio output"
         except Exception as e:
             last_err = str(e)[:300]
+            if provider == "soundcloud" and "DRM protected" in last_err:
+                last_err = (
+                    "SoundCloud encontró la canción exacta, pero está protegida "
+                    "por DRM y no permite descargarla"
+                )
             log.warning("candidato %s falló: %s", cand_id, last_err)
             for p in out_dir.glob(f"ytdlp-{meta.spotify_id}.*"):
                 try:

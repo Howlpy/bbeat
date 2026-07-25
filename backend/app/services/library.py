@@ -10,7 +10,16 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import session_scope
-from app.models import Album, AlbumTrack, Artist, Track
+from app.models import (
+    Album,
+    AlbumSave,
+    AlbumTrack,
+    Artist,
+    Job,
+    Play,
+    Track,
+    TrackLike,
+)
 from app.services import organizer
 
 log = logging.getLogger("bbeat.library")
@@ -119,6 +128,27 @@ def _meta_from_track(session: Session, track: Track) -> "spotify.TrackMeta":
 # ─── Borrado ──────────────────────────────────────────────────
 
 
+def _detach_track_references(s: Session, track_id: int) -> None:
+    """Limpia todas las FK hacia una pista antes de borrarla."""
+    for model in (AlbumTrack, TrackLike, Play):
+        for row in s.exec(select(model).where(model.track_id == track_id)).all():
+            s.delete(row)
+    for job in s.exec(select(Job).where(Job.result_track_id == track_id)).all():
+        job.result_track_id = None
+        s.add(job)
+
+
+def _detach_album_references(s: Session, album_id: int) -> None:
+    """Limpia membresías, guardados y destinos de jobs de un álbum."""
+    for at in s.exec(select(AlbumTrack).where(AlbumTrack.album_id == album_id)).all():
+        s.delete(at)
+    for saved in s.exec(select(AlbumSave).where(AlbumSave.album_id == album_id)).all():
+        s.delete(saved)
+    for job in s.exec(select(Job).where(Job.target_album_id == album_id)).all():
+        job.target_album_id = None
+        s.add(job)
+
+
 def delete_track(track_id: int) -> bool:
     with session_scope() as s:
         t = s.get(Track, track_id)
@@ -127,9 +157,7 @@ def delete_track(track_id: int) -> bool:
         file_path = settings.music_dir / t.file_path
         album_id = t.album_id
         artist_id = t.artist_id
-        # Limpiar la M:N (en cualquier álbum) para no dejar filas huérfanas.
-        for at in s.exec(select(AlbumTrack).where(AlbumTrack.track_id == track_id)).all():
-            s.delete(at)
+        _detach_track_references(s, track_id)
         s.delete(t)
         s.flush()
         _delete_file_safe(file_path)
@@ -164,6 +192,7 @@ def _delete_album_record(s: Session, album_id: int) -> None:
     album = s.get(Album, album_id)
     if not album:
         return
+    _detach_album_references(s, album_id)
     if album.cover_path:
         try:
             cp = settings.covers_dir / album.cover_path
@@ -185,14 +214,10 @@ def delete_album(album_id: int) -> dict:
         tracks = s.exec(select(Track).where(Track.album_id == album_id)).all()
         for t in tracks:
             file_path = settings.music_dir / t.file_path
-            for at in s.exec(select(AlbumTrack).where(AlbumTrack.track_id == t.id)).all():
-                s.delete(at)
+            _detach_track_references(s, t.id)
             s.delete(t)
             _delete_file_safe(file_path)
             deleted_tracks += 1
-        # Quitar enlaces M:N de pistas de OTROS álbumes que se añadieron a este.
-        for at in s.exec(select(AlbumTrack).where(AlbumTrack.album_id == album_id)).all():
-            s.delete(at)
         _delete_album_record(s, album_id)
         s.flush()
         # ¿Artista huérfano?

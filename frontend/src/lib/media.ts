@@ -1,5 +1,4 @@
-import { Capacitor } from '@capacitor/core';
-import { MediaSession } from '@capgo/capacitor-media-session';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 // Capa unificada de Media Session.
 //
@@ -17,26 +16,57 @@ const hasWeb = typeof navigator !== 'undefined' && 'mediaSession' in navigator;
 export type PlaybackState = 'none' | 'paused' | 'playing';
 export type MediaAction =
   | 'play' | 'pause' | 'previoustrack' | 'nexttrack'
-  | 'seekbackward' | 'seekforward' | 'seekto' | 'stop';
+  | 'seekbackward' | 'seekforward' | 'seekto' | 'stop' | 'playfrommediaid';
 export interface MediaArtwork { src: string; sizes?: string; type?: string }
 export interface MediaMeta { title: string; artist: string; album?: string; artwork?: MediaArtwork[] }
-export interface ActionDetails { seekTime?: number | null }
+export interface ActionDetails { seekTime?: number | null; index?: number | null }
+
+type AutoQueueItem = MediaMeta & { id: number; artwork?: MediaArtwork[] };
+
+interface BbeatAutoPlugin {
+  setMetadata(options: MediaMeta): Promise<void>;
+  setPlaybackState(options: { playbackState: PlaybackState }): Promise<void>;
+  setPositionState(options: { duration: number; position: number; playbackRate: number }): Promise<void>;
+  setQueue(options: { items: AutoQueueItem[]; currentIndex: number }): Promise<void>;
+  addListener(
+    eventName: 'action',
+    listener: (event: { action: MediaAction; seekTime?: number; index?: number }) => void
+  ): Promise<{ remove: () => Promise<void> }>;
+}
+
+const AutoSession = registerPlugin<BbeatAutoPlugin>('BbeatAuto');
+const nativeHandlers = new Map<MediaAction, ((d: ActionDetails) => void) | null>();
+let nativeListenerReady = false;
+
+function ensureNativeListener() {
+  if (!NATIVE || nativeListenerReady) return;
+  nativeListenerReady = true;
+  AutoSession.addListener('action', (event) => {
+    nativeHandlers.get(event.action)?.({ seekTime: event.seekTime, index: event.index });
+  }).catch(() => {
+    nativeListenerReady = false;
+  });
+}
 
 export const media = {
   available: NATIVE || hasWeb,
 
   setMetadata(m: MediaMeta) {
-    if (NATIVE) { MediaSession.setMetadata(m).catch(() => {}); return; }
+    if (NATIVE) { ensureNativeListener(); AutoSession.setMetadata(m).catch(() => {}); return; }
     if (hasWeb) navigator.mediaSession.metadata = new MediaMetadata(m as MediaMetadataInit);
   },
 
   setPlaybackState(state: PlaybackState) {
-    if (NATIVE) { MediaSession.setPlaybackState({ playbackState: state }).catch(() => {}); return; }
+    if (NATIVE) { AutoSession.setPlaybackState({ playbackState: state }).catch(() => {}); return; }
     if (hasWeb) navigator.mediaSession.playbackState = state;
   },
 
   setActionHandler(action: MediaAction, handler: ((d: ActionDetails) => void) | null) {
-    if (NATIVE) { MediaSession.setActionHandler({ action }, handler).catch(() => {}); return; }
+    if (NATIVE) {
+      ensureNativeListener();
+      nativeHandlers.set(action, handler);
+      return;
+    }
     if (hasWeb) {
       try {
         navigator.mediaSession.setActionHandler(action as MediaSessionAction, handler as MediaSessionActionHandler | null);
@@ -47,7 +77,7 @@ export const media = {
   },
 
   setPositionState(s: { duration: number; position: number; playbackRate: number }) {
-    if (NATIVE) { MediaSession.setPositionState(s).catch(() => {}); return; }
+    if (NATIVE) { AutoSession.setPositionState(s).catch(() => {}); return; }
     if (hasWeb) {
       try {
         navigator.mediaSession.setPositionState(s);
@@ -55,5 +85,10 @@ export const media = {
         // valores raros: ignorar
       }
     }
+  },
+
+  setQueue(items: AutoQueueItem[], currentIndex: number) {
+    if (!NATIVE) return;
+    AutoSession.setQueue({ items, currentIndex }).catch(() => {});
   }
 };

@@ -456,7 +456,14 @@ export const api = {
   // ── Upload local ──
   uploadTrack: async (
     file: File,
-    opts: { title?: string; album?: string; artist?: string; year?: number; target_album_id?: number } = {}
+    opts: {
+      title?: string;
+      album?: string;
+      artist?: string;
+      year?: number;
+      target_album_id?: number;
+      as_single?: boolean;
+    } = {}
   ) => {
     const fd = new FormData();
     fd.append('file', file);
@@ -465,6 +472,7 @@ export const api = {
     if (opts.artist) fd.append('artist', opts.artist);
     if (opts.year !== undefined) fd.append('year', String(opts.year));
     if (opts.target_album_id !== undefined) fd.append('target_album_id', String(opts.target_album_id));
+    if (opts.as_single) fd.append('as_single', 'true');
     return json<{ ok: boolean; track_id: number; title: string; artist: string; album: string }>(
       '/api/library/upload',
       { method: 'POST', body: fd, timeoutMs: 120_000 }

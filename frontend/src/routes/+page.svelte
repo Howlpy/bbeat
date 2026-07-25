@@ -34,6 +34,7 @@
   let recentAlbums = $state<Album[]>([]);
   let topTracks = $state<(Track & { plays: number })[]>([]);
   let live = $state<NowPlaying[]>([]);
+  let liveConnected = $state(false);
   let error = $state<string | null>(null);
   let offlineMode = $state(false);
   let scanning = $state(false);
@@ -81,7 +82,12 @@
   onMount(() => {
     load();
     // Feed en vivo "sonando ahora" (se cierra al salir de la home).
-    const es = api.nowPlayingStream((items) => (live = items));
+    const es = api.nowPlayingStream((items) => {
+      live = items;
+      liveConnected = true;
+    });
+    es.onopen = () => (liveConnected = true);
+    es.onerror = () => (liveConnected = false);
     return () => es.close();
   });
 
@@ -215,19 +221,22 @@
       </p>
     {/if}
 
-    <!-- Sonando ahora (en vivo) -->
-    {#if live.length > 0}
-      <section class="mb-8">
-        <header class="mb-3 flex items-baseline justify-between">
-          <h2 class="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
-            <Radio size={14} class="text-fuchsia-400" />
-            <span class="relative flex items-center gap-1.5">
-              Sonando ahora
-              <span class="inline-block size-2 animate-pulse rounded-full bg-emerald-500"></span>
-            </span>
-          </h2>
-          <a href="/live" class="text-xs text-fuchsia-400 hover:underline">ver todo →</a>
-        </header>
+    <!-- Escuchando ahora (stream en vivo) -->
+    <section class="mb-8">
+      <header class="mb-3 flex items-baseline justify-between">
+        <h2 class="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
+          <Radio size={14} class="text-fuchsia-400" />
+          <span class="relative flex items-center gap-1.5">
+            Escuchando ahora…
+            <span
+              class="inline-block size-2 rounded-full {liveConnected ? 'animate-pulse bg-emerald-500' : 'bg-slate-600'}"
+              title={liveConnected ? 'Actualización en directo' : 'Reconectando'}
+            ></span>
+          </span>
+        </h2>
+        <a href="/live" class="text-xs text-fuchsia-400 hover:underline">ver todo →</a>
+      </header>
+      {#if live.length > 0}
         <ul class="space-y-1.5">
           {#each live.slice(0, 3) as p (p.user_id)}
             <li class="flex items-center gap-3 rounded border border-slate-800/60 bg-slate-900/40 px-3 py-2">
@@ -250,8 +259,12 @@
             </li>
           {/each}
         </ul>
-      </section>
-    {/if}
+      {:else}
+        <div class="rounded border border-dashed border-slate-800 bg-slate-900/20 px-4 py-5 text-center text-sm text-slate-500">
+          {liveConnected ? 'Ahora mismo no hay nadie escuchando.' : 'Conectando con la actividad en directo…'}
+        </div>
+      {/if}
+    </section>
 
     <!-- Álbumes recientes -->
     {#if recentAlbums.length > 0}
