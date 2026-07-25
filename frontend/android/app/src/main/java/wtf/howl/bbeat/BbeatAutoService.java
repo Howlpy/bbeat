@@ -9,6 +9,9 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 import android.support.v4.media.MediaBrowserCompat;
 import android.support.v4.media.MediaDescriptionCompat;
 import android.support.v4.media.MediaMetadataCompat;
@@ -25,6 +28,7 @@ import java.util.Collections;
 import java.util.List;
 
 public class BbeatAutoService extends MediaBrowserServiceCompat {
+    private static final String TAG = "BbeatAutoService";
     private static final String ROOT_ID = "bbeat_queue";
     private static final String CHANNEL_ID = "bbeat_playback";
     private static final int NOTIFICATION_ID = 2201;
@@ -59,6 +63,7 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
 
     private MediaSessionCompat session;
     private NotificationManager notifications;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     static void openApp() {
         BbeatAutoService service = instance;
@@ -70,12 +75,17 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
 
     static void updateMetadata(Entry entry) {
         synchronized (LOCK) { current = entry; }
-        if (instance != null) instance.applyMetadata();
+        BbeatAutoService service = instance;
+        if (service != null) service.mainHandler.post(() -> {
+            service.applyMetadata();
+            service.refreshNotificationIfActive();
+        });
     }
 
     static void updatePlaybackState(String state) {
         synchronized (LOCK) { playbackState = state; }
-        if (instance != null) instance.applyPlaybackState(true);
+        BbeatAutoService service = instance;
+        if (service != null) service.mainHandler.post(() -> service.applyPlaybackState(true));
     }
 
     static void updatePosition(long duration, long position, float rate) {
@@ -84,9 +94,12 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
             positionMs = position;
             playbackRate = rate;
         }
-        if (instance != null) {
-            instance.applyMetadata();
-            instance.applyPlaybackState(false);
+        BbeatAutoService service = instance;
+        if (service != null) {
+            service.mainHandler.post(() -> {
+                service.applyMetadata();
+                service.applyPlaybackState(false);
+            });
         }
     }
 
@@ -95,7 +108,8 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
             queue = new ArrayList<>(entries);
             currentIndex = Math.max(0, Math.min(index, Math.max(0, queue.size() - 1)));
         }
-        if (instance != null) instance.applyQueue();
+        BbeatAutoService service = instance;
+        if (service != null) service.mainHandler.post(service::applyQueue);
     }
 
     @Override
@@ -156,7 +170,14 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        MediaButtonReceiver.handleIntent(session, intent);
+        // START_STICKY puede reabrir el servicio con intent == null.
+        if (intent != null) {
+            try {
+                MediaButtonReceiver.handleIntent(session, intent);
+            } catch (RuntimeException error) {
+                Log.e(TAG, "No se pudo procesar el intent multimedia", error);
+            }
+        }
         return START_STICKY;
     }
 
@@ -202,7 +223,11 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
             builder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, entry.artwork);
             builder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON_URI, entry.artwork);
         }
-        session.setMetadata(builder.build());
+        try {
+            session.setMetadata(builder.build());
+        } catch (RuntimeException error) {
+            Log.e(TAG, "No se pudo actualizar la metadata", error);
+        }
     }
 
     private void applyQueue() {
@@ -221,8 +246,12 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
             if (!item.artwork.isEmpty()) description.setIconUri(Uri.parse(item.artwork));
             nativeQueue.add(new MediaSessionCompat.QueueItem(description.build(), item.queueIndex));
         }
-        session.setQueue(nativeQueue);
-        session.setQueueTitle("Cola de BBeat");
+        try {
+            session.setQueue(nativeQueue);
+            session.setQueueTitle("Cola de BBeat");
+        } catch (RuntimeException error) {
+            Log.e(TAG, "No se pudo actualizar la cola de Android Auto", error);
+        }
         if (!snapshot.isEmpty() && selected < snapshot.size()) current = snapshot.get(selected);
         notifyChildrenChanged(ROOT_ID);
     }
@@ -246,12 +275,22 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
             PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_SKIP_TO_NEXT |
             PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_SEEK_TO |
             PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID | PlaybackStateCompat.ACTION_STOP;
-        session.setPlaybackState(new PlaybackStateCompat.Builder()
-            .setActions(actions)
-            .setActiveQueueItemId(activeQueueItemId)
-            .setState(nativeState, position, rate)
-            .build());
-        if (refreshNotification) refreshNotification(state);
+        try {
+            session.setPlaybackState(new PlaybackStateCompat.Builder()
+                .setActions(actions)
+                .setActiveQueueItemId(activeQueueItemId)
+                .setState(nativeState, position, rate)
+                .build());
+            if (refreshNotification) refreshNotification(state);
+        } catch (RuntimeException error) {
+            Log.e(TAG, "No se pudo actualizar el estado multimedia", error);
+        }
+    }
+
+    private void refreshNotificationIfActive() {
+        String state;
+        synchronized (LOCK) { state = playbackState; }
+        if (!"none".equals(state)) refreshNotification(state);
     }
 
     private void createNotificationChannel() {
@@ -304,10 +343,16 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
             return;
         }
         Notification notification = buildNotification(state);
-        if ("playing".equals(state)) startForeground(NOTIFICATION_ID, notification);
-        else {
-            stopForeground(STOP_FOREGROUND_DETACH);
-            notifications.notify(NOTIFICATION_ID, notification);
+        try {
+            if ("playing".equals(state)) startForeground(NOTIFICATION_ID, notification);
+            else {
+                stopForeground(STOP_FOREGROUND_DETACH);
+                notifications.notify(NOTIFICATION_ID, notification);
+            }
+        } catch (RuntimeException error) {
+            // Un permiso de notificaciones/FGS rechazado no debe tumbar el
+            // reproductor WebView ni la sesión de Android Auto.
+            Log.e(TAG, "No se pudo mostrar la notificación multimedia", error);
         }
     }
 
