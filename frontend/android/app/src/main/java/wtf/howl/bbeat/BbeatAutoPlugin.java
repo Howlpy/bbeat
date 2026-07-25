@@ -49,7 +49,9 @@ public class BbeatAutoPlugin extends Plugin {
     private static String artworkFrom(JSONObject item) {
         try {
             JSArray artwork = JSArray.from(item.optString("artwork", "[]"));
-            if (artwork.length() > 0) return artwork.getJSONObject(0).optString("src", "");
+            if (artwork != null && artwork.length() > 0) {
+                return artwork.getJSONObject(0).optString("src", "");
+            }
         } catch (JSONException ignored) {
         }
         return "";
