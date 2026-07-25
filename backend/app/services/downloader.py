@@ -87,6 +87,17 @@ SOFT_BAD_KEYWORDS = (
     "mashup",
 )
 
+# Transformaciones que alteran perceptiblemente el audio original. A diferencia
+# de un videoclip/lyrics, nunca son un sustituto válido si Spotify no las pide
+# explícitamente en el título.
+ALTERED_AUDIO_KEYWORDS = (
+    "audio aumentado", "sonido aumentado", "volumen aumentado",
+    "bass boosted", "boosted audio", "audio boosted",
+    "slowed reverb", "slowed and reverb", "slowed", "reverb", "reverbed",
+    "sped up", "speed up", "nightcore", "8d audio", "audio 8d",
+    "nueva version", "version nueva", "version extendida",
+)
+
 
 def _score_candidate(
     e: dict, target_secs: float, artist_norm: str, title_norm: str, title_words: set[str]
@@ -166,13 +177,12 @@ def _candidate_matches(
     uploader = _norm_text(e.get("uploader") or e.get("channel") or "")
     cand_words = set(cand_title.split())
     overlap = len(title_words & cand_words) / max(len(title_words), 1)
-    artist_matches = bool(
-        artist_norm and (artist_norm in cand_title or artist_norm in uploader)
-    )
-    if overlap < 0.5 or not artist_matches:
-        return False
+    artist_in_uploader = bool(artist_norm and artist_norm in uploader)
+    artist_matches = bool(artist_in_uploader or (artist_norm and artist_norm in cand_title))
 
     if any(kw in cand_title and kw not in title_norm for kw in HARD_BAD_KEYWORDS):
+        return False
+    if any(kw in cand_title and kw not in title_norm for kw in ALTERED_AUDIO_KEYWORDS):
         return False
 
     duration = e.get("duration") or 0
@@ -181,7 +191,20 @@ def _candidate_matches(
         if abs(duration - target_secs) > tolerance:
             return False
 
-    return True
+    if overlap >= 0.5 and artist_matches:
+        return True
+
+    # YouTube puede localizar el título mostrado (p. ej. "PIERDO EL CONTROL"
+    # aparece como "I LOSE CONTROL"). Admitimos ese caso únicamente cuando el
+    # propio canal contiene al artista y la duración difiere como máximo unos
+    # pocos segundos. Las variantes alteradas ya fueron rechazadas arriba.
+    translated_duration_match = bool(
+        artist_in_uploader
+        and target_secs
+        and duration
+        and abs(duration - target_secs) <= max(6.0, target_secs * 0.04)
+    )
+    return translated_duration_match
 
 
 def download_with_ytdlp(
