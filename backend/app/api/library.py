@@ -913,6 +913,14 @@ class NowPlayingIn(BaseModel):
     track_id: int
 
 
+@router.get("/now-playing")
+def now_playing_snapshot(
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
+    """Snapshot JSON de presencia para clientes detrás de proxies que bufferizan SSE."""
+    return {"items": presence_svc.snapshot()}
+
+
 @router.post("/now-playing")
 def now_playing_ping(
     body: NowPlayingIn,
