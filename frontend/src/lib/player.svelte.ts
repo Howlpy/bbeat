@@ -498,6 +498,18 @@ class PlayerState {
       album: t.album_title ?? '',
       artwork
     });
+    media.setQueue(
+      this.queue.map((item) => ({
+        id: item.id,
+        title: item.title,
+        artist: item.artist_name,
+        album: item.album_title ?? '',
+        artwork: item.cover_url
+          ? [{ src: new URL(item.cover_url, window.location.origin).toString(), sizes: '512x512', type: 'image/jpeg' }]
+          : []
+      })),
+      this.index
+    );
 
     // Los handlers no dependen de la pista; basta registrarlos una vez.
     if (this.actionHandlersSet) return;
@@ -512,6 +524,9 @@ class PlayerState {
     );
     media.setActionHandler('seekto', (d) => {
       if (d.seekTime != null) this.seek(d.seekTime);
+    });
+    media.setActionHandler('playfrommediaid', (d) => {
+      if (d.index != null) this.jumpTo(d.index);
     });
   }
 
