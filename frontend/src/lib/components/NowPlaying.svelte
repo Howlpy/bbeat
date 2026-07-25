@@ -94,9 +94,11 @@
     player.seek(Number(target.value));
   }
 
-  // Cerrar con swipe down
+  // Cerrar con swipe down; cambiar pista deslizando horizontalmente la portada.
   let touchStart = $state(0);
   let touchDelta = $state(0);
+  let coverTouchStartX = $state(0);
+  let coverTouchDeltaX = $state(0);
 
   function onTouchStart(e: TouchEvent) {
     touchStart = e.touches[0].clientY;
@@ -108,6 +110,22 @@
   function onTouchEnd() {
     if (touchDelta > 120) onclose();
     touchDelta = 0;
+  }
+
+  function onCoverTouchStart(e: TouchEvent) {
+    e.stopPropagation();
+    coverTouchStartX = e.touches[0].clientX;
+    coverTouchDeltaX = 0;
+  }
+  function onCoverTouchMove(e: TouchEvent) {
+    e.stopPropagation();
+    coverTouchDeltaX = e.touches[0].clientX - coverTouchStartX;
+  }
+  function onCoverTouchEnd(e: TouchEvent) {
+    e.stopPropagation();
+    if (coverTouchDeltaX < -70) player.next();
+    else if (coverTouchDeltaX > 70) player.prev();
+    coverTouchDeltaX = 0;
   }
 </script>
 
@@ -179,7 +197,15 @@
     <!-- Contenido -->
     <div class="flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-4">
       {#if activeTab === 'cover'}
-        <div class="relative aspect-square w-full max-w-md">
+        <div
+          class="relative aspect-square w-full max-w-md touch-pan-y select-none"
+          style:transform="translateX({coverTouchDeltaX * 0.35}px)"
+          style:opacity={Math.max(0.55, 1 - Math.abs(coverTouchDeltaX) / 400)}
+          style:transition={coverTouchDeltaX === 0 ? 'transform 180ms ease, opacity 180ms ease' : 'none'}
+          ontouchstart={onCoverTouchStart}
+          ontouchmove={onCoverTouchMove}
+          ontouchend={onCoverTouchEnd}
+        >
           {#if player.current.cover_url}
             <img loading="lazy" decoding="async"
               src={player.current.cover_url}

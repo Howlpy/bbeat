@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Radio, Music2, Monitor, Smartphone, Flame, Trophy } from 'lucide-svelte';
+  import { Radio, Music2, Monitor, Smartphone, Flame, History } from 'lucide-svelte';
   import { api, type Track, type NowPlaying } from '$lib/api';
   import { player } from '$lib/player.svelte';
 
   let live = $state<NowPlaying[]>([]);
   let serverTop = $state<(Track & { plays: number })[]>([]);
+  let activity = $state<(Track & { username: string; played_at: string | null })[]>([]);
   let connected = $state(false);
   let now = $state(Date.now());
 
@@ -19,10 +20,13 @@
   }
 
   onMount(() => {
-    api
-      .topTracks({ scope: 'server', limit: 10 })
-      .then((r) => (serverTop = r.items))
-      .catch(() => {});
+    Promise.all([
+      api.topTracks({ scope: 'server', limit: 10 }),
+      api.activity(50)
+    ]).then(([top, recent]) => {
+      serverTop = top.items;
+      activity = recent.items;
+    }).catch(() => {});
 
     const es = api.nowPlayingStream((items) => {
       live = items;
@@ -97,6 +101,37 @@
       </ul>
     {/if}
   </section>
+
+  {#if activity.length > 0}
+    <section class="mb-8">
+      <h2 class="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
+        <History size={14} class="text-cyan-400" /> Historial reciente
+      </h2>
+      <ul class="divide-y divide-slate-800 rounded border border-slate-800 bg-slate-900/40">
+        {#each activity as item, i (`${item.played_at}-${item.id}-${i}`)}
+          <li>
+            <button
+              onclick={() => player.playTracks(activity, i)}
+              class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-slate-800/60"
+            >
+              {#if item.cover_url}
+                <img loading="lazy" decoding="async" src={item.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
+              {:else}
+                <div class="grid size-10 flex-none place-items-center rounded bg-slate-800 text-slate-600"><Music2 size={14} /></div>
+              {/if}
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm">{item.title}</div>
+                <div class="truncate text-xs text-slate-500">
+                  <span class="text-fuchsia-400">{item.username}</span> · {item.artist_name}
+                </div>
+              </div>
+              <span class="flex-none text-[10px] text-slate-600">{relTime(item.played_at)}</span>
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 
   <!-- Top del server (histórico) -->
   {#if serverTop.length > 0}

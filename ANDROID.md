@@ -4,6 +4,7 @@ APK nativa que envuelve el frontend SvelteKit. Añade sobre la PWA:
 
 - **Offline real**: descargas a fichero en disco (`@capacitor/filesystem`), no caché del navegador.
 - **Reproducción en segundo plano / pantalla bloqueada** fiable (WebView Chromium + MediaSession nativo + doble `<audio>` con precarga).
+- **Android Auto**: BBeat aparece como app de música, expone la cola actual y acepta los controles del coche/volante.
 - **Multi-servidor**: te conectas al servidor bbeat que elijas dentro de la app (con favoritos guardados).
 
 ## Cómo se compila
@@ -60,11 +61,11 @@ versionName "1.1"      // string visible
 ## Plugins nativos (Capacitor)
 
 - `@capacitor/filesystem` — descargas offline a disco.
-- `@capgo/capacitor-media-session` — notificación / control de bloqueo nativo + *foreground service* (`mediaPlayback`). El WebView no crea esa notificación por sí solo. Unificado con la web en `src/lib/media.ts`.
+- `BbeatAutoPlugin` + `BbeatAutoService` — sesión multimedia nativa, notificación, reproducción en segundo plano y catálogo navegable para Android Auto. Los eventos del coche se envían al reproductor Svelte mediante Capacitor.
 - `@capawesome/capacitor-android-edge-to-edge-support` — mete los insets al WebView (no se solapa con barras de estado/gestos). Colores en `capacitor.config.ts` → `EdgeToEdge`.
 - `@capacitor/local-notifications` — solo para pedir el permiso `POST_NOTIFICATIONS` (Android 13+) al arrancar.
 
-**Permisos añadidos a mano** en `android/app/src/main/AndroidManifest.xml` (el plugin de media no los trae): `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (Android 14+) y `POST_NOTIFICATIONS` (Android 13+). Sin ellos, peta al reproducir o no se ve la notificación.
+**Permisos añadidos a mano** en `android/app/src/main/AndroidManifest.xml`: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (Android 14+) y `POST_NOTIFICATIONS` (Android 13+). Sin ellos, peta al reproducir o no se ve la notificación.
 
 ## Icono / splash
 

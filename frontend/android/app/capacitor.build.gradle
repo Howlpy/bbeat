@@ -12,7 +12,6 @@ dependencies {
     implementation project(':capacitor-filesystem')
     implementation project(':capacitor-local-notifications')
     implementation project(':capawesome-capacitor-android-edge-to-edge-support')
-    implementation project(':capgo-capacitor-media-session')
 
 }
 
