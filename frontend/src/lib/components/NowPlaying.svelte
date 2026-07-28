@@ -145,21 +145,23 @@
       style:transition="background 700ms ease"
     ></div>
     <!-- Header -->
-    <header class="flex flex-none items-center justify-between p-4">
-      <button
-        onclick={onclose}
-        class="grid size-10 place-items-center rounded-full text-slate-300 hover:bg-slate-800"
-        aria-label="Cerrar"
-      >
-        <ChevronDown size={24} />
-      </button>
+    <header class="grid flex-none grid-cols-[5rem_minmax(0,1fr)_5rem] items-center p-4">
+      <div class="flex w-20 justify-start">
+        <button
+          onclick={onclose}
+          class="grid size-10 place-items-center rounded-full text-slate-300 hover:bg-slate-800"
+          aria-label="Cerrar"
+        >
+          <ChevronDown size={24} />
+        </button>
+      </div>
       <div class="min-w-0 text-center">
         <div class="text-xs uppercase tracking-widest text-slate-500">Reproduciendo</div>
         <div class="truncate text-sm font-medium">
           {player.current.album_title || 'Sin álbum'}
         </div>
       </div>
-      <div class="flex flex-none items-center gap-1">
+      <div class="flex w-20 items-center justify-end gap-1">
         <button
           onclick={() => player.toggleLikeCurrent()}
           class="grid size-10 place-items-center rounded-full transition hover:bg-slate-800"
@@ -260,16 +262,24 @@
         <span class="w-10 text-right font-mono text-slate-400">
           {formatDuration(player.position * 1000)}
         </span>
-        <input
-          type="range"
-          min="0"
-          max={player.duration || 0}
-          step="0.1"
-          value={player.position}
-          oninput={onSeek}
-          class="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-slate-800 accent-cyan-400"
-          aria-label="Posición"
-        />
+        <div class="relative h-5 flex-1">
+          <div class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-slate-800">
+            <div
+              class="h-full rounded-full bg-cyan-400 transition-[width] duration-100"
+              style:width="{player.duration ? Math.min(100, Math.max(0, (player.position / player.duration) * 100)) : 0}%"
+            ></div>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max={player.duration || 0}
+            step="0.1"
+            value={player.position}
+            oninput={onSeek}
+            class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label="Posición"
+          />
+        </div>
         <span class="w-10 font-mono text-slate-400">
           {formatDuration((player.duration || 0) * 1000)}
         </span>

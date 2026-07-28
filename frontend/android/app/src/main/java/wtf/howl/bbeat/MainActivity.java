@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(BbeatAutoPlugin.class);
+        registerPlugin(BbeatUpdaterPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
