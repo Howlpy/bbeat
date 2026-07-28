@@ -1,13 +1,42 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { AlertTriangle, Brush, CheckCircle2, Copy, KeyRound, RefreshCw, Smartphone, Trash2 } from 'lucide-svelte';
+  import { AlertTriangle, Brush, CheckCircle2, Copy, Download, KeyRound, RefreshCw, Smartphone, Trash2 } from 'lucide-svelte';
   import { api } from '$lib/api';
   import { auth } from '$lib/auth.svelte';
   import { server } from '$lib/server.svelte';
+  import { updates, type UpdateInfo } from '$lib/updates';
 
   let setupComplete = $state<boolean | null>(null);
   let message = $state<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  let updateInfo = $state<UpdateInfo | null>(null);
+  let updateBusy = $state(false);
+  let updateError = $state<string | null>(null);
+
+  async function checkUpdate() {
+    updateBusy = true;
+    updateError = null;
+    try {
+      updateInfo = await updates.check();
+    } catch (error) {
+      updateError = error instanceof Error ? error.message : String(error);
+    } finally {
+      updateBusy = false;
+    }
+  }
+
+  async function installUpdate() {
+    if (!updateInfo?.downloadUrl) return;
+    updateBusy = true;
+    updateError = null;
+    try {
+      await updates.install(updateInfo.downloadUrl);
+    } catch (error) {
+      updateError = error instanceof Error ? error.message : String(error);
+    } finally {
+      updateBusy = false;
+    }
+  }
 
   // ── Acceso Subsonic ──
   let subToken = $state<string | null>(auth.user?.subsonic_token ?? null);
@@ -91,6 +120,64 @@
       </p>
     {/if}
   </section>
+
+  {#if updates.available}
+    <section class="mt-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <h2 class="mb-2 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+        <Download size={14} /> Actualizaciones de la app
+      </h2>
+      <p class="mb-3 text-xs text-slate-400">
+        Comprueba GitHub Releases y actualiza BBeat directamente desde el APK oficial.
+      </p>
+
+      {#if updateInfo}
+        <div class="mb-3 rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm">
+          <div class="flex justify-between gap-3">
+            <span class="text-slate-500">Versión instalada</span>
+            <span class="font-mono text-slate-200">{updateInfo.currentVersion}</span>
+          </div>
+          <div class="mt-1 flex justify-between gap-3">
+            <span class="text-slate-500">Última versión</span>
+            <span class="font-mono text-slate-200">{updateInfo.latestVersion}</span>
+          </div>
+        </div>
+      {/if}
+
+      {#if updateError}
+        <p class="mb-3 text-xs text-red-400">{updateError}</p>
+      {:else if updateInfo && !updateInfo.updateAvailable}
+        <p class="mb-3 inline-flex items-center gap-2 text-sm text-cyan-400">
+          <CheckCircle2 size={15} /> Ya tienes la última versión.
+        </p>
+      {:else if updateInfo?.updateAvailable}
+        <p class="mb-3 text-sm text-amber-300">
+          BBeat {updateInfo.latestVersion} está disponible.
+        </p>
+      {/if}
+
+      <div class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onclick={checkUpdate}
+          disabled={updateBusy}
+          class="inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-800 disabled:opacity-50"
+        >
+          <RefreshCw size={14} class={updateBusy && !updateInfo?.updateAvailable ? 'animate-spin' : ''} />
+          {updateBusy && !updateInfo?.updateAvailable ? 'Comprobando…' : 'Buscar actualizaciones'}
+        </button>
+        {#if updateInfo?.updateAvailable}
+          <button
+            type="button"
+            onclick={installUpdate}
+            disabled={updateBusy}
+            class="inline-flex items-center gap-2 rounded border border-cyan-700/50 bg-cyan-950/30 px-3 py-2 text-sm text-cyan-200 transition hover:bg-cyan-950/50 disabled:opacity-50"
+          >
+            <Download size={14} /> {updateBusy ? 'Descargando…' : 'Descargar e instalar'}
+          </button>
+        {/if}
+      </div>
+    </section>
+  {/if}
 
 
   <p class="mt-6 text-xs text-slate-600">
