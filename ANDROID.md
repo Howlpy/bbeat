@@ -36,6 +36,20 @@ frontend/android/app/build/outputs/apk/release/app-release.apk
 
 El `-r` reinstala conservando datos (descargas offline incluidas), siempre que esté firmada con el mismo keystore.
 
+## Probar Android Auto con una APK instalada a mano
+
+Android Auto oculta por defecto las apps que no proceden de Google Play. Para
+probar una APK de GitHub en un coche real:
+
+1. Abre los ajustes de Android Auto en el móvil.
+2. En **Información/Acerca de**, pulsa diez veces sobre la versión para activar
+   el modo desarrollador de Android Auto.
+3. Abre el menú de desarrollador y activa **Fuentes desconocidas**.
+4. Abre BBeat una vez, inicia una canción y vuelve a conectar Android Auto.
+
+La app expone la última cola al coche incluso si el servicio multimedia se
+inicia antes que la interfaz de BBeat.
+
 ## Firma (keystore) — IMPORTANTE
 
 - Keystore: `frontend/android/app/bbeat-release.jks`, alias `bbeat`.
