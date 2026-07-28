@@ -10,6 +10,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import java.util.ArrayList;
 import java.util.List;
 import org.json.JSONException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 @CapacitorPlugin(name = "BbeatAuto")
@@ -48,8 +49,11 @@ public class BbeatAutoPlugin extends Plugin {
 
     private static String artworkFrom(JSONObject item) {
         try {
-            JSArray artwork = JSArray.from(item.optString("artwork", "[]"));
-            if (artwork != null && artwork.length() > 0) {
+            Object raw = item.opt("artwork");
+            JSONArray artwork = raw instanceof JSONArray
+                ? (JSONArray) raw
+                : new JSONArray(raw instanceof String ? (String) raw : "[]");
+            if (artwork.length() > 0) {
                 return artwork.getJSONObject(0).optString("src", "");
             }
         } catch (JSONException ignored) {
@@ -59,7 +63,7 @@ public class BbeatAutoPlugin extends Plugin {
 
     @PluginMethod
     public void setMetadata(PluginCall call) {
-        BbeatAutoService.updateMetadata(new BbeatAutoService.Entry(
+        BbeatAutoService.updateMetadata(getContext(), new BbeatAutoService.Entry(
             -1,
             call.getString("title", ""),
             call.getString("artist", ""),
@@ -93,6 +97,7 @@ public class BbeatAutoPlugin extends Plugin {
     public void setQueue(PluginCall call) {
         List<BbeatAutoService.Entry> entries = new ArrayList<>();
         JSArray items = call.getArray("items", new JSArray());
+        if (items == null) items = new JSArray();
         for (int i = 0; i < items.length(); i++) {
             try {
                 JSONObject item = items.getJSONObject(i);
@@ -107,7 +112,7 @@ public class BbeatAutoPlugin extends Plugin {
             } catch (JSONException ignored) {
             }
         }
-        BbeatAutoService.updateQueue(entries, call.getInt("currentIndex", 0));
+        BbeatAutoService.updateQueue(getContext(), entries, call.getInt("currentIndex", 0));
         call.resolve();
     }
 }

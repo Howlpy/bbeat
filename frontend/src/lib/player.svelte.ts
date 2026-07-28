@@ -516,6 +516,7 @@ class PlayerState {
     this.actionHandlersSet = true;
     media.setActionHandler('play', () => this.el?.play());
     media.setActionHandler('pause', () => this.el?.pause());
+    media.setActionHandler('stop', () => this.pauseExplicit());
     media.setActionHandler('nexttrack', () => this.next());
     media.setActionHandler('previoustrack', () => this.prev());
     media.setActionHandler('seekbackward', () => this.seek(Math.max(0, (this.el?.currentTime ?? 0) - 10)));
