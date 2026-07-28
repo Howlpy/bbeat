@@ -10,6 +10,9 @@
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="androidx.car.app.TintableAttributionIcon"
+            android:resource="@drawable/ic_stat_bbeat" />
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
@@ -28,6 +31,7 @@
             android:enabled="true"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback"
+            android:icon="@mipmap/ic_launcher"
             android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService" />
@@ -43,6 +47,12 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </receiver>
+
+        <provider
+            android:name=".BbeatArtworkProvider"
+            android:authorities="${applicationId}.artwork"
+            android:exported="true"
+            android:grantUriPermissions="true" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
