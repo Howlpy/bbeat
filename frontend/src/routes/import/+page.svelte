@@ -98,7 +98,7 @@
       selected = Object.fromEntries(p.tracks.map((t) => [t.spotify_id, true]));
       // Rellenar sugerencias para la opción 'nuevo'; destino por defecto = auto.
       ovAlbum = p.kind === 'playlist' ? p.name : p.tracks[0]?.album || '';
-      ovArtist = p.tracks[0]?.artists?.[0] || '';
+      ovArtist = p.kind === 'playlist' ? 'Various Artists' : p.tracks[0]?.artists?.[0] || '';
       ovYear = '';
       ovMode = 'auto';
       ovTargetAlbumId = null;
@@ -117,8 +117,12 @@
       overrides.target_album_id = ovTargetAlbumId;
     } else if (ovMode === 'new') {
       if (ovAlbum.trim()) overrides.album = ovAlbum.trim();
-      if (ovArtist.trim()) overrides.artist = ovArtist.trim();
-      if (ovArtist.trim()) overrides.album_artist = ovArtist.trim();
+      if (ovArtist.trim()) {
+        // En una playlist multiartista este campo nombra la colección, pero no
+        // debe sustituir al intérprete real de cada canción.
+        if (preview.kind !== 'playlist') overrides.artist = ovArtist.trim();
+        overrides.album_artist = ovArtist.trim();
+      }
       if (ovYear.trim()) overrides.year = parseInt(ovYear, 10) || undefined;
     }
     // 'auto' → sin overrides; el backend agrupa según el tipo (suelta/álbum/colección).
@@ -423,7 +427,9 @@
                 />
               </label>
               <label class="block">
-                <span class="text-xs text-slate-400">Artista</span>
+                <span class="text-xs text-slate-400">
+                  {preview.kind === 'playlist' ? 'Artista de la playlist' : 'Artista'}
+                </span>
                 <input
                   type="text"
                   bind:value={ovArtist}

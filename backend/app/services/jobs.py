@@ -67,7 +67,10 @@ def _resolve_any(url: str):
 
 
 def _apply_overrides(
-    meta: spotify.TrackMeta, ov: Optional[IngestOverrides]
+    meta: spotify.TrackMeta,
+    ov: Optional[IngestOverrides],
+    *,
+    apply_track_artist: bool = True,
 ) -> spotify.TrackMeta:
     if ov is None:
         return meta
@@ -91,7 +94,12 @@ def _apply_overrides(
         meta.album = ov.album
     if ov.album_artist is not None:
         meta.album_artist = ov.album_artist
-    if ov.artist is not None:
+    elif not apply_track_artist and ov.artist is not None:
+        # Compatibilidad con clientes antiguos: en una playlist, el campo
+        # "artist" representa al artista de la colección, nunca debe borrar el
+        # artista real de cada pista.
+        meta.album_artist = ov.artist
+    if apply_track_artist and ov.artist is not None:
         meta.artists = [ov.artist] + [a for a in meta.artists if a != ov.artist]
     if ov.year is not None:
         meta.year = ov.year
@@ -101,7 +109,11 @@ def _apply_overrides(
 
 
 def _resolve_target_album(
-    session, overrides: Optional[IngestOverrides], user_id: Optional[int], meta: spotify.TrackMeta
+    session,
+    overrides: Optional[IngestOverrides],
+    user_id: Optional[int],
+    meta: spotify.TrackMeta,
+    source_kind: str = "track",
 ) -> Optional[int]:
     """Determina el álbum destino para una pista a partir de los overrides.
 
@@ -118,6 +130,8 @@ def _resolve_target_album(
         artist = library_svc._get_or_create_artist(session, artist_name)
         year = overrides.year if overrides.year is not None else meta.year
         album = library_svc._get_or_create_album(session, overrides.album, artist.id, year)
+        if source_kind == "playlist":
+            album.kind = "playlist"
         if album.owner_id is None:
             album.owner_id = user_id
             session.add(album)
@@ -270,7 +284,14 @@ def create_jobs_from_url(
         batch_seen: list[tuple[str, str, int]] = []  # (titulo_n, artista_n, dur) ya encolados
 
         for meta in result.tracks:
-            _apply_overrides(meta, overrides)
+            # Un override de artista en una playlist nombra a la colección; no
+            # puede convertir todas sus canciones al mismo artista. El artista
+            # por pista resuelto por Spotify/YouTube se conserva siempre.
+            _apply_overrides(
+                meta,
+                overrides,
+                apply_track_artist=result.kind != "playlist",
+            )
 
             # Dedup contra la biblioteca: id externo exacto y, si no, parecido
             # (título+artista+duración) para cazar la MISMA canción desde Spotify,
@@ -282,7 +303,9 @@ def create_jobs_from_url(
                 if not existing_track.external_id and meta.spotify_id:
                     existing_track.external_id = meta.spotify_id
                     session.add(existing_track)
-                target = playlist_album_id or _resolve_target_album(session, overrides, user_id, meta)
+                target = playlist_album_id or _resolve_target_album(
+                    session, overrides, user_id, meta, result.kind
+                )
                 added_to = None
                 if target:
                     if _link_track_to_album(session, existing_track.id, target, meta.track_number):
@@ -319,7 +342,9 @@ def create_jobs_from_url(
                 session.flush()
 
             # Determinar target album para que el worker lo enganche al terminar
-            target_for_job = playlist_album_id or _resolve_target_album(session, overrides, user_id, meta)
+            target_for_job = playlist_album_id or _resolve_target_album(
+                session, overrides, user_id, meta, result.kind
+            )
 
             job = Job(
                 # source_url debe ser el de la PISTA individual (el resolver lo
