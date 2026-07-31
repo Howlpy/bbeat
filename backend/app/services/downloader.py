@@ -70,6 +70,22 @@ def _norm_text(s: str) -> str:
     return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", s)).strip()
 
 
+def _artist_in_text(artist_norm: str, text_norm: str) -> bool:
+    """Compara artistas tolerando separadores visuales en nombres de marca.
+
+    Por ejemplo, Spotify usa ``Nadal015`` mientras su canal oficial de
+    YouTube figura como ``NADAL 015``. Se mantiene un minimo de cuatro
+    caracteres para que la comparacion compacta no acepte siglas ambiguas.
+    """
+    if not artist_norm or not text_norm:
+        return False
+    if artist_norm in text_norm:
+        return True
+    compact_artist = artist_norm.replace(" ", "")
+    compact_text = text_norm.replace(" ", "")
+    return len(compact_artist) >= 4 and compact_artist in compact_text
+
+
 # Keywords que casi nunca son la canción real (reacciones, podcasts, vídeos
 # educativos, etc.): penalización dura. En español e inglés, ya sin acentos.
 HARD_BAD_KEYWORDS = (
@@ -129,8 +145,8 @@ def _score_candidate(
 
     uploader = _norm_text(e.get("uploader") or e.get("channel") or "")
     cand_title = _norm_text(e.get("title") or "")
-    artist_in_uploader = bool(artist_norm and artist_norm in uploader)
-    artist_in_title = bool(artist_norm and artist_norm in cand_title)
+    artist_in_uploader = _artist_in_text(artist_norm, uploader)
+    artist_in_title = _artist_in_text(artist_norm, cand_title)
 
     # 2. Canal oficial "- Topic" / artista en el canal
     if "- topic" in uploader or " topic" in uploader:
@@ -186,8 +202,8 @@ def _candidate_matches(
     uploader = _norm_text(e.get("uploader") or e.get("channel") or "")
     cand_words = set(cand_title.split())
     overlap = len(title_words & cand_words) / max(len(title_words), 1)
-    artist_in_uploader = bool(artist_norm and artist_norm in uploader)
-    artist_matches = bool(artist_in_uploader or (artist_norm and artist_norm in cand_title))
+    artist_in_uploader = _artist_in_text(artist_norm, uploader)
+    artist_matches = bool(artist_in_uploader or _artist_in_text(artist_norm, cand_title))
 
     if any(kw in cand_title and kw not in title_norm for kw in HARD_BAD_KEYWORDS):
         return False
