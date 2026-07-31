@@ -87,6 +87,15 @@ SOFT_BAD_KEYWORDS = (
     "mashup",
 )
 
+# Versiones distintas de la grabacion pedida. El scoring puede penalizar
+# videos con letras o una presentacion visual diferente, pero estas variantes
+# cambian el propio audio y no deben aceptarse salvo que Spotify las nombre.
+NON_ORIGINAL_VARIANT_KEYWORDS = (
+    "cover", "tribute", "instrumental", "karaoke", "live", "en vivo",
+    "directo", "concert", "concierto", "acoustic", "acustico", "mashup",
+    "remix",
+)
+
 # Transformaciones que alteran perceptiblemente el audio original. A diferencia
 # de un videoclip/lyrics, nunca son un sustituto válido si Spotify no las pide
 # explícitamente en el título.
@@ -183,6 +192,11 @@ def _candidate_matches(
     if any(kw in cand_title and kw not in title_norm for kw in HARD_BAD_KEYWORDS):
         return False
     if any(kw in cand_title and kw not in title_norm for kw in ALTERED_AUDIO_KEYWORDS):
+        return False
+    if any(
+        f" {kw} " in f" {cand_title} " and f" {kw} " not in f" {title_norm} "
+        for kw in NON_ORIGINAL_VARIANT_KEYWORDS
+    ):
         return False
 
     duration = e.get("duration") or 0
