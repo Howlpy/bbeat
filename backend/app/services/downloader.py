@@ -246,6 +246,16 @@ def download_with_ytdlp(
 
     searches = [
         ("YouTube exacta", "youtube", f"ytsearch8:{meta.search_query}"),
+        # Algunas ediciones de album solo aparecen en los canales oficiales
+        # autogenerados (Topic), mientras la busqueda normal prioriza el
+        # videoclip, que puede tener una duracion distinta. Pedir Topic de
+        # forma explicita recupera la version exacta sin relajar los filtros de
+        # artista, titulo o duracion que evitan falsos positivos.
+        (
+            "YouTube Topic",
+            "youtube",
+            f"ytsearch12:{meta.primary_artist} {meta.title} Topic",
+        ),
         (
             "YouTube ampliada",
             "youtube",
