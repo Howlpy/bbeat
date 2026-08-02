@@ -114,10 +114,16 @@ class PlayerState {
       });
       el.addEventListener('pause', () => {
         if (el !== this.el) return;
-        // Al cambiar de pista el <audio> emite un pause espurio entre el
-        // load() y el nuevo play(). Si lo dejamos pasar, Android ve
-        // playbackState='paused' un instante y descarta la notificación.
-        if (this.switching) return;
+        // Al terminar naturalmente, WebView emite `pause` antes de `ended`.
+        // Si todavía hay una pista a la que avanzar, esa pausa no representa
+        // una acción del usuario: publicarla desmonta el foreground service
+        // nativo justo antes de que `ended` arranque la siguiente pista.
+        const naturalAutoAdvance = el.ended && (
+          this.repeat === 'one' || this.autoNextIndex() !== null
+        );
+        // También suprime el pause espurio que emiten load()/el intercambio de
+        // los dos elementos durante una transición ya iniciada.
+        if (this.switching || naturalAutoAdvance) return;
         this.isPlaying = false;
         this.setPlaybackState('paused');
         this.stopNowPlaying();
