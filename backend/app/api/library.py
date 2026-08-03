@@ -88,6 +88,7 @@ def _track_payload(track: Track, artist: Artist, album: Optional[Album], liked: 
         "album_id": album.id if album else None,
         "album_title": album.title if album else None,
         "album_year": album.year if album else None,
+        "genre": track.genre,
         "cover_url": (
             f"/api/library/cover/track/{track.id}{_cover_ver(_track_cover_file(track.id))}"
             if getattr(track, "has_cover", False)
@@ -128,14 +129,29 @@ def list_tracks(
         stmt = stmt.where(Track.artist_id == artist_id)
         count_stmt = count_stmt.where(Track.artist_id == artist_id)
     if album_id is not None:
-        # Vía AlbumTrack (M:N): incluye tracks que pertenecen al álbum aunque
-        # su album_id "primario" sea otro.
-        in_album_subq = select(AlbumTrack.track_id).where(AlbumTrack.album_id == album_id)
-        stmt = stmt.where(Track.id.in_(in_album_subq))
-        count_stmt = count_stmt.where(Track.id.in_(in_album_subq))
+        # AlbumTrack es la relación canónica y conserva el orden de la playlist.
+        stmt = stmt.join(
+            AlbumTrack,
+            (AlbumTrack.track_id == Track.id) & (AlbumTrack.album_id == album_id),
+        )
+        count_stmt = (
+            select(func.count(AlbumTrack.track_id))
+            .join(Track, Track.id == AlbumTrack.track_id)
+            .where(AlbumTrack.album_id == album_id)
+        )
+        if artist_id is not None:
+            count_stmt = count_stmt.where(Track.artist_id == artist_id)
     total = session.exec(count_stmt).one()
 
-    stmt = stmt.order_by(Album.title, Track.disc_number, Track.track_number, Track.title)
+    if album_id is not None:
+        stmt = stmt.order_by(
+            AlbumTrack.position.is_(None),
+            AlbumTrack.position,
+            AlbumTrack.added_at,
+            Track.title,
+        )
+    else:
+        stmt = stmt.order_by(Album.title, Track.disc_number, Track.track_number, Track.title)
     stmt = stmt.limit(limit).offset(offset)
 
     liked = _user_liked_set(session, user)
@@ -338,6 +354,11 @@ def add_tracks_to_album(
     ).all()
     existing_ids = {r[0] if isinstance(r, (tuple, list)) else r for r in existing_rows}
 
+    last_position = session.exec(
+        select(func.max(AlbumTrack.position)).where(AlbumTrack.album_id == album_id)
+    ).one()
+    next_position = (last_position or 0) + 1
+
     added = 0
     already = 0
     denied = 0
@@ -348,7 +369,10 @@ def add_tracks_to_album(
         if tid not in allowed_ids:
             denied += 1
             continue
-        session.add(AlbumTrack(album_id=album_id, track_id=tid))
+        session.add(
+            AlbumTrack(album_id=album_id, track_id=tid, position=next_position)
+        )
+        next_position += 1
         added += 1
 
     log.info(
@@ -471,7 +495,7 @@ def search(
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
-    """Búsqueda case-insensitive sobre title/artist/album. Pool global."""
+    """Búsqueda case-insensitive sobre título/artista/álbum/género. Pool global."""
     qlike = f"%{q.strip().lower()}%"
     stmt = (
         select(Track, Artist, Album)
@@ -482,6 +506,7 @@ def search(
                 func.lower(Track.title).like(qlike),
                 func.lower(Artist.name).like(qlike),
                 func.lower(Album.title).like(qlike),
+                func.lower(Track.genre).like(qlike),
             )
         )
         .limit(limit)
@@ -521,6 +546,7 @@ class EditTrackIn(BaseModel):
     track_number: Optional[int] = None
     disc_number: Optional[int] = None
     year: Optional[int] = None
+    genre: Optional[str] = None
     target_album_id: Optional[int] = None
 
 
@@ -731,6 +757,7 @@ async def upload_track(
         cover_url=None,
         source_url="",
         source_kind="upload",
+        genre=_first("genre") or None,
     )
 
     # Si nos dieron target_album_id, override desde BD

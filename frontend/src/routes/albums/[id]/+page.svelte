@@ -4,6 +4,8 @@
   import { page } from '$app/state';
   import {
     AlertTriangle,
+    ArrowLeft,
+    ArrowUpDown,
     Bookmark,
     BookmarkCheck,
     Camera,
@@ -13,7 +15,9 @@
     Pencil,
     Play,
     Plus,
-    Trash2
+    Search,
+    Trash2,
+    X
   } from 'lucide-svelte';
   import { api, type Track, type Album } from '$lib/api';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -36,6 +40,65 @@
   let addingTracks = $state(false);
 
   let savingSave = $state(false);
+  type PlaylistSort = "original" | "title-asc" | "title-desc" | "artist" | "album" | "genre" | "duration-asc" | "duration-desc";
+  let playlistQuery = $state("");
+  let playlistSort = $state<PlaylistSort>("original");
+  const collator = new Intl.Collator("es", { numeric: true, sensitivity: "base" });
+
+  function compareOptionalText(a: string | null | undefined, b: string | null | undefined) {
+    const av = a?.trim() ?? "";
+    const bv = b?.trim() ?? "";
+    if (!av && bv) return 1;
+    if (av && !bv) return -1;
+    return collator.compare(av, bv);
+  }
+
+  function trackMatches(track: Track, query: string) {
+    if (!query) return true;
+    return [track.title, track.artist_name, track.album_title, track.genre]
+      .filter(Boolean)
+      .some((value) => String(value).toLocaleLowerCase("es").includes(query));
+  }
+
+  const visibleTracks = $derived.by<Track[]>(() => {
+    if (album?.kind !== "playlist") return tracks;
+    const query = playlistQuery.trim().toLocaleLowerCase("es");
+    const filtered = tracks.filter((track) => trackMatches(track, query));
+    if (playlistSort === "original") return filtered;
+
+    return [...filtered].sort((a, b) => {
+      let compared = 0;
+      switch (playlistSort) {
+        case "title-asc":
+          compared = collator.compare(a.title, b.title);
+          break;
+        case "title-desc":
+          compared = collator.compare(b.title, a.title);
+          break;
+        case "artist":
+          compared = collator.compare(a.artist_name, b.artist_name);
+          break;
+        case "album":
+          compared = compareOptionalText(a.album_title, b.album_title);
+          break;
+        case "genre":
+          compared = compareOptionalText(a.genre, b.genre);
+          break;
+        case "duration-asc":
+        case "duration-desc": {
+          const ad = a.duration_ms;
+          const bd = b.duration_ms;
+          if (ad == null && bd != null) compared = 1;
+          else if (ad != null && bd == null) compared = -1;
+          else if (ad != null && bd != null) {
+            compared = playlistSort === "duration-asc" ? ad - bd : bd - ad;
+          }
+          break;
+        }
+      }
+      return compared || collator.compare(a.title, b.title);
+    });
+  });
 
   async function load() {
     try {
@@ -69,7 +132,15 @@
   onMount(load);
 
   function playAll() {
-    if (tracks.length) player.playTracks(tracks, 0);
+    if (visibleTracks.length) player.playTracks(visibleTracks, 0);
+  }
+
+  function goBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      window.history.back();
+    } else {
+      goto("/albums");
+    }
   }
 
   function startEdit() {
@@ -132,6 +203,13 @@
 </script>
 
 <div class="mx-auto max-w-3xl px-4 pt-6">
+  <button
+    onclick={goBack}
+    class="mb-4 inline-flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-slate-400 transition hover:bg-slate-900 hover:text-slate-100"
+    aria-label="Volver"
+  >
+    <ArrowLeft size={17} /> Volver
+  </button>
   {#if error}
     <p class="inline-flex items-center gap-2 text-red-400">
       <AlertTriangle size={16} /> {error}
@@ -199,7 +277,7 @@
           <div class="mt-3 flex flex-wrap gap-1.5">
             <button
               onclick={playAll}
-              disabled={tracks.length === 0}
+              disabled={visibleTracks.length === 0}
               class="inline-flex items-center gap-1.5 rounded bg-cyan-400 px-4 py-1.5 text-sm font-medium text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50"
             >
               <Play size={14} fill="currentColor" /> Reproducir
@@ -272,9 +350,53 @@
       </div>
     </div>
 
+    {#if album.kind === "playlist" && tracks.length > 0}
+      <div class="mb-3 flex flex-col gap-2 sm:flex-row">
+        <div class="flex min-w-0 flex-1 items-center gap-2 rounded border border-slate-800 bg-slate-900 px-3 py-2">
+          <Search size={16} class="flex-none text-slate-500" />
+          <input
+            type="search"
+            bind:value={playlistQuery}
+            placeholder="Buscar en esta playlist…"
+            aria-label="Buscar en esta playlist"
+            class="min-w-0 flex-1 bg-transparent text-sm focus:outline-none"
+          />
+          {#if playlistQuery}
+            <button
+              type="button"
+              onclick={() => (playlistQuery = "")}
+              class="grid size-6 flex-none place-items-center rounded text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+              aria-label="Borrar búsqueda"
+            ><X size={14} /></button>
+          {/if}
+        </div>
+        <label class="flex items-center gap-2 rounded border border-slate-800 bg-slate-900 px-3 py-2 text-sm">
+          <ArrowUpDown size={15} class="text-slate-500" />
+          <span class="sr-only">Ordenar playlist</span>
+          <select bind:value={playlistSort} class="bg-transparent text-sm focus:outline-none">
+            <option value="original">Orden original</option>
+            <option value="title-asc">Título A–Z</option>
+            <option value="title-desc">Título Z–A</option>
+            <option value="artist">Artista</option>
+            <option value="album">Álbum</option>
+            <option value="genre">Género</option>
+            <option value="duration-asc">Duración: menor</option>
+            <option value="duration-desc">Duración: mayor</option>
+          </select>
+        </label>
+      </div>
+      <p class="mb-1 px-2 text-[11px] text-slate-600">
+        {visibleTracks.length === tracks.length ? tracks.length + " pistas" : visibleTracks.length + " de " + tracks.length + " pistas"}
+      </p>
+    {/if}
+
     {#if tracks.length === 0}
       <div class="rounded border border-dashed border-slate-800 p-8 text-center text-sm text-slate-500">
-        <p>Este álbum está vacío.</p>
+        {#if album.kind === "playlist"}
+          <p>Esta playlist está vacía.</p>
+        {:else}
+          <p>Este álbum está vacío.</p>
+        {/if}
         <div class="mt-3 flex flex-wrap justify-center gap-2">
           {#if album.is_mine}
             <button
@@ -288,8 +410,18 @@
           >Importar nuevas</a>
         </div>
       </div>
+    {:else if visibleTracks.length === 0}
+      <div class="rounded border border-dashed border-slate-800 p-8 text-center text-sm text-slate-500">
+        <p>No hay pistas que coincidan con “{playlistQuery}”.</p>
+        <button onclick={() => (playlistQuery = "")} class="mt-2 text-cyan-400 hover:underline">Limpiar búsqueda</button>
+      </div>
     {:else}
-      <TrackList bind:tracks showAlbum={false} onchanged={load} />
+      <TrackList
+        tracks={visibleTracks}
+        showAlbum={album.kind === "playlist" && playlistSort === "album"}
+        showGenre={album.kind === "playlist" && playlistSort === "genre"}
+        onchanged={load}
+      />
     {/if}
   {:else}
     <p class="text-slate-500">Cargando…</p>

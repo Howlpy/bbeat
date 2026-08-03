@@ -152,6 +152,12 @@ def write_tags(path: Path, meta: TrackMeta) -> None:
     audio["discnumber"] = str(meta.disc_number)
     if meta.year:
         audio["date"] = str(meta.year)
+    if meta.genre is not None:
+        genre = meta.genre.strip()
+        if genre:
+            audio["genre"] = genre
+        elif "genre" in audio:
+            del audio["genre"]
     if meta.isrc:
         try:
             audio["isrc"] = meta.isrc

@@ -6,6 +6,7 @@ export type Track = {
   album_id: number | null;
   album_title: string | null;
   album_year: number | null;
+  genre: string | null;
   cover_url: string | null;
   track_number: number | null;
   disc_number: number | null;
@@ -357,6 +358,7 @@ export const api = {
       track_number?: number;
       disc_number?: number;
       year?: number;
+      genre?: string;
       target_album_id?: number;
     }
   ) =>

@@ -59,6 +59,7 @@ def _migrate_schema() -> None:
         ("tracks", "external_id", "TEXT"),
         ("tracks", "source_url", "TEXT"),
         ("tracks", "has_cover", "INTEGER DEFAULT 0"),
+        ("tracks", "genre", "TEXT"),
         # Aprobación de cuentas: los usuarios que ya existían se aprueban
         # (DEFAULT 1); los nuevos los inserta el ORM con 0 (pendientes).
         ("users", "is_approved", "INTEGER NOT NULL DEFAULT 1"),
@@ -106,6 +107,53 @@ def _migrate_schema() -> None:
         except Exception as e:
             import logging
             logging.warning("backfill album.kind falló: %s", e)
+        # Las playlists antiguas podían guardar posiciones nulas o repetidas.
+        # Materializamos primero el ranking: si el window query leyera la tabla
+        # mientras UPDATE la modifica, SQLite puede asignar la misma posición a
+        # muchas filas (efecto Halloween) en bibliotecas grandes.
+        try:
+            conn.exec_driver_sql(
+                "DROP TABLE IF EXISTS temp._bbeat_playlist_positions"
+            )
+            conn.exec_driver_sql(
+                "CREATE TEMP TABLE _bbeat_playlist_positions ("
+                " album_id INTEGER NOT NULL, track_id INTEGER NOT NULL,"
+                " new_position INTEGER NOT NULL,"
+                " PRIMARY KEY (album_id, track_id)"
+                ")"
+            )
+            conn.exec_driver_sql(
+                "INSERT INTO _bbeat_playlist_positions"
+                " (album_id, track_id, new_position)"
+                " SELECT at.album_id, at.track_id,"
+                " ROW_NUMBER() OVER (PARTITION BY at.album_id ORDER BY"
+                " CASE WHEN at.position IS NULL THEN 1 ELSE 0 END,"
+                " at.position, at.added_at, at.track_id) AS new_position"
+                " FROM album_tracks at JOIN albums a ON a.id = at.album_id"
+                " WHERE a.kind = 'playlist'"
+            )
+            conn.exec_driver_sql(
+                "UPDATE album_tracks SET position = ("
+                " SELECT ranked.new_position"
+                " FROM _bbeat_playlist_positions ranked"
+                " WHERE ranked.album_id = album_tracks.album_id"
+                " AND ranked.track_id = album_tracks.track_id"
+                ") WHERE EXISTS ("
+                " SELECT 1 FROM _bbeat_playlist_positions ranked"
+                " WHERE ranked.album_id = album_tracks.album_id"
+                " AND ranked.track_id = album_tracks.track_id"
+                ")"
+            )
+        except Exception as e:
+            import logging
+            logging.warning("normalización de posiciones de playlist falló: %s", e)
+        finally:
+            try:
+                conn.exec_driver_sql(
+                    "DROP TABLE IF EXISTS temp._bbeat_playlist_positions"
+                )
+            except Exception:
+                pass
         # Backfill: auto-guardar a cada dueño sus álbumes existentes, para que la
         # pestaña 'Guardados' no salga vacía al estrenar el modelo de guardados.
         try:

@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Log;
 import android.support.v4.media.MediaBrowserCompat;
 import android.support.v4.media.MediaDescriptionCompat;
@@ -46,6 +47,8 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
     private static final String STATE_CURRENT = "current";
     private static final int NOTIFICATION_ID = 2201;
     private static final long PAUSED_FOREGROUND_GRACE_MS = 10_000L;
+    private static final long WAKE_LOCK_TIMEOUT_MS = 60L * 60L * 1000L;
+    private static final long WAKE_LOCK_RENEW_MS = 30L * 60L * 1000L;
     private static final Object LOCK = new Object();
 
     static final class Entry {
@@ -77,10 +80,20 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
 
     private MediaSessionCompat session;
     private NotificationManager notifications;
+    private PowerManager.WakeLock playbackWakeLock;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService artworkExecutor = Executors.newSingleThreadExecutor();
     private Bitmap notificationArtwork;
     private String notificationArtworkSource = "";
+    private final Runnable renewPlaybackWakeLock = new Runnable() {
+        @Override public void run() {
+            String state;
+            synchronized (LOCK) { state = playbackState; }
+            if (!"playing".equals(state)) return;
+            acquirePlaybackWakeLock();
+            mainHandler.postDelayed(this, WAKE_LOCK_RENEW_MS);
+        }
+    };
     private final Runnable leaveForegroundAfterPause = () -> {
         String state;
         synchronized (LOCK) { state = playbackState; }
@@ -92,6 +105,8 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
             notifications.notify(NOTIFICATION_ID, buildNotification(state));
         } catch (RuntimeException error) {
             Log.e(TAG, "No se pudo finalizar la gracia de pausa", error);
+        } finally {
+            releasePlaybackWakeLock();
         }
     };
 
@@ -212,6 +227,14 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         super.onCreate();
         instance = this;
         notifications = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (powerManager != null) {
+            playbackWakeLock = powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                getPackageName() + ":playback"
+            );
+            playbackWakeLock.setReferenceCounted(false);
+        }
         createNotificationChannel();
         restoreState();
 
@@ -524,19 +547,24 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
     private void refreshNotification(String state) {
         mainHandler.removeCallbacks(leaveForegroundAfterPause);
         if ("none".equals(state)) {
+            stopKeepingPlaybackAwake();
             stopForeground(STOP_FOREGROUND_REMOVE);
             notifications.cancel(NOTIFICATION_ID);
             return;
         }
         Notification notification = buildNotification(state);
         try {
-            if ("playing".equals(state)) startForeground(NOTIFICATION_ID, notification);
+            if ("playing".equals(state)) {
+                keepPlaybackAwake();
+                startForeground(NOTIFICATION_ID, notification);
+            }
             else {
                 // No desmontes el foreground service en el hueco pause→ended
                 // de WebView. Si llega la siguiente pista, `playing` cancela
                 // esta salida; una pausa real lo abandona tras la gracia.
-                notifications.notify(NOTIFICATION_ID, notification);
+                mainHandler.removeCallbacks(renewPlaybackWakeLock);
                 mainHandler.postDelayed(leaveForegroundAfterPause, PAUSED_FOREGROUND_GRACE_MS);
+                notifications.notify(NOTIFICATION_ID, notification);
             }
         } catch (RuntimeException error) {
             // Un permiso de notificaciones/FGS rechazado no debe tumbar el
@@ -545,10 +573,42 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         }
     }
 
+    private void keepPlaybackAwake() {
+        mainHandler.removeCallbacks(renewPlaybackWakeLock);
+        renewPlaybackWakeLock.run();
+    }
+
+    private void acquirePlaybackWakeLock() {
+        if (playbackWakeLock == null) return;
+        try {
+            // El timeout protege ante un proceso atascado; se renueva mientras
+            // MediaSession continúe en playing y en cada cambio de pista.
+            if (playbackWakeLock.isHeld()) playbackWakeLock.release();
+            playbackWakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
+        } catch (RuntimeException error) {
+            Log.e(TAG, "No se pudo mantener despierta la transición de audio", error);
+        }
+    }
+
+    private void releasePlaybackWakeLock() {
+        if (playbackWakeLock == null) return;
+        try {
+            if (playbackWakeLock.isHeld()) playbackWakeLock.release();
+        } catch (RuntimeException error) {
+            Log.e(TAG, "No se pudo liberar el wake lock de reproducción", error);
+        }
+    }
+
+    private void stopKeepingPlaybackAwake() {
+        mainHandler.removeCallbacks(renewPlaybackWakeLock);
+        releasePlaybackWakeLock();
+    }
+
     @Override
     public void onDestroy() {
         if (instance == this) instance = null;
         mainHandler.removeCallbacks(leaveForegroundAfterPause);
+        stopKeepingPlaybackAwake();
         if (session != null) {
             session.setActive(false);
             session.release();
