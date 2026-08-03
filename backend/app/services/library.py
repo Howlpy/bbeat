@@ -122,6 +122,7 @@ def _meta_from_track(session: Session, track: Track) -> "spotify.TrackMeta":
         cover_url=None,
         source_url="",
         source_kind="track",
+        genre=track.genre,
     )
 
 
@@ -244,6 +245,7 @@ def edit_track(
     track_number: Optional[int] = None,
     disc_number: Optional[int] = None,
     year: Optional[int] = None,
+    genre: Optional[str] = None,
     target_album_id: Optional[int] = None,
 ) -> dict:
     """Cambia metadata del track. Si artist/album cambian, reubica el fichero
@@ -281,6 +283,7 @@ def edit_track(
         new_title = (title if title is not None else t.title).strip() or t.title
         new_track_no = track_number if track_number is not None else t.track_number
         new_disc_no = disc_number if disc_number is not None else t.disc_number
+        new_genre = genre.strip() if genre is not None else t.genre
 
         # Construir destino (uso del organizer.target_path con meta inventada)
         from app.services.spotify import TrackMeta
@@ -300,6 +303,7 @@ def edit_track(
             cover_url=None,
             source_url="",
             source_kind="track",
+            genre=new_genre,
         )
         new_path = organizer.target_path(meta, ext)
         new_path.parent.mkdir(parents=True, exist_ok=True)
@@ -335,6 +339,7 @@ def edit_track(
         t.album_id = new_album.id if new_album else None
         t.track_number = new_track_no
         t.disc_number = new_disc_no
+        t.genre = new_genre or None
         t.file_path = str(new_path.relative_to(settings.music_dir))
         s.add(t)
         s.flush()
@@ -406,6 +411,7 @@ def edit_album(album_id: int, *, title: Optional[str] = None, year: Optional[int
                 cover_url=None,
                 source_url="",
                 source_kind="track",
+                genre=t.genre,
             )
             new_path = organizer.target_path(meta, old_path.suffix.lower())
             new_path.parent.mkdir(parents=True, exist_ok=True)
