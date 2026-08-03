@@ -45,6 +45,7 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
     private static final String STATE_INDEX = "index";
     private static final String STATE_CURRENT = "current";
     private static final int NOTIFICATION_ID = 2201;
+    private static final long PAUSED_FOREGROUND_GRACE_MS = 10_000L;
     private static final Object LOCK = new Object();
 
     static final class Entry {
@@ -80,6 +81,19 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
     private final ExecutorService artworkExecutor = Executors.newSingleThreadExecutor();
     private Bitmap notificationArtwork;
     private String notificationArtworkSource = "";
+    private final Runnable leaveForegroundAfterPause = () -> {
+        String state;
+        synchronized (LOCK) { state = playbackState; }
+        if (!"paused".equals(state)) return;
+        try {
+            // Una pausa estable ya no necesita protección de foreground. La
+            // notificación permanece disponible para reanudar manualmente.
+            stopForeground(STOP_FOREGROUND_DETACH);
+            notifications.notify(NOTIFICATION_ID, buildNotification(state));
+        } catch (RuntimeException error) {
+            Log.e(TAG, "No se pudo finalizar la gracia de pausa", error);
+        }
+    };
 
     static void openApp() {
         BbeatAutoService service = instance;
@@ -508,6 +522,7 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
     }
 
     private void refreshNotification(String state) {
+        mainHandler.removeCallbacks(leaveForegroundAfterPause);
         if ("none".equals(state)) {
             stopForeground(STOP_FOREGROUND_REMOVE);
             notifications.cancel(NOTIFICATION_ID);
@@ -517,8 +532,11 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         try {
             if ("playing".equals(state)) startForeground(NOTIFICATION_ID, notification);
             else {
-                stopForeground(STOP_FOREGROUND_DETACH);
+                // No desmontes el foreground service en el hueco pause→ended
+                // de WebView. Si llega la siguiente pista, `playing` cancela
+                // esta salida; una pausa real lo abandona tras la gracia.
                 notifications.notify(NOTIFICATION_ID, notification);
+                mainHandler.postDelayed(leaveForegroundAfterPause, PAUSED_FOREGROUND_GRACE_MS);
             }
         } catch (RuntimeException error) {
             // Un permiso de notificaciones/FGS rechazado no debe tumbar el
@@ -530,6 +548,7 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
     @Override
     public void onDestroy() {
         if (instance == this) instance = null;
+        mainHandler.removeCallbacks(leaveForegroundAfterPause);
         if (session != null) {
             session.setActive(false);
             session.release();
