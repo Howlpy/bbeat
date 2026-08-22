@@ -1,7 +1,7 @@
 # Multi-stage: build del frontend → runtime Python con assets estáticos servidos por FastAPI.
 
 # ─── Stage 1: build frontend ────────────────────────────────────
-FROM node:22-bookworm-slim AS frontend-builder
+FROM node:22-trixie-slim AS frontend-builder
 WORKDIR /build
 COPY frontend/package*.json ./
 RUN npm ci || npm install
@@ -12,12 +12,17 @@ RUN npm run build
 FROM python:3.12-slim
 WORKDIR /app
 
-# nodejs no es opcional: yt-dlp necesita un runtime JS para resolver el
-# desafío de YouTube (ver JS_RUNTIMES en app/services/downloader.py). Sin él
-# cae a un cliente de respaldo cuyas URLs YouTube rechaza con 403.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg curl nodejs \
+    ffmpeg curl \
     && rm -rf /var/lib/apt/lists/*
+
+# node no es opcional: yt-dlp necesita un runtime JS para resolver el desafío
+# de YouTube (ver JS_RUNTIMES en app/services/downloader.py). Sin él cae a un
+# cliente de respaldo cuyas URLs YouTube rechaza con 403.
+# Se copia el binario de la etapa de build en lugar de instalar el paquete de
+# Debian: ese es node 20 e yt-dlp lo marca "unsupported" (necesita 22+).
+# Ambas imágenes son trixie, comparten glibc y basta con el binario.
+COPY --from=frontend-builder /usr/local/bin/node /usr/local/bin/node
 
 COPY backend/requirements.txt /app/backend/requirements.txt
 RUN pip install --no-cache-dir -r /app/backend/requirements.txt
