@@ -16,7 +16,9 @@
 
   let title = $state(track.title);
   let artist = $state(track.artist_name);
-  let album = $state(track.album_title ?? '');
+  let album = $state(track.album_title ?? "");
+  // svelte-ignore state_referenced_locally
+  let genre = $state(track.genre ?? "");
   let year = $state(track.album_year ? String(track.album_year) : '');
   let trackNumber = $state(track.track_number ? String(track.track_number) : '');
   let mode = $state<'edit' | 'move'>('edit');
@@ -36,6 +38,7 @@
         if (artist.trim() && artist !== track.artist_name) body.artist = artist.trim();
         if (album !== (track.album_title ?? '')) body.album = album.trim();
         if (year && Number(year) !== track.album_year) body.year = Number(year);
+        if (genre !== (track.genre ?? "")) body.genre = genre.trim();
         const tn = Number(trackNumber);
         if (trackNumber && tn !== track.track_number) body.track_number = tn;
         if (Object.keys(body).length === 0) {
@@ -121,6 +124,14 @@
           <span class="text-xs text-slate-400">Álbum</span>
           <input
             bind:value={album}
+            class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
+          />
+        </label>
+        <label class="block">
+          <span class="text-xs text-slate-400">Género</span>
+          <input
+            bind:value={genre}
+            placeholder="Sin género"
             class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
           />
         </label>

@@ -41,6 +41,7 @@ class TrackMeta:
     cover_url: Optional[str]
     source_url: str = ""
     source_kind: str = "track"
+    genre: Optional[str] = None
 
     @property
     def primary_artist(self) -> str:
@@ -208,10 +209,11 @@ def resolve_url(url: str) -> ResolveResult:
             # max_tracks=None fuerza la paginación completa. El valor por defecto
             # de la librería es 100 para proteger llamadas accidentales grandes.
             playlist = client.get_playlist(clean_url, max_tracks=None).to_dict()
-            tracks = [
-                _track_from_playlist_item(it.get("track") or it, clean_url)
-                for it in playlist.get("tracks") or []
-            ]
+            tracks = []
+            for position, item in enumerate(playlist.get("tracks") or [], start=1):
+                meta = _track_from_playlist_item(item.get("track") or item, clean_url)
+                meta.track_number = position
+                tracks.append(meta)
             return ResolveResult(
                 kind="playlist",
                 name=playlist.get("name") or "Unknown Playlist",

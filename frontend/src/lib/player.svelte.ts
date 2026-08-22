@@ -6,6 +6,7 @@ const VOLUME_KEY = "bbeat:volume";
 const MUTED_KEY = "bbeat:muted";
 const SHUFFLE_KEY = "bbeat:shuffle";
 const REPEAT_KEY = "bbeat:repeat";
+const PAUSE_SETTLE_MS = 750;
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -83,8 +84,30 @@ class PlayerState {
 
   /** Activo durante una transición de pista para suprimir el pause espurio. */
   private switching = false;
+  /**
+   * `pause` se emite antes de `ended` al finalizar una pista en Chromium.
+   * Conservamos la pausa espontánea durante un instante para que `ended`
+   * pueda convertirla en auto-avance sin desmontar la sesión nativa.
+   */
+  private pendingPauseTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Elemento cuya pausa procede inequívocamente de un control del usuario/SO. */
+  private explicitPauseElement: HTMLAudioElement | null = null;
   /** Heartbeat de 'sonando ahora' mientras hay reproducción. */
   private nowPlayingTimer: ReturnType<typeof setInterval> | null = null;
+
+  private cancelPendingPause() {
+    if (this.pendingPauseTimer !== null) {
+      clearTimeout(this.pendingPauseTimer);
+      this.pendingPauseTimer = null;
+    }
+  }
+
+  private publishPaused(el: HTMLAudioElement, explicit = false) {
+    if (el !== this.el || !el.paused || (this.switching && !explicit)) return;
+    this.isPlaying = false;
+    this.setPlaybackState('paused');
+    this.stopNowPlaying();
+  }
 
   attach(a: HTMLAudioElement, b: HTMLAudioElement) {
     this.els = [a, b];
@@ -104,23 +127,47 @@ class PlayerState {
       });
       el.addEventListener('ended', () => {
         if (el !== this.el) return;
+        this.cancelPendingPause();
+        this.explicitPauseElement = null;
         this.next(true);
       });
       el.addEventListener('play', () => {
         if (el !== this.el) return;
+        this.cancelPendingPause();
+        this.explicitPauseElement = null;
         this.isPlaying = true;
         this.setPlaybackState('playing');
         this.startNowPlaying();
       });
       el.addEventListener('pause', () => {
         if (el !== this.el) return;
-        // Al cambiar de pista el <audio> emite un pause espurio entre el
-        // load() y el nuevo play(). Si lo dejamos pasar, Android ve
-        // playbackState='paused' un instante y descarta la notificación.
+        const explicitlyRequested = this.explicitPauseElement === el;
+        this.explicitPauseElement = null;
+
+        if (explicitlyRequested) {
+          this.cancelPendingPause();
+          this.publishPaused(el, true);
+          return;
+        }
+
+        // load() y el intercambio de elementos emiten pausas que no reflejan
+        // el estado final del reproductor.
         if (this.switching) return;
-        this.isPlaying = false;
-        this.setPlaybackState('paused');
-        this.stopNowPlaying();
+
+        const canAutoAdvance = this.repeat === 'one' || this.autoNextIndex() !== null;
+        if (canAutoAdvance) {
+          // No dependas de `el.ended`: Android WebView puede disparar `pause`
+          // antes de actualizarlo. `ended` o el siguiente `play` cancelarán
+          // esta confirmación; una pausa real espontánea se publica después.
+          this.cancelPendingPause();
+          this.pendingPauseTimer = setTimeout(() => {
+            this.pendingPauseTimer = null;
+            this.publishPaused(el);
+          }, PAUSE_SETTLE_MS);
+          return;
+        }
+
+        this.publishPaused(el);
       });
     }
 
@@ -136,7 +183,16 @@ class PlayerState {
   }
 
   pauseExplicit() {
-    this.el?.pause();
+    const el = this.el;
+    if (!el) return;
+    this.cancelPendingPause();
+    this.explicitPauseElement = el;
+    if (el.paused) {
+      this.explicitPauseElement = null;
+      this.publishPaused(el, true);
+      return;
+    }
+    el.pause();
   }
 
   /** Marca 'sonando ahora' la pista actual y mantiene el heartbeat (~25s). */
@@ -219,6 +275,8 @@ class PlayerState {
   private loadCurrent(autoplay: boolean) {
     const el = this.el;
     if (!el || !this.current) return;
+    this.cancelPendingPause();
+    this.explicitPauseElement = null;
     // Marca que estamos cambiando para suprimir el pause espurio del <audio>.
     this.switching = true;
     // Mantén playbackState='playing' en MediaSession durante la transición
@@ -283,7 +341,7 @@ class PlayerState {
     if (el.paused) {
       el.play();
     } else {
-      el.pause();
+      this.pauseExplicit();
     }
   }
 
@@ -296,8 +354,13 @@ class PlayerState {
     }
     const ni = this.autoNextIndex();
     if (ni === null) {
-      this.el?.pause();
-      this.isPlaying = false;
+      const el = this.el;
+      this.cancelPendingPause();
+      this.explicitPauseElement = null;
+      if (el) {
+        el.pause();
+        this.publishPaused(el);
+      }
       return;
     }
     const target = this.queue[ni];
@@ -322,6 +385,8 @@ class PlayerState {
       this.loadCurrent(true);
       return;
     }
+    this.cancelPendingPause();
+    this.explicitPauseElement = null;
     this.switching = true;
     this.setPlaybackState('playing');
     this.index = ni;
@@ -411,8 +476,7 @@ class PlayerState {
       if (this.index >= this.queue.length) this.index = Math.max(0, this.queue.length - 1);
       if (this.queue.length) this.loadCurrent(this.isPlaying);
       else {
-        this.el?.pause();
-        this.isPlaying = false;
+        this.pauseExplicit();
       }
     } else {
       if (i < this.index) this.index -= 1;
@@ -515,7 +579,7 @@ class PlayerState {
     if (this.actionHandlersSet) return;
     this.actionHandlersSet = true;
     media.setActionHandler('play', () => this.el?.play());
-    media.setActionHandler('pause', () => this.el?.pause());
+    media.setActionHandler('pause', () => this.pauseExplicit());
     media.setActionHandler('stop', () => this.pauseExplicit());
     media.setActionHandler('nexttrack', () => this.next());
     media.setActionHandler('previoustrack', () => this.prev());
