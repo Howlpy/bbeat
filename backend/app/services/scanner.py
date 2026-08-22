@@ -110,6 +110,7 @@ def _extract_tags(audio) -> dict:
         "track_number": _parse_int(g("TRCK", "tracknumber", "trkn")),
         "disc_number": _parse_int(g("TPOS", "discnumber", "disk")),
         "year": _parse_year(g("TDRC", "TYER", "date", "\xa9day", "year")),
+        "genre": _first(g("TCON", "genre", "\xa9gen", "GENRE")),
     }
 
 
@@ -288,6 +289,7 @@ def _index_one(session: Session, path: Path) -> str:
     info = audio.info
 
     track = session.exec(select(Track).where(Track.file_path == rel_path)).first()
+    previous_album_id = track.album_id if track else None
 
     fields = {
         "title": title.strip(),
@@ -295,6 +297,7 @@ def _index_one(session: Session, path: Path) -> str:
         "album_id": album.id if album else None,
         "track_number": tags["track_number"],
         "disc_number": tags["disc_number"],
+        "genre": tags["genre"],
         "duration_ms": int(getattr(info, "length", 0) * 1000) or None,
         "file_size": path.stat().st_size,
         "file_format": path.suffix.lower().lstrip("."),
@@ -316,6 +319,26 @@ def _index_one(session: Session, path: Path) -> str:
                 status = "updated"
         if status == "updated":
             session.add(track)
+
+    # Migración compatible con el antiguo álbum virtual "Singles": al volver a
+    # escanear una pista sin tag de álbum, quitamos solo esa relación heredada.
+    # No tocamos otros AlbumTrack: pueden ser playlists personalizadas a las que
+    # el usuario añadió la canción después.
+    if album is None and previous_album_id:
+        previous_album = session.get(Album, previous_album_id)
+        if (
+            previous_album
+            and previous_album.kind == "album"
+            and _norm(previous_album.title) == "singles"
+        ):
+            legacy_link = session.exec(
+                select(AlbumTrack).where(
+                    AlbumTrack.album_id == previous_album_id,
+                    AlbumTrack.track_id == track.id,
+                )
+            ).first()
+            if legacy_link:
+                session.delete(legacy_link)
 
     # AlbumTrack es la relación canónica que consume la UI y Subsonic. El
     # escáner también debe crearla para música existente/importada, no solo el

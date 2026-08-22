@@ -117,6 +117,7 @@ def _song(track: Track, artist: Artist, album: Album | None, *, starred_at=None)
         "artist": artist.name,
         "track": track.track_number,
         "year": album.year if album else None,
+        "genre": track.genre,
         "coverArt": _track_cover_id(track, album),
         "size": track.file_size,
         "contentType": CONTENT_TYPES.get(suffix, "application/octet-stream"),
@@ -255,7 +256,25 @@ def getMusicFolders(params, user, session) -> dict:
 
 
 def getGenres(params, user, session) -> dict:
-    return {"genres": {"genre": []}}
+    normalized = func.lower(func.trim(Track.genre))
+    rows = session.exec(
+        select(
+            func.min(func.trim(Track.genre)),
+            func.count(Track.id),
+            func.count(func.distinct(Track.album_id)),
+        )
+        .where(Track.genre.is_not(None), func.trim(Track.genre) != "")
+        .group_by(normalized)
+        .order_by(normalized)
+    ).all()
+    return {"genres": {"genre": [
+        {
+            "value": name,
+            "songCount": int(song_count),
+            "albumCount": int(album_count),
+        }
+        for name, song_count, album_count in rows
+    ]}}
 
 
 # ─── Browsing (ID3) ──────────────────────────────────────────────
@@ -497,7 +516,22 @@ def getStarred(params, user, session) -> dict:
 
 
 def getSongsByGenre(params, user, session) -> dict:
-    return {"songsByGenre": {"song": []}}
+    # Algunos clientes usan una petición sin género para sincronizar el catálogo
+    # entero; las pistas sueltas (album_id=None) también deben aparecer.
+    genre = (params.get("genre") or "").strip()
+    count = min(int(params.get("count", 10) or 10), 500)
+    offset = int(params.get("offset", 0) or 0)
+    stmt = (
+        select(Track, Artist, Album)
+        .join(Artist, Artist.id == Track.artist_id)
+        .outerjoin(Album, Album.id == Track.album_id)
+    )
+    if genre:
+        stmt = stmt.where(func.lower(func.trim(Track.genre)) == genre.lower())
+    rows = session.exec(
+        stmt.order_by(Track.title, Track.id).offset(offset).limit(count)
+    ).all()
+    return {"songsByGenre": {"song": [_song(t, ar, al) for t, ar, al in rows]}}
 
 
 # ─── Búsqueda ────────────────────────────────────────────────────

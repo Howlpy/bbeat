@@ -516,7 +516,7 @@ def process_job(job_id: int) -> None:
                         _ensure_album_save(s, job.user_id, t.album_id)
                     # Y enlazar al álbum destino si el user pidió uno custom
                     if job.target_album_id and job.target_album_id != t.album_id:
-                        _link_track_to_album(s, t.id, job.target_album_id, t.track_number)
+                        _link_track_to_album(s, t.id, job.target_album_id, job.track_number)
                         _ensure_album_save(s, job.user_id, job.target_album_id)
         log.info("job %s OK · %s · %s", job_id, dl_result.backend, final_path.name)
     except Exception as e:
