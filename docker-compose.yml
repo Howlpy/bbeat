@@ -12,6 +12,10 @@ services:
     build: .
     container_name: bbeat
     restart: unless-stopped
+    # Mismo uid/gid que el dueño de data/. Por defecto el contenedor
+    # corre como root y dejaría ficheros de root en la biblioteca, lo que
+    # rompería tanto el manejo manual como la vuelta al servicio systemd.
+    user: "1000:1000"
     ports:
       # Mismo bind que el servicio systemd al que sustituye, para no romper
       # ni el reverse_proxy de Caddy ni el acceso directo desde la LAN.
