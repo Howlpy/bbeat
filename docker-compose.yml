@@ -1,13 +1,20 @@
 # Bbeat — todo en uno para self-hosting fácil.
 #   docker compose up -d
 # y andando en http://localhost:8787
+#
+# La imagen se publica desde CI al mergear en main (.github/workflows/docker-publish.yml).
+# Watchtower la actualiza sola gracias a la etiqueta de abajo.
 
 services:
   bbeat:
+    image: howl0y/bbeat:latest
+    # Permite `docker compose build` en local sin depender del registry.
     build: .
     container_name: bbeat
     restart: unless-stopped
     ports:
+      # Mismo bind que el servicio systemd al que sustituye, para no romper
+      # ni el reverse_proxy de Caddy ni el acceso directo desde la LAN.
       - "${BBEAT_PORT:-8787}:8787"
     volumes:
       # Tu biblioteca persistente (ajusta la ruta de la izquierda)
@@ -17,6 +24,10 @@ services:
     environment:
       - BBEAT_HOST=0.0.0.0
       - BBEAT_PORT=8787
+    labels:
+      # Sin esta etiqueta Watchtower ignora el contenedor: corre con
+      # WATCHTOWER_LABEL_ENABLE=true.
+      - "com.centurylinklabs.watchtower.enable=true"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8787/api/health"]
       interval: 30s
