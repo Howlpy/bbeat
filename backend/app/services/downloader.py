@@ -24,6 +24,21 @@ AUDIO_EXTS = {".ogg", ".opus", ".m4a", ".mp3", ".flac", ".webm", ".aac"}
 # Si ninguna pasa el filtro estricto, caemos al "más cercano en duración".
 DURATION_TOLERANCE_MS = 15000
 
+# yt-dlp necesita un runtime JS para resolver el desafío de YouTube. Sin él
+# cae a un cliente de respaldo cuyas URLs de stream YouTube rechaza a menudo
+# con "HTTP Error 403: Forbidden" (visto en lotes de playlists: la mitad de
+# las pistas fallaba en <2s). Por defecto yt-dlp solo habilita deno; aquí
+# habilitamos también node, que suele estar instalado en el servidor.
+JS_RUNTIMES = {"deno": {}, "node": {}}
+# Reintentos ante 403 en la descarga directa: es intermitente por URL, un
+# reintento con URL fresca suele funcionar.
+DIRECT_MAX_ATTEMPTS = 3
+DIRECT_RETRY_BACKOFF_S = (2, 5)
+
+
+def _is_forbidden(err: str) -> bool:
+    return "403" in err or "Forbidden" in err
+
 
 def _ytdlp_format_and_pp() -> tuple[str, list[dict]]:
     """Selector de formato + postprocesador de yt-dlp según settings.
@@ -266,6 +281,7 @@ def download_with_ytdlp(
         "socket_timeout": 30,
         "ignoreerrors": True,
         "extractor_args": {"youtube": {"player_client": ["web", "android"]}},
+        "js_runtimes": JS_RUNTIMES,
     }
     artist_norm = _norm_text(meta.primary_artist)
     title_norm = _norm_text(meta.title)
@@ -356,6 +372,7 @@ def download_with_ytdlp(
         "concurrent_fragment_downloads": 1,
         "socket_timeout": 30,
         "extractor_args": {"youtube": {"player_client": ["web", "android"]}},
+        "js_runtimes": JS_RUNTIMES,
     }
     hook = _build_ytdlp_progress_hook(progress_cb)
     if hook:
@@ -456,6 +473,7 @@ def download_with_ytdlp_direct(
         "postprocessors": postprocessors,
         "concurrent_fragment_downloads": 1,
         "socket_timeout": 30,
+        "js_runtimes": JS_RUNTIMES,
     }
     hook = _build_ytdlp_progress_hook(progress_cb)
     if hook:
@@ -465,11 +483,32 @@ def download_with_ytdlp_direct(
     log.info("yt-dlp directo ▶ %s", target_url)
     if progress_cb:
         progress_cb(0, "preparando")
-    try:
-        with YoutubeDL(opts) as ydl:
-            ydl.download([target_url])
-    except Exception as e:
-        return DownloadResult(None, "yt-dlp", f"direct: {str(e)[:400]}")
+    last_err = ""
+    for attempt in range(1, DIRECT_MAX_ATTEMPTS + 1):
+        try:
+            with YoutubeDL(opts) as ydl:
+                ydl.download([target_url])
+            last_err = ""
+            break
+        except Exception as e:
+            last_err = str(e)[:400]
+            for p in out_dir.glob(f"direct-{safe_id}.*"):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+            if not _is_forbidden(last_err) or attempt == DIRECT_MAX_ATTEMPTS:
+                break
+            wait = DIRECT_RETRY_BACKOFF_S[min(attempt - 1, len(DIRECT_RETRY_BACKOFF_S) - 1)]
+            log.warning(
+                "yt-dlp directo 403 en %s (intento %d/%d), reintento en %ds",
+                target_url, attempt, DIRECT_MAX_ATTEMPTS, wait,
+            )
+            if progress_cb:
+                progress_cb(0, f"reintentando ({attempt + 1}/{DIRECT_MAX_ATTEMPTS})")
+            time.sleep(wait)
+    if last_err:
+        return DownloadResult(None, "yt-dlp", f"direct: {last_err}")
 
     candidates = sorted(out_dir.glob(f"direct-{safe_id}.*"))
     audio = [p for p in candidates if p.suffix.lower() in AUDIO_EXTS]
