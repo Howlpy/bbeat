@@ -1,0 +1,26 @@
+{
+  "name": "Bbeat",
+  "short_name": "Bbeat",
+  "description": "Tu servidor de música personal",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0F1626",
+  "theme_color": "#0F1626",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    {
+      "src": "/icon.svg?v=2",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg?v=2",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
