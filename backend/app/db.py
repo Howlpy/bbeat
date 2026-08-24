@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from typing import Iterator
 
 from sqlalchemy import event
+from sqlalchemy.pool import NullPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.config import settings
@@ -15,6 +16,7 @@ engine = create_engine(
     f"sqlite:///{settings.db_path}",
     echo=False,
     connect_args=_connect_args(),
+    poolclass=NullPool,
 )
 
 

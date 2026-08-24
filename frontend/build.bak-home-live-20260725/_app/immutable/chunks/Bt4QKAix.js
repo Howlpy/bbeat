@@ -1,0 +1,1 @@
+import{a as e,p as r}from"./DMqlLZ92.js";const t={get error(){return r.error},get params(){return r.params},get status(){return r.status},get url(){return r.url}};e.updated.check;const s=t;export{s as p};
