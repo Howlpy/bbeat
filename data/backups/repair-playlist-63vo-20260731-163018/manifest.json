@@ -1,0 +1,1470 @@
+{
+  "source_url": "https://open.spotify.com/playlist/63voZ4dMFY9Kta7MlCqy7C",
+  "album_id": 143,
+  "created_at": "20260731-163018",
+  "wrong_jobs": [
+    {
+      "job_id": 1010,
+      "spotify_id": "1zAJW6X8e586yglR1E75su",
+      "title": "No Se Que Pretendes",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1114,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - No Se Que Pretendes.opus"
+    },
+    {
+      "job_id": 1011,
+      "spotify_id": "5ZSHDuhxImgtzSglqEPWJ3",
+      "title": "Lo Que en Silencio Guardo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1115,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Lo Que en Silencio Guardo.opus"
+    },
+    {
+      "job_id": 1012,
+      "spotify_id": "66qlAS1bhCkpMxG9ziu0MV",
+      "title": "Damelo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1116,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Damelo.opus"
+    },
+    {
+      "job_id": 1013,
+      "spotify_id": "5yNTn1GiBsma3kKJv1bhJs",
+      "title": "Hablan de Unión, Pt. 2",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1117,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Hablan de Unión, Pt. 2.opus"
+    },
+    {
+      "job_id": 1014,
+      "spotify_id": "6rvx18jW5dPIVyegGMYTMg",
+      "title": "Explosión de Jueves",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1118,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Explosión de Jueves.opus"
+    },
+    {
+      "job_id": 1015,
+      "spotify_id": "4lGGAwmBNc95M9tgGbTy5y",
+      "title": "Mas Allá de Mi",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1119,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Mas Allá de Mi.opus"
+    },
+    {
+      "job_id": 1016,
+      "spotify_id": "6PhdDt1KcayzWm2Uo5mVJw",
+      "title": "Existían Sonrisas",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1120,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Existían Sonrisas.opus"
+    },
+    {
+      "job_id": 1017,
+      "spotify_id": "6cMcTV8TKU5ytdbGMEpR5a",
+      "title": "Realidades",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1121,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Realidades.opus"
+    },
+    {
+      "job_id": 1018,
+      "spotify_id": "0CgJmrQ513CAwzl6Qstqnp",
+      "title": "Restas",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1122,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Restas.opus"
+    },
+    {
+      "job_id": 1019,
+      "spotify_id": "1OL6e1OX6ospjYJNPLO7vS",
+      "title": "Cuéntame",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1123,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Cuéntame.opus"
+    },
+    {
+      "job_id": 1020,
+      "spotify_id": "42C5iP8nW16l1VXKshfDkC",
+      "title": "Que Tiemble el Mundo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1021,
+      "spotify_id": "5nrlE4hwAd0Jjy4gPiL8qw",
+      "title": "De Que Van Esos Locos",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1124,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - De Que Van Esos Locos.opus"
+    },
+    {
+      "job_id": 1022,
+      "spotify_id": "2gW8QIr2nQK0kjrDXpg8TX",
+      "title": "Veintidós",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1023,
+      "spotify_id": "3UUVq8Yt2TJyRaomJ0pryO",
+      "title": "De Una, Pt. 2: Ya No Puedo Más",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1125,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - De Una, Pt. 2_ Ya No Puedo Más.opus"
+    },
+    {
+      "job_id": 1024,
+      "spotify_id": "6wZbAuwofes8GRbEjf6bMV",
+      "title": "De Una, Pt. 3: Tan Solo Me Expreso",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1126,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - De Una, Pt. 3_ Tan Solo Me Expreso.opus"
+    },
+    {
+      "job_id": 1025,
+      "spotify_id": "1fPpxJt38wYFIFRR34hMES",
+      "title": "Otra Historia",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1127,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Otra Historia.opus"
+    },
+    {
+      "job_id": 1026,
+      "spotify_id": "4eGujhboDUR5OlPDjW1doD",
+      "title": "Interés",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1128,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Interés.opus"
+    },
+    {
+      "job_id": 1027,
+      "spotify_id": "3pWXJz0T0lF32PmU9bYV60",
+      "title": "Nada Más Que el Rap",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1129,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Nada Más Que el Rap.opus"
+    },
+    {
+      "job_id": 1028,
+      "spotify_id": "2GYMoCoeu4ereNA8HF57Ct",
+      "title": "Fuera Llueve",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1130,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Fuera Llueve.opus"
+    },
+    {
+      "job_id": 1029,
+      "spotify_id": "3WLf5SiAuyiUefyYttutNO",
+      "title": "No Saben a Quien Tienen",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1131,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - No Saben a Quien Tienen.opus"
+    },
+    {
+      "job_id": 1030,
+      "spotify_id": "5Y9CaAaZZkLh8ocQyoeUxj",
+      "title": "Venga Lo Que Venga",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1132,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Venga Lo Que Venga.opus"
+    },
+    {
+      "job_id": 1031,
+      "spotify_id": "0q156LgpKx3UmWBGCFKwDb",
+      "title": "Rap",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1133,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Rap.opus"
+    },
+    {
+      "job_id": 1032,
+      "spotify_id": "7sTrfQymp4kYQ0U2uAfTG0",
+      "title": "Esos Ojos",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1134,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Esos Ojos.opus"
+    },
+    {
+      "job_id": 1033,
+      "spotify_id": "76jAtM4Pwlv6K5zfX96jsV",
+      "title": "Nunca Digas No",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1135,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Nunca Digas No.opus"
+    },
+    {
+      "job_id": 1034,
+      "spotify_id": "2IRQHd1fesc3rAZo5M0xaj",
+      "title": "Constancia, Esfuerzo y Dedicación",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1136,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Constancia, Esfuerzo y Dedicación.opus"
+    },
+    {
+      "job_id": 1035,
+      "spotify_id": "45dTwKUO5G8Bk0da58N9wG",
+      "title": "Bye 2015/16",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1137,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Bye 2015_16.opus"
+    },
+    {
+      "job_id": 1036,
+      "spotify_id": "2NcnedOXx2gq5AmeFTZYvZ",
+      "title": "No Quiero",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1138,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - No Quiero.opus"
+    },
+    {
+      "job_id": 1037,
+      "spotify_id": "33Q9yn7rwWQ6OZ6NFhYoug",
+      "title": "No Encajes",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1139,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - No Encajes.opus"
+    },
+    {
+      "job_id": 1038,
+      "spotify_id": "67RKwcZ4WpzDCjIfFgnv6o",
+      "title": "Esto Si Encaja",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1140,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Esto Si Encaja.opus"
+    },
+    {
+      "job_id": 1039,
+      "spotify_id": "4WlPaLKG2lavOXmjtTqHpS",
+      "title": "Obsceno",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1141,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Obsceno.opus"
+    },
+    {
+      "job_id": 1040,
+      "spotify_id": "4i23BHzNZSqxACmOz3wykR",
+      "title": "Me Voy Haciendo un Hombre",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1142,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Me Voy Haciendo un Hombre.opus"
+    },
+    {
+      "job_id": 1041,
+      "spotify_id": "1T8Z0f2FWLGpUrU0xio557",
+      "title": "Mientras Esté Yo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1143,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Mientras Esté Yo.opus"
+    },
+    {
+      "job_id": 1042,
+      "spotify_id": "0ykYsZo3utvnkg3b1V4J32",
+      "title": "Yo Pude",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1144,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Yo Pude.opus"
+    },
+    {
+      "job_id": 1043,
+      "spotify_id": "4Gowkz3QRpiTfRtBXORo4q",
+      "title": "Tensión",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1145,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Tensión.opus"
+    },
+    {
+      "job_id": 1044,
+      "spotify_id": "0aziOPqdKtE53NGXLBLkSp",
+      "title": "Amar o Amarme",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1146,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Amar o Amarme.opus"
+    },
+    {
+      "job_id": 1045,
+      "spotify_id": "5ajyHJZfbdvuqB087uA9c8",
+      "title": "Miedo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1147,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Miedo.opus"
+    },
+    {
+      "job_id": 1046,
+      "spotify_id": "3asJKfuS3hWQgPgLBarP7q",
+      "title": "Por Todos",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1148,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Por Todos.opus"
+    },
+    {
+      "job_id": 1047,
+      "spotify_id": "2XK8e0ReghU8hWy4WmfmMV",
+      "title": "Nosotros No",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze y Beto",
+      "old_track_id": 1149,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Nosotros No.opus"
+    },
+    {
+      "job_id": 1048,
+      "spotify_id": "4QXiKcZwVr6MmgBXjsdGdU",
+      "title": "Agua Pasá",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1150,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Agua Pasá.opus"
+    },
+    {
+      "job_id": 1049,
+      "spotify_id": "0PHtFrmcK2kcUVkjb4auvj",
+      "title": "Lucifer",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1151,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Lucifer.opus"
+    },
+    {
+      "job_id": 1050,
+      "spotify_id": "0TVQ4e2Z0Cmd7Fiixj4Ofd",
+      "title": "Orgullo Banderillero",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1152,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Orgullo Banderillero.opus"
+    },
+    {
+      "job_id": 1051,
+      "spotify_id": "4J0ZMeYN7OkblxlarosaLT",
+      "title": "Años Muertos",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1153,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Años Muertos.opus"
+    },
+    {
+      "job_id": 1052,
+      "spotify_id": "4WCErKejoosqLdbI2iFJr7",
+      "title": "Me Queo en Mi Casa",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1154,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Me Queo en Mi Casa.opus"
+    },
+    {
+      "job_id": 1053,
+      "spotify_id": "4aWrVBft7jEHE10aADrg4p",
+      "title": "Sin Miedo a Vivir",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1155,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Sin Miedo a Vivir.opus"
+    },
+    {
+      "job_id": 1054,
+      "spotify_id": "3qOtg4R7m5YPY35NfopC2Z",
+      "title": "Despacito Pero Voy",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1156,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Despacito Pero Voy.opus"
+    },
+    {
+      "job_id": 1055,
+      "spotify_id": "4Z1p2M8ycX5CGzovCXr1QL",
+      "title": "Todo Lo Que Importa",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1157,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Todo Lo Que Importa.opus"
+    },
+    {
+      "job_id": 1056,
+      "spotify_id": "6VnTJEOE3PlAG8plyOmldd",
+      "title": "Blondapetit",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1158,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Blondapetit.opus"
+    },
+    {
+      "job_id": 1057,
+      "spotify_id": "0TztrYR9AcVoimfn5IVEkL",
+      "title": "Ole",
+      "old_artist": "Hard GZ",
+      "new_artist": "Foyone",
+      "old_track_id": 1159,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Ole.opus"
+    },
+    {
+      "job_id": 1058,
+      "spotify_id": "2lnXyKWNAdmegHJamDmEpX",
+      "title": "#RapSinCorte VII",
+      "old_artist": "Hard GZ",
+      "new_artist": "Foyone",
+      "old_track_id": 1160,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - #RapSinCorte VII.opus"
+    },
+    {
+      "job_id": 1059,
+      "spotify_id": "6PRcXav4Z3VNOahZikFYp0",
+      "title": "Guerrero psicodélico",
+      "old_artist": "Hard GZ",
+      "new_artist": "Foyone",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1060,
+      "spotify_id": "3QQUdZe3EdX9MtDFGHp12R",
+      "title": "Ciudad del vicio - Remix",
+      "old_artist": "Hard GZ",
+      "new_artist": "Foyone",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1061,
+      "spotify_id": "2LmQKmOLNORvovnK7fLrNb",
+      "title": "#RapSinCorte XL",
+      "old_artist": "Hard GZ",
+      "new_artist": "Foyone",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1062,
+      "spotify_id": "7vSBCKgqT3SBlhbxmYSgtb",
+      "title": "#RapSinCorte XXXIX",
+      "old_artist": "Hard GZ",
+      "new_artist": "Foyone",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1063,
+      "spotify_id": "13fKxlakRPZCNf1iH6qQY7",
+      "title": "#RapSinCorte XXXVIII",
+      "old_artist": "Hard GZ",
+      "new_artist": "Foyone",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1064,
+      "spotify_id": "0mSepP6B1VEpXxIaNLVpQ0",
+      "title": "Manía persecutoria",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1161,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Manía persecutoria.opus"
+    },
+    {
+      "job_id": 1065,
+      "spotify_id": "2TqVzNeqxn6mJ8njTSE1bx",
+      "title": "Orgullo y prejuicio",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1066,
+      "spotify_id": "1XnG8fGed91t2U061Xb5gZ",
+      "title": "La flauta de Hamelin",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1067,
+      "spotify_id": "5zhcg7A7bDuI6ecRQnUykb",
+      "title": "Puedo solo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1162,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Puedo solo.opus"
+    },
+    {
+      "job_id": 1068,
+      "spotify_id": "1DoKKvkvqYo1lQV4mk2bTO",
+      "title": "Tierra de bandios",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1163,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Tierra de bandios.opus"
+    },
+    {
+      "job_id": 1069,
+      "spotify_id": "6Le2vR39JUDggDgOxiiHX5",
+      "title": "Mi barrio huele a Widow",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1164,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Mi barrio huele a Widow.opus"
+    },
+    {
+      "job_id": 1070,
+      "spotify_id": "5q11wiaSkRHR1RMFnOwcXS",
+      "title": "High Street",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1165,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - High Street.opus"
+    },
+    {
+      "job_id": 1071,
+      "spotify_id": "3nsMqerAqrh2M50UVy2KcS",
+      "title": "Conejo blanco",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1166,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Conejo blanco.opus"
+    },
+    {
+      "job_id": 1072,
+      "spotify_id": "6DBuuUEo3qb3uVhVoGn3iN",
+      "title": "Echo de menos",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1167,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Echo de menos.opus"
+    },
+    {
+      "job_id": 1073,
+      "spotify_id": "4OSMvPP7qPNcEPBSFBFZMo",
+      "title": "Esto es rojo y negro",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1074,
+      "spotify_id": "3bWNeRVI46RjQ2L5MqF9u1",
+      "title": "No es mona ni na",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1168,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - No es mona ni na.opus"
+    },
+    {
+      "job_id": 1075,
+      "spotify_id": "7Eq0rF7bHKYkMQ31RrzPCv",
+      "title": "Chicago",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1076,
+      "spotify_id": "15mf4wJsBAKODHeMw95eEO",
+      "title": "La tormenta",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1169,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - La tormenta.opus"
+    },
+    {
+      "job_id": 1077,
+      "spotify_id": "0PUm16kvOMxunIrnPlpUbB",
+      "title": "Bañador y chancletas",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1078,
+      "spotify_id": "1Xet933o3e612B2HPY63pV",
+      "title": "A veces se me pasa, a veces paso",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1170,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - A veces se me pasa, a veces paso.opus"
+    },
+    {
+      "job_id": 1079,
+      "spotify_id": "50YIRmZCuX55uBT7FwlkEl",
+      "title": "El circo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1080,
+      "spotify_id": "48sq0JdNEbXhQTdAorTzC9",
+      "title": "Fresas con nata",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1171,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Fresas con nata.opus"
+    },
+    {
+      "job_id": 1081,
+      "spotify_id": "7uGFZKYUSEXa9JydFyfDgZ",
+      "title": "Mira tú qué ritmo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1172,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Mira tú qué ritmo.opus"
+    },
+    {
+      "job_id": 1082,
+      "spotify_id": "0FesY8rHTbYnnrB3wYq0iw",
+      "title": "Sakalakalashnikov",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1173,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Sakalakalashnikov.opus"
+    },
+    {
+      "job_id": 1083,
+      "spotify_id": "6WEAejpPaOpx2OyG5HYlD8",
+      "title": "Polizzia",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1084,
+      "spotify_id": "6TYH5NuuXIZyfefyZSMHt5",
+      "title": "Wanted",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1085,
+      "spotify_id": "2agQg164RSMzr0gimFidoB",
+      "title": "Carnaza",
+      "old_artist": "Hard GZ",
+      "new_artist": "Anier",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1086,
+      "spotify_id": "1RgOBpIWQXowi355fsUSWu",
+      "title": "Caballos Dopaos",
+      "old_artist": "Hard GZ",
+      "new_artist": "Anier",
+      "old_track_id": 1174,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Caballos Dopaos.opus"
+    },
+    {
+      "job_id": 1087,
+      "spotify_id": "3dIxQaqs099K1uAtaHRmdS",
+      "title": "Lengua de Serpiente",
+      "old_artist": "Hard GZ",
+      "new_artist": "Blake",
+      "old_track_id": 1175,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Lengua de Serpiente.opus"
+    },
+    {
+      "job_id": 1088,
+      "spotify_id": "4jdGoCcH9MiBnZZCtS8MRv",
+      "title": "En el Clavo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Blake",
+      "old_track_id": 1176,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - En el Clavo.opus"
+    },
+    {
+      "job_id": 1089,
+      "spotify_id": "5kFXqn1eMD9Fsc3PN2MEIr",
+      "title": "En Bucle",
+      "old_artist": "Hard GZ",
+      "new_artist": "Blake",
+      "old_track_id": 1177,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - En Bucle.opus"
+    },
+    {
+      "job_id": 1090,
+      "spotify_id": "2feXzx4gkYyVMluKR4q7Xp",
+      "title": "Rema",
+      "old_artist": "Hard GZ",
+      "new_artist": "Blake",
+      "old_track_id": 1178,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Rema.opus"
+    },
+    {
+      "job_id": 1091,
+      "spotify_id": "4mfHymtD2t6fBGAxQGMa5N",
+      "title": "Game Over",
+      "old_artist": "Hard GZ",
+      "new_artist": "Blake",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1092,
+      "spotify_id": "7BMdZsDXxPH6Db3Ug6A2q2",
+      "title": "Pa que lo gocen",
+      "old_artist": "Hard GZ",
+      "new_artist": "FERNANDOCOSTA",
+      "old_track_id": 1179,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Pa que lo gocen.opus"
+    },
+    {
+      "job_id": 1093,
+      "spotify_id": "4YePGWYi0BlfbMMjcN1dr7",
+      "title": "Malamanera",
+      "old_artist": "Hard GZ",
+      "new_artist": "FERNANDOCOSTA",
+      "old_track_id": 1180,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Malamanera.opus"
+    },
+    {
+      "job_id": 1094,
+      "spotify_id": "6tnl0gz73FCRz2kzWwdUUq",
+      "title": "Narcolepsia",
+      "old_artist": "Hard GZ",
+      "new_artist": "FERNANDOCOSTA",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1095,
+      "spotify_id": "3vaCe6uWWFd3PKwVC6zepK",
+      "title": "Ready to Fight",
+      "old_artist": "Hard GZ",
+      "new_artist": "FERNANDOCOSTA",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1096,
+      "spotify_id": "7xOXRdYFrQdfUyJXU9uDTV",
+      "title": "Por la calle abajo",
+      "old_artist": "Hard GZ",
+      "new_artist": "FERNANDOCOSTA",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1097,
+      "spotify_id": "5vcXnjZDRxiQphsyatvSOz",
+      "title": "Barco a la deriva",
+      "old_artist": "Hard GZ",
+      "new_artist": "FERNANDOCOSTA",
+      "old_track_id": 1181,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Barco a la deriva.opus"
+    },
+    {
+      "job_id": 1098,
+      "spotify_id": "03EKwyFCVEnEYPvF8tOUwY",
+      "title": "Lento",
+      "old_artist": "Hard GZ",
+      "new_artist": "FERNANDOCOSTA",
+      "old_track_id": 1182,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Lento.opus"
+    },
+    {
+      "job_id": 1099,
+      "spotify_id": "13XhHYkJE7VBVkFmk00fab",
+      "title": "Vengo de Galicia",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ricky Hombre Libre",
+      "old_track_id": 1183,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Vengo de Galicia.opus"
+    },
+    {
+      "job_id": 1100,
+      "spotify_id": "35bVer2kaCXtiZxiBPTCCD",
+      "title": "Freedom",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ricky Hombre Libre",
+      "old_track_id": 1184,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Freedom.opus"
+    },
+    {
+      "job_id": 1101,
+      "spotify_id": "7dQXyHua8aekTuDlSa1d4J",
+      "title": "Viva la Vida",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ricky Hombre Libre",
+      "old_track_id": 1185,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Viva la Vida.opus"
+    },
+    {
+      "job_id": 1102,
+      "spotify_id": "3RvGnDHHGYSE44vLHUMXIj",
+      "title": "Psicosis",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ricky Hombre Libre",
+      "old_track_id": 1186,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Psicosis.opus"
+    },
+    {
+      "job_id": 1103,
+      "spotify_id": "4PI0CEPRwlNdv7xRCgfcKM",
+      "title": "Black Mirror",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ricky Hombre Libre",
+      "old_track_id": 1187,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Black Mirror.opus"
+    },
+    {
+      "job_id": 1104,
+      "spotify_id": "581hiOk5PFUCphDYcC0lWM",
+      "title": "Bajé de la Montaña",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ricky Hombre Libre",
+      "old_track_id": 1188,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Bajé de la Montaña.opus"
+    },
+    {
+      "job_id": 1105,
+      "spotify_id": "0mVMJroFa2ZGhYzMMXjihs",
+      "title": "Pura Vida",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ricky Hombre Libre",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1106,
+      "spotify_id": "13ytzR7WISSQjLUQGuv1AS",
+      "title": "Por la Noche",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ricky Hombre Libre",
+      "old_track_id": 1189,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Por la Noche.opus"
+    },
+    {
+      "job_id": 1107,
+      "spotify_id": "4TFu9F6KMIOaijqSf4LLMj",
+      "title": "Presente",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ricky Hombre Libre",
+      "old_track_id": 1190,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Presente.opus"
+    },
+    {
+      "job_id": 1108,
+      "spotify_id": "5AIwfXYjGkWCs4KeeTk2Rq",
+      "title": "Cantando",
+      "old_artist": "Hard GZ",
+      "new_artist": "Violadores Del Verso",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1109,
+      "spotify_id": "7zUhVz7yMmO1mmbfFI8R5i",
+      "title": "Pura Droga Sin Cortar",
+      "old_artist": "Hard GZ",
+      "new_artist": "Violadores Del Verso",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1110,
+      "spotify_id": "6RWB3HBIIggX3eo5BrDZeC",
+      "title": "Vivir para Contarlo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Violadores Del Verso",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1111,
+      "spotify_id": "5fIJBM9OxVNiu4fQLX9vqo",
+      "title": "Ninguna Chavala Tiene Dueño - Porque Ella Me Lo Dijo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Violadores Del Verso",
+      "old_track_id": 1191,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Ninguna Chavala Tiene Dueño - Porque Ella Me Lo Dijo.opus"
+    },
+    {
+      "job_id": 1112,
+      "spotify_id": "0avEVorPMJyPPolMbeonBB",
+      "title": "A las Cosas por Su Nombre",
+      "old_artist": "Hard GZ",
+      "new_artist": "Violadores Del Verso",
+      "old_track_id": 1192,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - A las Cosas por Su Nombre.opus"
+    },
+    {
+      "job_id": 1113,
+      "spotify_id": "4HVYBeELSvhfGmWwFoZr4p",
+      "title": "Pavos Reales (con Hermano L, Shabu One Shant y Mcklopedia)",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1193,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Pavos Reales (con Hermano L, Shabu One Shant y Mcklopedia).opus"
+    },
+    {
+      "job_id": 1114,
+      "spotify_id": "6kPwvezY3O4b0KZEUukgyc",
+      "title": "Mitad y Mitad (con Najwa)",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1194,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Mitad y Mitad (con Najwa).opus"
+    },
+    {
+      "job_id": 1115,
+      "spotify_id": "6EGu61VFotaLbhE0686viC",
+      "title": "Intro (El Círculo)",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1116,
+      "spotify_id": "7HxoouAxxJghKQ34fbVtQP",
+      "title": "Esto No Para",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1195,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Esto No Para.opus"
+    },
+    {
+      "job_id": 1117,
+      "spotify_id": "3OC3AO2zGgcyM7pAFO47YZ",
+      "title": "Yemen",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1196,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Yemen.opus"
+    },
+    {
+      "job_id": 1118,
+      "spotify_id": "08UUpcePtj2DEgjPAQHxQT",
+      "title": "Triste",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1119,
+      "spotify_id": "4jKOUTB2lIoPLubbFWz9lX",
+      "title": "Guapo Tarde",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1120,
+      "spotify_id": "5o2gwaRb8YwAbcsn1VNc66",
+      "title": "Viejos Ciegos (con Xhelazz y Sho-hai)",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1121,
+      "spotify_id": "2LueIUyKUxxEQ1tMh2fXUp",
+      "title": "Interludio Quieren Copiar",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1122,
+      "spotify_id": "4QNZEiq8TTpXwJw7iRDVe6",
+      "title": "Mazas y Catapultas",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1197,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Mazas y Catapultas.opus"
+    },
+    {
+      "job_id": 1123,
+      "spotify_id": "7uS39VvoUbsXQsgtUa39sR",
+      "title": "Amor Sin Cláusulas",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1198,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Amor Sin Cláusulas.opus"
+    },
+    {
+      "job_id": 1124,
+      "spotify_id": "5XvZMnB5YuYvUYnEpYfT3H",
+      "title": "No Se Qué Voy a Hacer (Booty Song)",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1199,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - No Se Qué Voy a Hacer (Booty Song).opus"
+    },
+    {
+      "job_id": 1125,
+      "spotify_id": "7KB3D7Z6i5VntozohnVFjL",
+      "title": "Interludio Risoterapia",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1126,
+      "spotify_id": "1FarmJ2pxJyMDI0h9Xd13E",
+      "title": "Rap Superdotado (con Violadores del Verso)",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1200,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Rap Superdotado (con Violadores del Verso).opus"
+    },
+    {
+      "job_id": 1127,
+      "spotify_id": "3Q6NWjl1kDSwFmp8jh3fXP",
+      "title": "Repartiendo Arte",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1201,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Repartiendo Arte.opus"
+    },
+    {
+      "job_id": 1128,
+      "spotify_id": "3o4whF6e25WeOnLBdsLFsX",
+      "title": "Basureta (Tiempos Raros)",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1129,
+      "spotify_id": "2m3jdGiywKe1iboYYXhazf",
+      "title": "Outro",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": 1202,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Outro.opus"
+    },
+    {
+      "job_id": 1130,
+      "spotify_id": "2HZRExVQIbIzqm7iEJ1spR",
+      "title": "Viejos Ciegos - Remix",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kase.O",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1131,
+      "spotify_id": "0prUbzY7PrJujuukMXCWbB",
+      "title": "Modo Turbio",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1203,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Modo Turbio.opus"
+    },
+    {
+      "job_id": 1132,
+      "spotify_id": "3L6RhaS4ISh8GSagrFMFZn",
+      "title": "Reproches",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1204,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Reproches.opus"
+    },
+    {
+      "job_id": 1133,
+      "spotify_id": "2GYmLDGiihlndEgCItmJCJ",
+      "title": "Chacho",
+      "old_artist": "Hard GZ",
+      "new_artist": "Dollar Selmouni",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1134,
+      "spotify_id": "74OHxW9pnL556uodW2m6SQ",
+      "title": "La Placita",
+      "old_artist": "Hard GZ",
+      "new_artist": "Delaossa",
+      "old_track_id": 1205,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - La Placita.opus"
+    },
+    {
+      "job_id": 1135,
+      "spotify_id": "6iNJ8Zdt3Kb2E7JuvTj6B5",
+      "title": "Carretera",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1206,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Carretera.opus"
+    },
+    {
+      "job_id": 1136,
+      "spotify_id": "11RT3NY9uptQb1KrNRHjHh",
+      "title": "Pal Pulmón",
+      "old_artist": "Hard GZ",
+      "new_artist": "Nikone",
+      "old_track_id": 1207,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Pal Pulmón.opus"
+    },
+    {
+      "job_id": 1137,
+      "spotify_id": "43MeLec3l43ynLlhH1slew",
+      "title": "De Graná a Maracay",
+      "old_artist": "Hard GZ",
+      "new_artist": "Ayax y Prok",
+      "old_track_id": 1208,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - De Graná a Maracay.opus"
+    },
+    {
+      "job_id": 1138,
+      "spotify_id": "0oXayY4FITj74glMpCIXfY",
+      "title": "Grande",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1209,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Grande.opus"
+    },
+    {
+      "job_id": 1140,
+      "spotify_id": "37KLoLkhcJMe7Odsstah0V",
+      "title": "Welcome",
+      "old_artist": "Hard GZ",
+      "new_artist": "Nikone",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1141,
+      "spotify_id": "1zI6dMIYSjmU76bsWNdxib",
+      "title": "Curtem",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kaze",
+      "old_track_id": 1211,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Curtem.opus"
+    },
+    {
+      "job_id": 1142,
+      "spotify_id": "4OxNBWxf5Xz5oSVPqvkSh4",
+      "title": "Delirium",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1212,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Delirium.opus"
+    },
+    {
+      "job_id": 1143,
+      "spotify_id": "4eKyWOSMun3lO7qmftopQO",
+      "title": "Lutte",
+      "old_artist": "Hard GZ",
+      "new_artist": "AYAX",
+      "old_track_id": 1213,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Lutte.opus"
+    },
+    {
+      "job_id": 1144,
+      "spotify_id": "5Bg6V8HkR76ss0HHkIeLhM",
+      "title": "Streetshark",
+      "old_artist": "Hard GZ",
+      "new_artist": "Nadal015",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1145,
+      "spotify_id": "1EWTDtSiBIbmbeB40bjL5W",
+      "title": "Hustlers",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1214,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Hustlers.opus"
+    },
+    {
+      "job_id": 1146,
+      "spotify_id": "7f5YOVATYGTRl86pVOjqOB",
+      "title": "Volver",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1215,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Volver.opus"
+    },
+    {
+      "job_id": 1147,
+      "spotify_id": "0Qb4S8BHqevwscp4rfvQZq",
+      "title": "El Idioma De Los Dioses",
+      "old_artist": "Hard GZ",
+      "new_artist": "Nach",
+      "old_track_id": 1216,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - El Idioma De Los Dioses.opus"
+    },
+    {
+      "job_id": 1148,
+      "spotify_id": "7Dd5p5mFpkZlEllO4Y7pCI",
+      "title": "Voy a Celebrarlo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Lágrimas De Sangre",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1149,
+      "spotify_id": "4XYa0qr0kYImMruRaaW3LY",
+      "title": "Tanto por Ti",
+      "old_artist": "Hard GZ",
+      "new_artist": "Fyahbwoy",
+      "old_track_id": 1217,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Tanto por Ti.opus"
+    },
+    {
+      "job_id": 1150,
+      "spotify_id": "732l7rumUnCPHnTCWR3zL1",
+      "title": "Esta To Feo",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": 1218,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Esta To Feo.opus"
+    },
+    {
+      "job_id": 1151,
+      "spotify_id": "44yNVNPkm5j3ReZYatraQu",
+      "title": "El liricista en el tejado",
+      "old_artist": "Hard GZ",
+      "new_artist": "SFDK",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1152,
+      "spotify_id": "55PYMtGwn8tqMFfmvZEL2E",
+      "title": "Hablando de Weed",
+      "old_artist": "Hard GZ",
+      "new_artist": "Fyahbwoy",
+      "old_track_id": 1219,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Hablando de Weed.opus"
+    },
+    {
+      "job_id": 1153,
+      "spotify_id": "3lt3kgyx8FOGiGX2DPVBmX",
+      "title": "General Fyah",
+      "old_artist": "Hard GZ",
+      "new_artist": "Fyahbwoy",
+      "old_track_id": 1220,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - General Fyah.opus"
+    },
+    {
+      "job_id": 1154,
+      "spotify_id": "7kblz8UyV1V62Zp3pko7eP",
+      "title": "Hijos de la Noche",
+      "old_artist": "Hard GZ",
+      "new_artist": "Fyahbwoy",
+      "old_track_id": 1221,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Hijos de la Noche.opus"
+    },
+    {
+      "job_id": 1155,
+      "spotify_id": "4opU7chKB8wzoBF9VgeUqs",
+      "title": "Modo Vacilón",
+      "old_artist": "Hard GZ",
+      "new_artist": "Kream",
+      "old_track_id": 1222,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Modo Vacilón.opus"
+    },
+    {
+      "job_id": 1156,
+      "spotify_id": "3a9RMza69nzLcWOabgnq1H",
+      "title": "Me Dicen Fyahbwoy",
+      "old_artist": "Hard GZ",
+      "new_artist": "Fyahbwoy",
+      "old_track_id": 1223,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Me Dicen Fyahbwoy.opus"
+    },
+    {
+      "job_id": 1157,
+      "spotify_id": "7n9wQhcKrTY6tjLubweeFk",
+      "title": "Problemas",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1158,
+      "spotify_id": "4NMc2KBuKzMBCCAd8Nup0w",
+      "title": "Contrabando",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1159,
+      "spotify_id": "5qIBuXKwgZhRq3sYrI3e8F",
+      "title": "Malas Noticias",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1224,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Malas Noticias.opus"
+    },
+    {
+      "job_id": 1160,
+      "spotify_id": "7jSlx4rCrgejSUrpMzxRtC",
+      "title": "Lip Gloss",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1225,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Lip Gloss.opus"
+    },
+    {
+      "job_id": 1161,
+      "spotify_id": "6EGrWlL3IY7HnabhBaZcRR",
+      "title": "Camarón",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": null,
+      "old_file_path": null
+    },
+    {
+      "job_id": 1162,
+      "spotify_id": "1FMpRkWP9rKKLudEIbiLgz",
+      "title": "Martes 13",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1226,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Martes 13.opus"
+    },
+    {
+      "job_id": 1163,
+      "spotify_id": "0cv4aSlZcTOoJ86zrM0iGv",
+      "title": "Lágrimas Negras",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1227,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Lágrimas Negras.opus"
+    },
+    {
+      "job_id": 1164,
+      "spotify_id": "6JBAaUVq9KQaZB1xElTLXh",
+      "title": "RocknRollas",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1228,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - RocknRollas.opus"
+    },
+    {
+      "job_id": 1165,
+      "spotify_id": "23puOXeFHkKRATkMDwOVf5",
+      "title": "Dreams",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1229,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Dreams.opus"
+    },
+    {
+      "job_id": 1166,
+      "spotify_id": "0WH5ePGTyegKPYb1rhRKXr",
+      "title": "Wild West",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1230,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Wild West.opus"
+    },
+    {
+      "job_id": 1167,
+      "spotify_id": "2Hu521YQNROLGSi1anmYD7",
+      "title": "Promiscuidad",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1231,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Promiscuidad.opus"
+    },
+    {
+      "job_id": 1168,
+      "spotify_id": "2fbsphYROgFAz7B2AIiIp0",
+      "title": "A Corazón Abierto",
+      "old_artist": "Hard GZ",
+      "new_artist": "Natos y Waor",
+      "old_track_id": 1232,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - A Corazón Abierto.opus"
+    },
+    {
+      "job_id": 1169,
+      "spotify_id": "59mkIQR5u7iXRRBMkfA7AI",
+      "title": "Arte y Paciencia",
+      "old_artist": "Hard GZ",
+      "new_artist": "Chusterfield",
+      "old_track_id": 1233,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Arte y Paciencia.opus"
+    },
+    {
+      "job_id": 1170,
+      "spotify_id": "1JaWm7WWw5hUaIWXB0Lubk",
+      "title": "Contigo",
+      "old_artist": "Hard GZ",
+      "new_artist": "Chusterfield",
+      "old_track_id": 1234,
+      "old_file_path": "Hard GZ/Hip hop (h's)/01 - Contigo.opus"
+    }
+  ],
+  "play_events": [
+    {
+      "spotify_id": "1zAJW6X8e586yglR1E75su",
+      "user_id": 2,
+      "played_at": "2026-07-30 19:24:38.643503"
+    },
+    {
+      "spotify_id": "33Q9yn7rwWQ6OZ6NFhYoug",
+      "user_id": 2,
+      "played_at": "2026-07-30 19:24:33.970734"
+    },
+    {
+      "spotify_id": "4QXiKcZwVr6MmgBXjsdGdU",
+      "user_id": 7,
+      "played_at": "2026-07-30 18:44:06.662305"
+    },
+    {
+      "spotify_id": "0prUbzY7PrJujuukMXCWbB",
+      "user_id": 2,
+      "played_at": "2026-07-30 19:24:21.817201"
+    }
+  ],
+  "like_events": []
+}
