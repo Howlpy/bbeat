@@ -82,7 +82,11 @@ def _norm_text(s: str) -> str:
 
     s = unicodedata.normalize("NFKD", (s or "").lower())
     s = "".join(c for c in s if not unicodedata.combining(c))
-    return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", s)).strip()
+    # Conservar cualquier alfabeto, no solo a-z: con [^a-z0-9 ] un titulo en
+    # cirilico ("Дико красивая") quedaba vacio y el solape con el candidato
+    # daba 0, de modo que la comparacion de titulos no podia decidir nada.
+    s = "".join(c if (c.isalnum() or c.isspace()) else " " for c in s)
+    return _re.sub(r"\s+", " ", s).strip()
 
 
 def _artist_in_text(artist_norm: str, text_norm: str) -> bool:
@@ -99,6 +103,58 @@ def _artist_in_text(artist_norm: str, text_norm: str) -> bool:
     compact_artist = artist_norm.replace(" ", "")
     compact_text = text_norm.replace(" ", "")
     return len(compact_artist) >= 4 and compact_artist in compact_text
+
+
+# Palabras que aparecen en casi cualquier titulo musical y no identifican la
+# cancion. Contarlas como coincidencia inflaba el solape: "Ma Vie (feat. Yay)"
+# y "I'm Ballin (feat. Yay)" compartian 'feat' y 'yay', llegaban al 50% exigido
+# y una se descargaba encima de la otra.
+TITLE_NOISE_WORDS = frozenset({
+    "official", "oficial", "video", "videoclip", "audio", "music", "musica",
+    "lyric", "lyrics", "letra", "visualizer", "hd", "4k", "prod", "by",
+    "feat", "ft", "featuring", "with", "con",
+    "the", "a", "de", "la", "el", "y", "x", "vs",
+})
+# Separadores tras los cuales empieza la lista de invitados EN EL TITULO PEDIDO,
+# que Spotify escribe como "Cancion (feat. X)". Solo se recorta ahi: YouTube usa
+# el orden contrario ("Artista ft. X - Cancion"), asi que aplicar el mismo corte
+# al candidato borraria justo el titulo que hay que comparar.
+FEAT_SEPARATORS = (" feat ", " ft ", " featuring ", " with ")
+
+
+def _title_core(title_norm: str) -> str:
+    """Titulo pedido sin la coletilla de featurings."""
+    for sep in FEAT_SEPARATORS:
+        idx = title_norm.find(sep)
+        if idx > 0:
+            return title_norm[:idx].strip()
+    return title_norm
+
+
+def _title_tokens(title_norm: str) -> set[str]:
+    """Palabras significativas del titulo PEDIDO."""
+    return {w for w in _title_core(title_norm).split() if w not in TITLE_NOISE_WORDS}
+
+
+def _cand_tokens(cand_title_norm: str) -> set[str]:
+    """Palabras significativas del titulo del CANDIDATO (sin recortar)."""
+    return {w for w in cand_title_norm.split() if w not in TITLE_NOISE_WORDS}
+
+
+def _title_overlap(title_words: set[str], title_norm: str, cand_title_norm: str) -> float:
+    """Fraccion del titulo pedido que aparece en el del candidato.
+
+    Ademas del solape por palabras se compara la forma compacta: YouTube
+    escribe titulos como hashtag ("#BACKTOTHEFUTURE") y sin esto no casaban
+    con "Back to the Future".
+    """
+    if not title_words:
+        return 0.0
+    ratio = len(title_words & _cand_tokens(cand_title_norm)) / len(title_words)
+    compact_target = _title_core(title_norm).replace(" ", "")
+    if len(compact_target) >= 6 and compact_target in cand_title_norm.replace(" ", ""):
+        return 1.0
+    return ratio
 
 
 # Keywords que casi nunca son la canción real (reacciones, podcasts, vídeos
@@ -183,8 +239,7 @@ def _score_candidate(
             reasons.append(f"-{kw}")
 
     # 4. Solape de palabras del título
-    cand_words = set(cand_title.split())
-    overlap = (len(title_words & cand_words) / max(len(title_words), 1)) if title_words else 0.0
+    overlap = _title_overlap(title_words, title_norm, cand_title)
     score -= overlap * 20
     if overlap >= 0.8:
         reasons.append("title✓")
@@ -215,8 +270,7 @@ def _candidate_matches(
     """
     cand_title = _norm_text(e.get("title") or "")
     uploader = _norm_text(e.get("uploader") or e.get("channel") or "")
-    cand_words = set(cand_title.split())
-    overlap = len(title_words & cand_words) / max(len(title_words), 1)
+    overlap = _title_overlap(title_words, title_norm, cand_title)
     artist_in_uploader = _artist_in_text(artist_norm, uploader)
     artist_matches = bool(artist_in_uploader or _artist_in_text(artist_norm, cand_title))
 
@@ -236,20 +290,22 @@ def _candidate_matches(
         if abs(duration - target_secs) > tolerance:
             return False
 
-    if overlap >= 0.5 and artist_matches:
-        return True
+    # Un solape del 50% puede apoyarse en una palabra sin valor: "No Mercy" y
+    # "No Hard Feelings" comparten "no"; "4 DÍAS" y "Bando Boyz Free 4"
+    # comparten "4"; "GANG LIFE" y "LOCO ft. Dark Polo Gang" comparten "gang".
+    # Se exige que lo compartido sume texto suficiente para identificar algo,
+    # salvo que el título pedido aparezca entero en el del candidato.
+    shared = title_words & _cand_tokens(cand_title)
+    distinctive = overlap >= 0.999 or sum(len(w) for w in shared) >= 6
 
-    # YouTube puede localizar el título mostrado (p. ej. "PIERDO EL CONTROL"
-    # aparece como "I LOSE CONTROL"). Admitimos ese caso únicamente cuando el
-    # propio canal contiene al artista y la duración difiere como máximo unos
-    # pocos segundos. Las variantes alteradas ya fueron rechazadas arriba.
-    translated_duration_match = bool(
-        artist_in_uploader
-        and target_secs
-        and duration
-        and abs(duration - target_secs) <= max(6.0, target_secs * 0.04)
-    )
-    return translated_duration_match
+    # El título es obligatorio. Existió una excepción que aceptaba cualquier
+    # vídeo del canal del artista si la duración caía dentro de un 4%, pensada
+    # para títulos localizados ("PIERDO EL CONTROL" → "I LOSE CONTROL"). Medida
+    # sobre la biblioteca real aceptó 27 descargas y 19 eran de OTRA canción del
+    # mismo artista que casualmente duraba parecido: entre 30 temas de alguien
+    # casi siempre hay uno. Un fallo de descarga es visible y el usuario puede
+    # pegar la URL exacta; un audio equivocado no se nota hasta meses después.
+    return overlap >= 0.5 and artist_matches and distinctive
 
 
 def download_with_ytdlp(
@@ -285,7 +341,7 @@ def download_with_ytdlp(
     }
     artist_norm = _norm_text(meta.primary_artist)
     title_norm = _norm_text(meta.title)
-    title_words = set(title_norm.split())
+    title_words = _title_tokens(title_norm)
     target_secs = meta.duration_ms / 1000 if meta.duration_ms else 0
     entries: list[tuple[dict, str]] = []
     resolve_errors: list[str] = []
@@ -307,7 +363,10 @@ def download_with_ytdlp(
             "youtube",
             f"ytsearch30:{meta.primary_artist} canciones {meta.title}",
         ),
-        ("YouTube por artista", "youtube", f"ytsearch30:{meta.primary_artist}"),
+        # NO añadir aquí una búsqueda solo por artista (`ytsearch30:{artista}`):
+        # devuelve 30 temas suyos sin relación con el que se pide y era la
+        # munición que alimentaba las coincidencias cruzadas. Toda consulta
+        # debe llevar el título.
         ("SoundCloud", "soundcloud", f"scsearch20:{meta.search_query}"),
     ]
     for label, provider, query in searches:
