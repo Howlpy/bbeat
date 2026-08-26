@@ -26,6 +26,7 @@ from app.models import Artist, Track
 from app.services.downloader import (
     _cand_tokens,
     _norm_text,
+    _sequel_mismatch,
     _title_overlap,
     _title_tokens,
 )
@@ -96,8 +97,12 @@ def main() -> int:
         overlap = _title_overlap(words, title_norm, cand_norm)
         shared = words & _cand_tokens(cand_norm)
         strong = overlap >= 0.999 or sum(len(w) for w in shared) >= 6
+        # Sin esto la auditoría hereda el punto ciego que tenía el buscador:
+        # "Bando Boyz Free 5" contra el vídeo de "Bando Boyz Free" da 75% de
+        # solape y pasaba por bueno siendo otra canción.
+        sequel = _sequel_mismatch(title_norm, cand_norm)
         r["overlap"] = round(overlap, 2)
-        r["verdict"] = "ok" if (overlap >= 0.5 and strong) else "mismatch"
+        r["verdict"] = "ok" if (overlap >= 0.5 and strong and not sequel) else "mismatch"
         return r
 
     with ThreadPoolExecutor(max_workers=WORKERS) as ex:
