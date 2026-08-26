@@ -35,7 +35,7 @@ from app.config import settings
 from app.db import engine
 from app.models import Artist, Job, Track
 from app.services import jobs as jobs_svc
-from app.services import organizer, spotify
+from app.services import organizer, spotify, ytdlp_resolver
 
 SPOTIFY_TRACK_URL = "https://open.spotify.com/track/{}"
 
@@ -56,10 +56,32 @@ class _FixedMeta:
     artists: list[str]
 
 
+def _duracion_discrepante(spotify_id: str, url: str) -> Optional[str]:
+    """Describe el desajuste de duracion, o None si cuadra o no se puede saber."""
+    try:
+        esperado = spotify.resolve_url(SPOTIFY_TRACK_URL.format(spotify_id)).tracks[0].duration_ms
+        real = ytdlp_resolver.resolve_url(url, "youtube").tracks[0].duration_ms
+    except Exception:
+        return None  # sin datos no se bloquea nada
+    if not esperado or not real:
+        return None
+    if abs(real - esperado) <= max(20000, esperado * 0.08):
+        return None
+    return (
+        f"el vídeo dura {real // 1000}s y Spotify dice {esperado // 1000}s "
+        f"({abs(real - esperado) // 1000}s de diferencia)"
+    )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ids", required=True, help="ids de track separados por coma")
     ap.add_argument("--dry-run", action="store_true", help="no crea jobs, solo informa")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="con --url, aceptar aunque la duración no cuadre con Spotify",
+    )
     ap.add_argument(
         "--url",
         help="URL exacta de YouTube/SoundCloud a usar (un solo --ids). Se baja "
@@ -87,6 +109,19 @@ def main() -> int:
                 if not video_id:
                     print(f"  #{tid}: no reconozco un video de YouTube en {args.url}")
                     return 1
+                # Contraste con Spotify antes de fijar nada. La duracion de la
+                # ficha no sirve (es la del audio equivocado), pero la de
+                # Spotify si, y separa un original de su remix cuando los
+                # titulos son casi iguales. Aqui es donde se colo asignar a
+                # "4 DIAS - REMIX" (270s) el video del "4 DIAS" original (179s).
+                if ext and not ext.startswith(("yt:", "sc:")):
+                    problema = _duracion_discrepante(ext, args.url)
+                    if problema:
+                        print(f"  #{tid} {track.title}: {problema}")
+                        if not args.force:
+                            print("        usa --force si aun asi es la buena")
+                            skipped.append(tid)
+                            continue
                 meta = _FixedMeta(
                     spotify_id=f"yt:{video_id}",
                     source_url=args.url,
