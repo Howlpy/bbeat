@@ -90,7 +90,11 @@ def main() -> int:
                 meta = _FixedMeta(
                     spotify_id=f"yt:{video_id}",
                     source_url=args.url,
-                    duration_ms=track.duration_ms or 0,
+                    # Sin duracion objetivo a proposito: la guardada es la del
+                    # audio equivocado que estamos sustituyendo, y compararla
+                    # con lo que baje haria fallar justo las reparaciones
+                    # buenas. Con --url manda el usuario.
+                    duration_ms=0,
                     total_tracks=1,
                     cover_url=None,
                     artists=[],
