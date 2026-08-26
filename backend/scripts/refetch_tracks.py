@@ -188,19 +188,21 @@ def main() -> int:
                 continue
 
             # El id de Spotify es unique en jobs: quitar el job viejo del track.
-            # El job anterior puede estar indexado por el id de Spotify o,
-            # si ya se fijo una URL antes, por el yt:. spotify_track_id es
-            # unique, asi que hay que quitar ambos.
+            # spotify_track_id es unique en jobs, y puede haber MAS DE UNO que
+            # estorbe: el de la ingesta original (id de Spotify) y el de una
+            # URL fijada antes o pegada a mano en la app (yt:). Hay que quitar
+            # todos, no solo el primero, o el INSERT revienta.
             old_ids = {meta.spotify_id, ext} - {""}
-            old_job = s.exec(
-                select(Job).where(Job.spotify_track_id.in_(old_ids))
-            ).first()
-            if old_job:
-                if old_job.status in ("pending", "running"):
-                    print("        ya hay un job en curso, se omite")
-                    skipped.append(tid)
-                    continue
+            old_jobs = list(
+                s.exec(select(Job).where(Job.spotify_track_id.in_(old_ids))).all()
+            )
+            if any(j.status in ("pending", "running") for j in old_jobs):
+                print("        ya hay un job en curso, se omite")
+                skipped.append(tid)
+                continue
+            for old_job in old_jobs:
                 s.delete(old_job)
+            if old_jobs:
                 s.flush()
 
             s.add(job)
