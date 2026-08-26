@@ -74,38 +74,60 @@ def main() -> int:
             # final del fichero: si cambia, el scanner crea una pista NUEVA en
             # vez de actualizar esta y la vieja se queda con el audio malo.
             album = track.album
-            album_artist = album.artist.name if (album and album.artist) else None
             artist = s.get(Artist, track.artist_id)
             artist_name = artist.name if artist else ""
-            job = Job(
-                source_url=SPOTIFY_TRACK_URL.format(ext),
-                source_kind="track",
-                spotify_track_id=meta.spotify_id,
-                title=track.title,
-                artist=artist_name,
-                artists_csv=artist_name,
-                album_artist=album_artist or artist_name,
-                album=album.title if album else "",
-                track_number=track.track_number or 1,
-                disc_number=track.disc_number or 1,
-                total_tracks=meta.total_tracks,
-                duration_ms=meta.duration_ms,
-                year=album.year if album else None,
-                cover_url=meta.cover_url,
-                user_id=None,
-                target_album_id=track.album_id,
-                status="pending",
-            )
+            album_artist = album.artist.name if (album and album.artist) else None
 
-            # Comprobacion dura: el job debe reproducir EXACTAMENTE la ruta
-            # actual. Si no, se omite en vez de arriesgarse a duplicar la ficha.
+            def build(aa: str, year) -> Job:
+                return Job(
+                    source_url=SPOTIFY_TRACK_URL.format(ext),
+                    source_kind="track",
+                    spotify_track_id=meta.spotify_id,
+                    title=track.title,
+                    artist=artist_name,
+                    artists_csv=artist_name,
+                    album_artist=aa,
+                    album=album.title if album else "",
+                    track_number=track.track_number or 1,
+                    disc_number=track.disc_number or 1,
+                    total_tracks=meta.total_tracks,
+                    duration_ms=meta.duration_ms,
+                    year=year,
+                    cover_url=meta.cover_url,
+                    user_id=None,
+                    target_album_id=track.album_id,
+                    status="pending",
+                )
+
+            # La ruta actual no siempre se puede deducir de la ficha: hay
+            # carpetas con el año del álbum y otras sin él (el año se rellenó
+            # después de organizar), y unas usan el artista del álbum mientras
+            # otras usan el de la pista. En vez de adivinar se prueban las
+            # combinaciones y se acepta la que reproduce la ruta EXACTA. Si
+            # ninguna lo hace se omite, para no acabar duplicando la ficha.
             suffix = Path(track.file_path).suffix
-            expected = organizer.target_path(jobs_svc._load_meta_from_job(job), suffix)
-            current = settings.music_dir / track.file_path
-            if expected.resolve() != current.resolve():
-                print("        ruta no coincide, se omite:")
+            current = (settings.music_dir / track.file_path).resolve()
+            job = None
+            for aa in [a for a in (album_artist, artist_name) if a]:
+                for year in (album.year if album else None, None):
+                    cand = build(aa, year)
+                    got = organizer.target_path(
+                        jobs_svc._load_meta_from_job(cand), suffix
+                    )
+                    if got.resolve() == current:
+                        job = cand
+                        break
+                if job:
+                    break
+            if job is None:
+                fallback = organizer.target_path(
+                    jobs_svc._load_meta_from_job(build(album_artist or artist_name,
+                                                       album.year if album else None)),
+                    suffix,
+                )
+                print("        ruta no reproducible, se omite:")
                 print(f"          actual:   {track.file_path}")
-                print(f"          quedaria: {expected.relative_to(settings.music_dir)}")
+                print(f"          quedaria: {fallback.relative_to(settings.music_dir)}")
                 skipped.append(tid)
                 continue
 
