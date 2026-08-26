@@ -141,6 +141,62 @@ def _cand_tokens(cand_title_norm: str) -> set[str]:
     return {w for w in cand_title_norm.split() if w not in TITLE_NOISE_WORDS}
 
 
+# Numeros romanos que se usan como marca de secuela. Se dejan fuera "i", "v" y
+# "x" sueltos porque tambien son palabras corrientes en ingles y espanol.
+ROMAN_NUMERALS = {"ii": 2, "iii": 3, "iv": 4, "vi": 6, "vii": 7, "viii": 8, "ix": 9}
+
+
+def _as_sequel_number(token: Optional[str]) -> Optional[int]:
+    """Interpreta un token como marca de secuela, o None.
+
+    Solo cuentan enteros de una o dos cifras: los de cuatro suelen ser el ano
+    del videoclip ("Y Que Si No Hay Amor? 2016"), no una entrega.
+    """
+    if not token:
+        return None
+    if token.isdigit() and len(token) <= 2:
+        return int(token)
+    return ROMAN_NUMERALS.get(token)
+
+
+def _find_subsequence(haystack: list[str], needle: list[str]) -> Optional[int]:
+    """Indice donde `needle` aparece seguido dentro de `haystack`."""
+    if not needle or len(needle) > len(haystack):
+        return None
+    for i in range(len(haystack) - len(needle) + 1):
+        if haystack[i:i + len(needle)] == needle:
+            return i
+    return None
+
+
+def _sequel_mismatch(title_norm: str, cand_title_norm: str) -> bool:
+    """True si el candidato es OTRA entrega de la misma serie.
+
+    "Bando Boyz Free" y "Bando Boyz Free 4" son canciones distintas, pero el
+    titulo de la primera esta contenida entera en el de la segunda: el solape
+    da 100% y encima la secuela puntua mejor por estar en el canal oficial.
+
+    Solo se mira el numero PEGADO al titulo. Los demas numeros de un titulo de
+    YouTube casi nunca son secuelas: son volumenes y numeros de pista
+    ("[Hijos de la Ruina Vol. 3]", "02. GUERRERO PSICODELICO"). Si el titulo
+    pedido no se localiza dentro del candidato no se juzga nada.
+    """
+    requested = _title_core(title_norm).split()
+    if not requested:
+        return False
+    expected = _as_sequel_number(requested[-1])
+    base = requested[:-1] if expected is not None else requested
+    if not base:
+        return False
+    candidate = cand_title_norm.split()
+    idx = _find_subsequence(candidate, base)
+    if idx is None:
+        return False
+    tail = idx + len(base)
+    following = candidate[tail] if tail < len(candidate) else None
+    return _as_sequel_number(following) != expected
+
+
 def _title_overlap(title_words: set[str], title_norm: str, cand_title_norm: str) -> float:
     """Fraccion del titulo pedido que aparece en el del candidato.
 
@@ -295,6 +351,12 @@ def _candidate_matches(
     # comparten "4"; "GANG LIFE" y "LOCO ft. Dark Polo Gang" comparten "gang".
     # Se exige que lo compartido sume texto suficiente para identificar algo,
     # salvo que el título pedido aparezca entero en el del candidato.
+    # Una secuela contiene el titulo del original entero ("Bando Boyz Free" ⊂
+    # "Bando Boyz Free 4"), asi que el solape da 100% y encima la secuela suele
+    # puntuar mejor por estar en el canal oficial. Los numeros los separan.
+    if _sequel_mismatch(title_norm, cand_title):
+        return False
+
     shared = title_words & _cand_tokens(cand_title)
     distinctive = overlap >= 0.999 or sum(len(w) for w in shared) >= 6
 
