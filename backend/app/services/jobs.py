@@ -389,6 +389,58 @@ def create_jobs_from_url(
 # ─── Pipeline de un job ────────────────────────────────────────
 
 
+# Margen para dar por buena la duracion de lo descargado frente a la que dice
+# Spotify. Generoso: los videoclips oficiales suelen llevar intro o outro.
+DURATION_SANITY_MS = 20000
+DURATION_SANITY_RATIO = 0.08
+
+
+def _audio_duration_ms(path) -> Optional[int]:
+    """Duracion real del fichero descargado, o None si no se puede leer."""
+    try:
+        from mutagen import File as MutagenFile
+
+        audio = MutagenFile(path)
+        length = getattr(getattr(audio, "info", None), "length", 0)
+        return int(length * 1000) or None
+    except Exception:
+        return None
+
+
+def _duration_is_plausible(expected_ms: Optional[int], actual_ms: Optional[int]) -> bool:
+    if not expected_ms or not actual_ms:
+        return True
+    tolerance = max(DURATION_SANITY_MS, expected_ms * DURATION_SANITY_RATIO)
+    return abs(actual_ms - expected_ms) <= tolerance
+
+
+def _source_already_taken(session, source_url: str, meta) -> Optional[Track]:
+    """Otra pista que ya se descargo de ese MISMO video y no es esta cancion.
+
+    Un video de YouTube contiene una cancion. Si ya es el origen de otra pista
+    con un titulo distinto, una de las dos va a sonar mal: es exactamente como
+    quedo la biblioteca (un mismo video sirviendo de audio a cuatro canciones).
+    Se comparan los titulos con el mismo criterio que usa el buscador.
+    """
+    if not source_url:
+        return None
+    others = session.exec(select(Track).where(Track.source_url == source_url)).all()
+    if not others:
+        return None
+    wanted = downloader._norm_text(meta.title)
+    words = downloader._title_tokens(wanted)
+    for other in others:
+        existing = downloader._norm_text(other.title)
+        if downloader._sequel_mismatch(wanted, existing):
+            return other
+        overlap = downloader._title_overlap(words, wanted, existing)
+        shared = words & downloader._cand_tokens(existing)
+        strong = overlap >= 0.999 or sum(len(w) for w in shared) >= 6
+        if not (overlap >= 0.5 and strong):
+            return other
+    return None
+
+
 def _load_meta_from_job(job: Job) -> spotify.TrackMeta:
     """Reconstruye TrackMeta desde el Job (info ya capturada al crearlo)."""
     artists = [a.strip() for a in (job.artists_csv or job.artist or "").split(",") if a.strip()]
@@ -454,6 +506,21 @@ def process_job(job_id: int) -> None:
             _mark_failed(job_id, dl_result.backend, dl_result.error or "download failed")
             return
 
+        # Guarda 1: la duracion de lo descargado tiene que parecerse a la que
+        # dice el proveedor. Es la ultima red antes de indexar y no depende de
+        # como se eligio el candidato: si lo que ha bajado dura 90s mas de lo
+        # que deberia, no es la cancion pedida. Para ingestas directas de
+        # YouTube el objetivo ES el propio video, asi que no aplica.
+        actual_ms = _audio_duration_ms(dl_result.file_path)
+        if not _duration_is_plausible(meta.duration_ms, actual_ms):
+            _mark_failed(
+                job_id,
+                dl_result.backend,
+                f"lo descargado dura {(actual_ms or 0) // 1000}s y deberia durar "
+                f"{meta.duration_ms // 1000}s: no es la misma canción",
+            )
+            return
+
         # Las playlists de Spotify resuelven SIN portada por pista (el item no la
         # trae). Si es una pista de Spotify (id sin prefijo yt:/sc:), pedimos su
         # portada real por id antes de caer a la miniatura de YouTube.
@@ -469,6 +536,21 @@ def process_job(job_id: int) -> None:
             vid = _yt_video_id(dl_result.source_url)
             if vid:
                 meta.cover_url = f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg"
+
+        # Guarda 2: un video ya usado por OTRA cancion. Sin esto un mismo
+        # video puede acabar siendo el audio de varias pistas y todas menos una
+        # suenan mal, que es como quedo la biblioteca.
+        if dl_result.source_url:
+            with session_scope() as s:
+                clash = _source_already_taken(s, dl_result.source_url, meta)
+                clash_title = clash.title if clash else None
+            if clash_title:
+                _mark_failed(
+                    job_id,
+                    dl_result.backend,
+                    f"ese vídeo ya es el origen de «{clash_title}»: sería otra canción",
+                )
+                return
 
         # Organize (tags + cover)
         _update_job_progress(job_id, 97, "etiquetando")
