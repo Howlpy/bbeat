@@ -78,14 +78,21 @@ def main() -> int:
             artist_name = artist.name if artist else ""
             album_artist = album.artist.name if (album and album.artist) else None
 
+            # El artista de BUSQUEDA sale de Spotify, no de la ficha: en las
+            # playlists multi-artista la pista queda guardada como "Various
+            # Artists" y la consulta resultante ("Various Artists - Bando Boyz
+            # Free") no encuentra nada. La ruta no se ve afectada porque
+            # target_path usa album_artist, que se sigue tomando de la ficha.
+            search_artists = meta.artists or [artist_name]
+
             def build(aa: str, year) -> Job:
                 return Job(
                     source_url=SPOTIFY_TRACK_URL.format(ext),
                     source_kind="track",
                     spotify_track_id=meta.spotify_id,
                     title=track.title,
-                    artist=artist_name,
-                    artists_csv=artist_name,
+                    artist=search_artists[0],
+                    artists_csv=", ".join(search_artists),
                     album_artist=aa,
                     album=album.title if album else "",
                     track_number=track.track_number or 1,
@@ -131,7 +138,7 @@ def main() -> int:
                 skipped.append(tid)
                 continue
 
-            print(f"        -> rebuscar «{track.title}» de {artist_name} "
+            print(f"        -> rebuscar «{track.title}» de {search_artists[0]} "
                   f"({meta.duration_ms // 1000}s, antes {(track.duration_ms or 0) // 1000}s)")
             if args.dry_run:
                 continue
