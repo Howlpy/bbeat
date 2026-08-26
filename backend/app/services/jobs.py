@@ -584,7 +584,18 @@ def process_job(job_id: int) -> None:
             if job and track_id:
                 t = s.get(Track, track_id)
                 if t:
-                    t.external_id = job.spotify_track_id
+                    # No pisar un id de Spotify con uno de YouTube. Al fijar
+                    # una URL concreta el job va identificado como yt:<video>,
+                    # y sobrescribir con el se lleva por delante la unica
+                    # referencia que permite volver a contrastar la pista con
+                    # el proveedor (duracion, titulo, artista).
+                    keeps_provider_id = (
+                        t.external_id
+                        and not t.external_id.startswith(("yt:", "sc:"))
+                        and job.spotify_track_id.startswith(("yt:", "sc:"))
+                    )
+                    if not keeps_provider_id:
+                        t.external_id = job.spotify_track_id
                     if dl_result.source_url:
                         t.source_url = dl_result.source_url
                     s.add(t)
