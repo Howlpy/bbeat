@@ -27,9 +27,6 @@ import androidx.core.app.NotificationCompat;
 import androidx.media.MediaBrowserServiceCompat;
 import androidx.media.app.NotificationCompat.MediaStyle;
 import androidx.media.session.MediaButtonReceiver;
-import android.media.AudioAttributes;
-import android.media.AudioFocusRequest;
-import android.media.AudioManager;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -83,9 +80,6 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
 
     private MediaSessionCompat session;
     private NotificationManager notifications;
-    private AudioManager audioManager;
-    private AudioFocusRequest audioFocusRequest;
-    private boolean hasAudioFocus;
     private boolean inForeground;
     private PowerManager.WakeLock playbackWakeLock;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -106,7 +100,9 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         synchronized (LOCK) { state = playbackState; }
         if (!"paused".equals(state)) return;
         // El wake lock sí sobra con la música parada. El foreground service NO
-        // se suelta: ver releaseForegroundOnPause() más abajo.
+        // se suelta: si lo soltásemos, volver a entrar desde la notificación
+        // sería un arranque de foreground service en segundo plano, que Android
+        // bloquea. Ver refreshNotification().
         releasePlaybackWakeLock();
     };
 
@@ -227,7 +223,6 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         super.onCreate();
         instance = this;
         notifications = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (powerManager != null) {
             playbackWakeLock = powerManager.newWakeLock(
@@ -246,6 +241,14 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
             MediaSessionCompat.FLAG_HANDLES_QUEUE_COMMANDS
         );
         session.setCallback(new MediaSessionCompat.Callback() {
+            // OJO: aquí NO se pide foco de audio, y es a propósito.
+            //
+            // Quien reproduce es el <audio> del WebView, y ese elemento pide su
+            // propio foco al arrancar. Si el servicio lo pide también, el
+            // WebView se lo quita medio segundo después, nos llega
+            // AUDIOFOCUS_LOSS, y un listener que reaccione pausando corta la
+            // canción al instante: sonaba un milisegundo y se paraba.
+            // Dos componentes de la misma app no pueden competir por el foco.
             @Override public void onPlay() {
                 // Reclamar el foreground AQUÍ y no al volver del WebView. Entre
                 // el botón de la notificación y el evento 'play' del <audio>
@@ -253,7 +256,6 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
                 // ha cerrado el permiso temporal que concede al entregar el
                 // botón multimedia: startForeground falla y la app se queda sin
                 // notificación y sin protección.
-                requestAudioFocus();
                 enterForeground("playing");
                 BbeatAutoPlugin.dispatchAction("play", null, null);
             }
@@ -320,7 +322,6 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         // dejar una notificación zombi diciendo que suena algo.
         synchronized (LOCK) { playbackState = "none"; }
         stopKeepingPlaybackAwake();
-        abandonAudioFocus();
         try {
             stopForeground(STOP_FOREGROUND_REMOVE);
             notifications.cancel(NOTIFICATION_ID);
@@ -579,15 +580,13 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         mainHandler.removeCallbacks(leaveForegroundAfterPause);
         if ("none".equals(state)) {
             stopKeepingPlaybackAwake();
-            abandonAudioFocus();
-            stopForeground(STOP_FOREGROUND_REMOVE);
+                stopForeground(STOP_FOREGROUND_REMOVE);
             inForeground = false;
             notifications.cancel(NOTIFICATION_ID);
             return;
         }
         if ("playing".equals(state)) {
             keepPlaybackAwake();
-            requestAudioFocus();
             enterForeground(state);
             return;
         }
@@ -601,65 +600,6 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         // Si aún no somos foreground (p. ej. la primera acción fue una pausa),
         // entramos ahora; si ya lo somos, startForeground solo refresca.
         enterForeground(state);
-    }
-
-    // ─── Foco de audio ───────────────────────────────────────────
-    //
-    // Sin esto Android no considera a bbeat una app de reproducción activa:
-    // otras apps pisan el audio en vez de turnarse, los auriculares no saben a
-    // quién mandar el play/pausa, y varios fabricantes matan antes el proceso.
-    // No se pedía en ningún sitio.
-
-    private final AudioManager.OnAudioFocusChangeListener focusListener = change -> {
-        switch (change) {
-            case AudioManager.AUDIOFOCUS_LOSS:
-                // Otra app se queda el audio para rato: pausamos de verdad.
-                hasAudioFocus = false;
-                BbeatAutoPlugin.dispatchAction("pause", null, null);
-                break;
-            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                // Una llamada, un aviso del GPS: pausamos y ya volveremos.
-                BbeatAutoPlugin.dispatchAction("pause", null, null);
-                break;
-            default:
-                break;
-        }
-    };
-
-    private void requestAudioFocus() {
-        if (hasAudioFocus || audioManager == null) return;
-        int result;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            if (audioFocusRequest == null) {
-                audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                    .setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build())
-                    .setOnAudioFocusChangeListener(focusListener, mainHandler)
-                    // Que el sistema baje el volumen en vez de cortarnos cuando
-                    // entra un aviso corto.
-                    .setWillPauseWhenDucked(false)
-                    .build();
-            }
-            result = audioManager.requestAudioFocus(audioFocusRequest);
-        } else {
-            result = audioManager.requestAudioFocus(
-                focusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN
-            );
-        }
-        hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-        if (!hasAudioFocus) Log.w(TAG, "no se concedió el foco de audio: " + result);
-    }
-
-    private void abandonAudioFocus() {
-        if (!hasAudioFocus || audioManager == null) return;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            if (audioFocusRequest != null) audioManager.abandonAudioFocusRequest(audioFocusRequest);
-        } else {
-            audioManager.abandonAudioFocus(focusListener);
-        }
-        hasAudioFocus = false;
     }
 
     /**
@@ -726,7 +666,6 @@ public class BbeatAutoService extends MediaBrowserServiceCompat {
         if (instance == this) instance = null;
         mainHandler.removeCallbacks(leaveForegroundAfterPause);
         stopKeepingPlaybackAwake();
-        abandonAudioFocus();
         if (session != null) {
             session.setActive(false);
             session.release();
