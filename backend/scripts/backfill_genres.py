@@ -55,6 +55,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--apply", action="store_true", help="escribe de verdad (por defecto simulacro)")
     ap.add_argument("--limit", type=int, default=0, help="procesa como mucho N pistas")
+    ap.add_argument(
+        "--reprocesar",
+        action="store_true",
+        help="vuelve a resolver TODAS las pistas, no solo las que no tienen género "
+             "(para cuando mejora la cascada). Solo escribe si el resultado cambia.",
+    )
     ap.add_argument("--json", dest="json_out", help="vuelca el informe a un fichero")
     ap.add_argument(
         "--no-artist-fallback",
@@ -64,20 +70,22 @@ def main() -> int:
     args = ap.parse_args()
 
     with Session(engine) as session:
-        rows = session.exec(
+        stmt = (
             select(Track, Artist, Album.title)
             .join(Artist, Artist.id == Track.artist_id)
             .outerjoin(Album, Album.id == Track.album_id)
-            .where(Track.genre.is_(None))
             .order_by(Track.id)
-        ).all()
+        )
+        if not args.reprocesar:
+            stmt = stmt.where(Track.genre.is_(None))
+        rows = session.exec(stmt).all()
 
     if args.limit:
         rows = rows[: args.limit]
 
     total = len(rows)
     if not total:
-        print("no hay pistas sin género: nada que hacer")
+        print("no hay pistas que procesar")
         return 0
 
     modo = "APLICANDO" if args.apply else "SIMULACRO (usa --apply para escribir)"
@@ -98,7 +106,14 @@ def main() -> int:
 
         if not genre:
             sin_genero.append({"id": track.id, "artista": artist.name, "titulo": track.title})
-            print(f"[{i}/{total}] ---- {etiqueta[:66]}")
+            if not args.reprocesar:
+                print(f"[{i}/{total}] ---- {etiqueta[:66]}")
+            continue
+
+        if genre == track.genre:
+            # Ya estaba bien: ni se toca el fichero ni se imprime ruido.
+            resueltas.append({"id": track.id, "artista": artist.name,
+                              "titulo": track.title, "genero": genre})
             continue
 
         if args.apply:
@@ -120,7 +135,8 @@ def main() -> int:
         resueltas.append(
             {"id": track.id, "artista": artist.name, "titulo": track.title, "genero": genre}
         )
-        print(f"[{i}/{total}] {genre:<12} {etiqueta[:60]}")
+        antes = f"{track.genre} -> " if track.genre else ""
+        print(f"[{i}/{total}] {antes}{genre:<12} {etiqueta[:56]}")
 
     print()
     print(f"resueltas   : {len(resueltas)}/{total} ({100 * len(resueltas) // total}%)")
