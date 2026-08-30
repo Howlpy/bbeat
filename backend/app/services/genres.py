@@ -24,6 +24,7 @@ import httpx
 log = logging.getLogger("bbeat.genres")
 
 DEEZER = "https://api.deezer.com"
+ITUNES = "https://itunes.apple.com/search"
 HEADERS = {"User-Agent": "Bbeat/0.1 (https://github.com/Howlpy/bbeat)"}
 TIMEOUT = 15.0
 
@@ -35,6 +36,7 @@ REQUEST_SPACING_S = 0.15
 # Sin el mínimo de votos, Powerwolf entraba como "Clásica" al 100 % — un único
 # álbum sinfónico decidiendo por toda la discografía.
 ARTIST_ALBUMS_SAMPLE = 6
+ARTIST_TOP_SAMPLE = 10
 ARTIST_MIN_VOTES = 2
 ARTIST_MIN_SHARE = 0.5
 
@@ -89,6 +91,60 @@ CANONICAL: dict[str, str] = {
     "Metal extremo": "metal",
     "Bandas sonoras": "bso",
 }
+
+
+# iTunes nombra los géneros a su manera ("Hip-Hop/Rap", no "Rap/Hip Hop"), así
+# que necesita su propia tabla. Cubre cosas que Deezer no indexa: sellos
+# pequeños de electrónica sobre todo.
+ITUNES_CANONICAL: dict[str, str] = {
+    "Hip-Hop/Rap": "rap",
+    "Hip Hop/Rap": "rap",
+    "Rap": "rap",
+    "Electronic": "electronica",
+    "Dance": "electronica",
+    "Techno": "electronica",
+    "House": "electronica",
+    "Drum & Bass": "electronica",
+    "Drum and Bass": "electronica",
+    "Dubstep": "electronica",
+    "Breakbeat": "electronica",
+    "Trance": "electronica",
+    "Rock": "rock",
+    "Alternative": "rock",
+    "Indie Rock": "rock",
+    "Punk": "rock",
+    "Hard Rock": "rock",
+    "Metal": "metal",
+    "Heavy Metal": "metal",
+    "Death Metal/Black Metal": "metal",
+    "Pop": "pop",
+    "Latin": "latino",
+    "Latin Urban": "reggaeton",
+    "Reggaeton y Hip-Hop": "reggaeton",
+    "Reggaeton": "reggaeton",
+    "Salsa y Tropical": "latino",
+    "Flamenco": "latino",
+    "R&B/Soul": "rnb",
+    "Soul": "rnb",
+    "Funk": "rnb",
+    "Reggae": "reggae",
+    "Jazz": "jazz",
+    "Blues": "blues",
+    "Classical": "clasica",
+    "Soundtrack": "bso",
+    "Folk": "folk",
+    "Singer/Songwriter": "folk",
+    "World": "mundo",
+    "Worldwide": "mundo",
+    "Children's Music": "infantil",
+}
+
+
+def canonicalize_itunes(name: Optional[str]) -> Optional[str]:
+    """Género de iTunes → vocabulario de bbeat."""
+    if not name:
+        return None
+    return _LOOKUP_ITUNES.get(_norm(name))
 
 
 def canonicalize(deezer_genre: Optional[str]) -> Optional[str]:
@@ -168,6 +224,24 @@ class _Client:
             return None
         return data
 
+    def get_json(self, url: str, params: Optional[dict] = None) -> Optional[dict]:
+        """Como get() pero contra una URL completa (para APIs que no son Deezer)."""
+        with self._lock:
+            wait = REQUEST_SPACING_S - (time.monotonic() - self._last_call)
+            if wait > 0:
+                time.sleep(wait)
+            self._last_call = time.monotonic()
+            if self._client is None:
+                self._client = httpx.Client(timeout=TIMEOUT, headers=HEADERS)
+            client = self._client
+        try:
+            r = client.get(url, params=params)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            log.debug("%s falló: %s", url, e)
+            return None
+
     def album_genres(self, album_id: int) -> list[str]:
         if album_id not in self.album_cache:
             d = self.get(f"/album/{album_id}") or {}
@@ -182,6 +256,32 @@ class _Client:
 
 
 _client = _Client()
+
+
+def _itunes_genre(artist: str, title: str) -> Optional[str]:
+    """Género de iTunes para esta pista. Segunda opinión cuando Deezer no sabe.
+
+    Devuelve ya canónico. iTunes da género por PISTA (no por álbum) y cubre
+    sellos pequeños de electrónica que Deezer no indexa —Ned Bennett, Deas—,
+    pero no tiene rap ruso ni mucho underground, así que no sustituye a Deezer:
+    lo complementa.
+    """
+    if not artist or not title:
+        return None
+    data = _client.get_json(
+        ITUNES, {"entity": "song", "limit": 5, "term": f"{artist} {search_title(title)}"}
+    )
+    want = _norm_tight(artist)
+    for item in (data or {}).get("results", []):
+        # Mismo criterio que con Deezer: si el artista no coincide, no es
+        # nuestra canción por mucho que el título encaje.
+        cand = _norm_tight(item.get("artistName", ""))
+        if want not in cand and cand not in want:
+            continue
+        canon = canonicalize_itunes(item.get("primaryGenreName"))
+        if canon:
+            return canon
+    return None
 
 
 def _track_genre(artist: str, title: str) -> Optional[str]:
@@ -207,6 +307,32 @@ def _track_genre(artist: str, title: str) -> Optional[str]:
     return None
 
 
+def _artist_album_ids(artist_id: int) -> list[int]:
+    """Álbumes representativos del artista, para votar su género.
+
+    Se usan los de sus canciones MÁS ESCUCHADAS, no sus últimos lanzamientos.
+    `/artist/albums` devuelve lo más reciente, que en un artista con carrera
+    larga es ruido: los seis últimos de Snoop Dogg son un disco de reggae, uno
+    de rock, un Baby Shark y un remix EDM, y la votación salía sin ganador. Por
+    canciones top sale rap con el 67 %, que es la respuesta.
+
+    Si las top no dan nada (artistas sin apenas reproducciones), se cae a los
+    últimos álbumes, que para ellos sí son representativos.
+    """
+    top = _client.get(f"/artist/{artist_id}/top", params={"limit": ARTIST_TOP_SAMPLE})
+    ids = [
+        int((t.get("album") or {}).get("id"))
+        for t in (top or {}).get("data", [])
+        if (t.get("album") or {}).get("id")
+    ]
+    if ids:
+        # Un artista repite álbum entre sus top: cada disco cuenta una vez.
+        return list(dict.fromkeys(ids))
+
+    albums = _client.get(f"/artist/{artist_id}/albums", params={"limit": ARTIST_ALBUMS_SAMPLE})
+    return [int(a["id"]) for a in (albums or {}).get("data", []) if a.get("id")]
+
+
 def _artist_genre(name: str) -> Optional[str]:
     """Respaldo: género mayoritario del artista, por votación de sus álbumes.
 
@@ -224,17 +350,15 @@ def _artist_genre(name: str) -> Optional[str]:
     data = _client.get("/search/artist", params={"q": name, "limit": 1})
     hits = (data or {}).get("data") or []
     if hits and _norm_tight(hits[0].get("name", "")) == key:
-        albums = _client.get(
-            f"/artist/{hits[0]['id']}/albums", params={"limit": ARTIST_ALBUMS_SAMPLE}
-        )
+        albums = _artist_album_ids(hits[0]["id"])
         # Se vota el género CANÓNICO, no la etiqueta cruda. Deezer reparte una
         # misma idea entre varias etiquetas —Daft Punk salía Electro 3,
         # Techno/House 2, Dance 4— y contando etiquetas ninguna llegaba al 50 %
         # aunque las tres digan "electronica" y sumen 9 de 12. Contando por
         # canónico gana con el 75 % que le corresponde.
         votes: Counter[str] = Counter()
-        for album in (albums or {}).get("data", []):
-            for g in _client.album_genres(int(album["id"])):
+        for album_id in albums:
+            for g in _client.album_genres(album_id):
                 canon = canonicalize(g)
                 if canon:
                     votes[canon] += 1
@@ -273,8 +397,17 @@ def resolve(artist: str, title: str, *, allow_artist_fallback: bool = True) -> O
         # _track_genre devuelve etiqueta de Deezer; _artist_genre ya devuelve
         # canónico (vota sobre canónicos). Se traduce solo lo primero.
         canon = canonicalize(_track_genre(artist, title))
+        if canon is None:
+            canon = _itunes_genre(artist, title)
         if canon is None and allow_artist_fallback:
             canon = _artist_genre(artist)
+
+        # "bso" dice en qué disco salió la canción, no cómo suena. Un tema de
+        # Snoop Dogg que aparece en una banda sonora sigue siendo rap, y para
+        # "top de rap de la semana" etiquetarlo de bso es perderlo. Si el
+        # artista tiene género propio, manda ese.
+        if canon == "bso" and allow_artist_fallback:
+            canon = _artist_genre(artist) or "bso"
 
         # Último recurso para las pistas sin artista de verdad: sacarlo del
         # título. Sin esto, todo lo subido a mano se queda sin género para
@@ -284,6 +417,8 @@ def resolve(artist: str, title: str, *, allow_artist_fallback: bool = True) -> O
             if partido:
                 real_artist, real_title = partido
                 canon = canonicalize(_track_genre(real_artist, real_title))
+                if canon is None:
+                    canon = _itunes_genre(real_artist, real_title)
                 if canon is None and allow_artist_fallback:
                     canon = _artist_genre(real_artist)
 
@@ -305,3 +440,4 @@ def reset_cache() -> None:
 
 # Se construye al final porque _norm() se define más abajo que la tabla.
 _LOOKUP: dict[str, str] = {_norm(k): v for k, v in CANONICAL.items()}
+_LOOKUP_ITUNES: dict[str, str] = {_norm(k): v for k, v in ITUNES_CANONICAL.items()}
