@@ -270,9 +270,10 @@ class _Client:
         self.wikidata_cache: dict[str, Optional[str]] = {}
         self.lastfm_album_cache: dict[tuple, Optional[str]] = {}
         self.lastfm_track_cache: dict[tuple, Optional[str]] = {}
-        # Cuán unánime fue la última votación de tags (0..1).
-        self.ultima_fuerza: float = 0.0
-        self.lastfm_artist_cache: dict[str, Optional[str]] = {}
+        # ¿Conoce Last.fm esa pista de ese artista? Es lo que distingue a
+        # "nuestro" artista de otro que se llama igual.
+        self.lastfm_track_existe: dict[tuple, bool] = {}
+        self.lastfm_artist_cache: dict[str, tuple] = {}
 
     def get(self, path: str, params: Optional[dict] = None) -> Optional[dict]:
         """GET a Deezer. None ante cualquier problema: esto nunca debe tumbar
@@ -329,6 +330,7 @@ class _Client:
         self.wikidata_cache.clear()
         self.lastfm_album_cache.clear()
         self.lastfm_track_cache.clear()
+        self.lastfm_track_existe.clear()
         self.lastfm_artist_cache.clear()
 
 
@@ -353,7 +355,7 @@ def _lastfm(metodo: str, params: dict) -> Optional[dict]:
     )
 
 
-def _tags_a_genero(tags) -> Optional[str]:
+def _tags_a_genero(tags) -> tuple[Optional[str], float]:
     """Vota el género canónico entre unos tags de Last.fm, usando sus pesos.
 
     Los tags son libres y vienen mezclados con ruido —"spanish", "2022",
@@ -374,14 +376,17 @@ def _tags_a_genero(tags) -> Optional[str]:
                 peso = 1
             votos[canon] += max(peso, 1)
     if not votos:
-        return None
+        return None, 0.0
     ganador, peso = votos.most_common(1)[0]
     total = sum(votos.values())
     # "Unánime" = el ganador se lleva casi todo el peso. En Last.fm el tag más
     # votado siempre vale 100, así que lo que distingue a un artista de un solo
     # género de uno que cruza es cuánto se lleva el resto.
-    _client.ultima_fuerza = peso / total if total else 0.0
-    return ganador
+    #
+    # La fuerza se devuelve JUNTO al género y no en un campo del cliente: con
+    # las respuestas cacheadas, un campo compartido acaba leyéndose emparejado
+    # con el resultado de otra consulta distinta.
+    return ganador, (peso / total if total else 0.0)
 
 
 def _lastfm_album_tags(artist: str, album: str) -> Optional[str]:
@@ -390,7 +395,7 @@ def _lastfm_album_tags(artist: str, album: str) -> Optional[str]:
     if clave in _client.lastfm_album_cache:
         return _client.lastfm_album_cache[clave]
     d = _lastfm("album.getinfo", {"artist": artist, "album": album})
-    resultado = _tags_a_genero(((d or {}).get("album", {}).get("tags") or {}).get("tag", []))
+    resultado, _ = _tags_a_genero(((d or {}).get("album", {}).get("tags") or {}).get("tag", []))
     _client.lastfm_album_cache[clave] = resultado
     return resultado
 
@@ -420,8 +425,9 @@ def _lastfm_track_genre(artist: str, title: str, album_local: Optional[str]) -> 
     resultado = None
     d = _lastfm("track.getinfo", {"artist": artist, "track": title})
     pista = (d or {}).get("track", {})
+    _client.lastfm_track_existe[clave] = bool(pista)
     if pista:
-        resultado = _tags_a_genero((pista.get("toptags") or {}).get("tag", []))
+        resultado, _ = _tags_a_genero((pista.get("toptags") or {}).get("tag", []))
         if resultado is None:
             album_real = (pista.get("album") or {}).get("title")
             if album_real:
@@ -433,7 +439,7 @@ def _lastfm_track_genre(artist: str, title: str, album_local: Optional[str]) -> 
     return resultado
 
 
-def _lastfm_artist_fuerte(artist: str) -> Optional[str]:
+def _lastfm_artist_fuerte(artist: str, title: str) -> Optional[str]:
     """Género del artista solo si la comunidad está prácticamente de acuerdo.
 
     Sirve para desempatar contra el género de álbum de Deezer, que es la fuente
@@ -444,14 +450,24 @@ def _lastfm_artist_fuerte(artist: str) -> Optional[str]:
     tags repartidos, no llega al umbral, y su pista conserva lo que diga el
     álbum. Que es justo lo que se quiere.
     """
-    g = _lastfm_artist_genre(artist)
-    return g if g and _client.ultima_fuerza >= ARTISTA_UNANIME else None
-
-
-def _lastfm_artist_genre(artist: str) -> Optional[str]:
-    """Género según los tags del ARTISTA en Last.fm, ponderados."""
-    if not artist:
+    # Guarda contra artistas homónimos. "Blake" en bbeat es un rapero español;
+    # en Last.fm es un grupo finlandés de stoner rock con Stoner Rock:100. Sin
+    # esta comprobación, esa unanimidad —del artista equivocado— le colgaba
+    # "rock" a nueve pistas de rap con toda la confianza del mundo.
+    #
+    # No cuesta ninguna llamada extra: el track.getinfo ya se hizo antes en la
+    # cascada. Si aquel Last.fm no conoce esta canción de este artista, es que
+    # no estamos hablando del mismo artista.
+    if not _client.lastfm_track_existe.get((_norm_tight(artist), _norm_tight(title))):
         return None
+    g, fuerza = _lastfm_artist_genre(artist)
+    return g if g and fuerza >= ARTISTA_UNANIME else None
+
+
+def _lastfm_artist_genre(artist: str) -> tuple[Optional[str], float]:
+    """Género del ARTISTA en Last.fm y cuán unánime es, ponderado por tags."""
+    if not artist:
+        return None, 0.0
     clave = _norm_tight(artist)
     if clave in _client.lastfm_artist_cache:
         return _client.lastfm_artist_cache[clave]
@@ -710,7 +726,7 @@ def resolve(
         # que lo contradice, gana el artista. Sin esto, "Ma Vie" de Kidd Keo
         # se quedaba en electronica por el disco donde Deezer la coloca.
         if canon is not None and not de_lastfm and allow_artist_fallback:
-            fuerte = _lastfm_artist_fuerte(artist)
+            fuerte = _lastfm_artist_fuerte(artist, title)
             if fuerte and fuerte != canon:
                 canon = fuerte
 
@@ -723,7 +739,7 @@ def resolve(
         # (reggaeton en un tema de un rapero) se respeta, que es de lo que se
         # trata.
         if canon is None or canon in GENEROS_VAGOS:
-            mejor = _lastfm_artist_genre(artist) or _wikidata_genre(artist)
+            mejor = _lastfm_artist_genre(artist)[0] or _wikidata_genre(artist)
             if mejor and mejor != canon:
                 canon = mejor
 
@@ -731,7 +747,7 @@ def resolve(
         # Snoop Dogg que aparece en una banda sonora sigue siendo rap, y para
         # "top de rap de la semana" etiquetarlo de bso es perderlo.
         if canon == "bso":
-            canon = _lastfm_artist_genre(artist) or _wikidata_genre(artist) or (
+            canon = _lastfm_artist_genre(artist)[0] or _wikidata_genre(artist) or (
                 _artist_genre(artist) if allow_artist_fallback else None
             ) or "bso"
 
