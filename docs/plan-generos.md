@@ -178,56 +178,66 @@ Decisión pendiente: si el tag del fichero guarda la etiqueta canónica (`rap`) 
 la original (`Rap/Hip Hop`). Propuesta: **la canónica**, para que el tag y las
 consultas hablen el mismo idioma y un reescaneo no reintroduzca variantes.
 
-## 5. Trabajo, en orden
+## 5. Estado: implementado (falta ejecutar el backfill)
 
-### a) Servicio de resolución
+- `backend/app/services/genres.py` — la cascada, el vocabulario canónico y las
+  cachés.
+- `jobs.py:558` — las descargas nuevas ya entran con género.
+- `backend/scripts/backfill_genres.py` — simulacro por defecto.
 
-`backend/app/services/genres.py`:
+### Lo que da en la práctica
 
-- `resolve(meta) -> Optional[str]`: pista → artista → `None`.
-- Caché de géneros por álbum y por artista. En el backfill se repiten mucho:
-  las 30 pistas de la prueba necesitaron bastantes menos consultas de álbum que
-  de pista.
-- Espaciado ~150 ms. El límite público de Deezer ronda 50 peticiones / 5 s; con
-  ese espaciado las pruebas nunca lo tocaron.
-- Un fallo de red devuelve `None`, nunca una excepción que tumbe una descarga.
+| lote | cobertura |
+|---|---|
+| 30 pistas al azar de toda la biblioteca | 90 % |
+| 250 pistas por id (el primer bloque sin género) | 68 % |
 
-### b) Ingesta: que las nuevas ya entren con género
+Los dos números son ciertos y la diferencia importa: el lote por id no es
+representativo, viene en bloques del mismo artista e incluye un montón de DnB
+subido a mano con `Unknown Artist`. La cifra real de toda la biblioteca caerá
+entre medias. **Hay que ejecutar el simulacro completo antes de aplicar** y
+mirar el informe, no fiarse de ninguna de las dos.
 
-Una línea en `jobs.py:556`, justo antes de organizar:
+Tiempo medido: 250 pistas en 64 s → las ~1800 restantes, unos 8 minutos.
 
-```python
-meta.genre = meta.genre or genres_svc.resolve(meta)
-final_path = organizer.organize(dl_result.file_path, meta)
+### Un fallo que atrapó el simulacro
+
+La primera versión resolvía el **2 %**. La tabla canónica tenía las claves
+escritas ya normalizadas a mano (`"rap/hip hop"`), pero `_norm()` convierte la
+barra en espacio, así que la clave real era `"rap hip hop"` y **ninguna
+etiqueta con `/` o `&` podía casar jamás** — incluido `Rap/Hip Hop`, que es el
+género de dos tercios de esta biblioteca. Solo `Pop` sobrevivía, y por eso el
+informe salía con un único acierto y era `pop`.
+
+Ahora las claves se escriben tal cual las manda Deezer y se normalizan al
+cargar el módulo. Escribirlas ya normalizadas era pedirle al futuro que
+mantuviera a mano una invariante invisible.
+
+## 6. Trabajo pendiente
+
+### a) Ejecutar el backfill
+
+```
+python -m scripts.backfill_genres --json informe.json     # mirar el informe
+python -m scripts.backfill_genres --apply                 # y entonces aplicar
 ```
 
-Va en el worker y no al crear el job: una playlist de 200 canciones haría 200
-consultas dentro de la petición HTTP. En el worker se reparte, y un fallo no
-rompe la descarga.
+Escribe el tag con mutagen **y** actualiza la BD, en ese orden: si se hiciera
+al revés, un fallo de disco dejaría la base diciendo algo que el fichero no
+dice, y el siguiente escaneo lo revertiría en silencio. Solo toca pistas con
+`genre IS NULL`, así que reejecutarlo nunca pisa una corrección a mano.
 
-### c) Backfill de las 1830 que ya están
-
-`backend/scripts/backfill_genres.py`:
-
-- `--dry-run` por defecto: informe y no toca nada.
-- **Solo rellena donde `genre IS NULL`.** Así una corrección a mano nunca se
-  pisa al reejecutar, y no hace falta una columna `genre_source`.
-- Escribe el tag con mutagen **y** actualiza la BD, en ese orden. Si solo se
-  escribiera la BD, el siguiente escaneo lo borraría (§1).
-- Reanudable, y deja aparte la lista de lo que no pudo resolver.
-- ~1830 consultas de pista más los álbumes cacheados ≈ 10-15 min.
-
-### d) UI
+### b) UI
 
 `TrackList` ya sabe pintar género (`showGenre`) y ya se puede ordenar por
 género con el selector nuevo. Falta poder editar el género en lote, para
 despachar la cola de revisión de una sentada.
 
-### e) Playlists semanales
+### c) Playlists semanales
 
 `plays` de los últimos 7 días, unido a `tracks`, agrupado por género canónico.
 
-## 6. Ojo con esto al llegar al punto (e)
+## 7. Ojo con esto al llegar a las playlists semanales
 
 `my_stats` y los agregados usan **UTC**, no hora de Madrid
 (`func.date(Play.played_at)`, `datetime.utcnow()`). Una "semana" calculada así
