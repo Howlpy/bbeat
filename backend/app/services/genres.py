@@ -43,6 +43,9 @@ ARTIST_ALBUMS_SAMPLE = 6
 ARTIST_TOP_SAMPLE = 10
 ARTIST_MIN_VOTES = 2
 ARTIST_MIN_SHARE = 0.5
+# Cuánto del peso de los tags tiene que llevarse un género para que el artista
+# pueda corregir a Deezer. Medido: Kidd Keo trap se lleva el 0.87.
+ARTISTA_UNANIME = 0.8
 
 # ─── Vocabulario canónico ────────────────────────────────────────
 # Deezer usa cuatro etiquetas para dos ideas ("Electro", "Dance",
@@ -266,6 +269,9 @@ class _Client:
         self.artist_cache: dict[str, Optional[str]] = {}
         self.wikidata_cache: dict[str, Optional[str]] = {}
         self.lastfm_album_cache: dict[tuple, Optional[str]] = {}
+        self.lastfm_track_cache: dict[tuple, Optional[str]] = {}
+        # Cuán unánime fue la última votación de tags (0..1).
+        self.ultima_fuerza: float = 0.0
         self.lastfm_artist_cache: dict[str, Optional[str]] = {}
 
     def get(self, path: str, params: Optional[dict] = None) -> Optional[dict]:
@@ -322,6 +328,7 @@ class _Client:
         self.artist_cache.clear()
         self.wikidata_cache.clear()
         self.lastfm_album_cache.clear()
+        self.lastfm_track_cache.clear()
         self.lastfm_artist_cache.clear()
 
 
@@ -366,28 +373,79 @@ def _tags_a_genero(tags) -> Optional[str]:
             except (TypeError, ValueError):
                 peso = 1
             votos[canon] += max(peso, 1)
-    return votos.most_common(1)[0][0] if votos else None
-
-
-def _lastfm_album_genre(artist: str, album: str) -> Optional[str]:
-    """Género según los tags del ÁLBUM en Last.fm.
-
-    Es la mejor granularidad que existe gratis. Last.fm tiene tags por
-    canción, pero en la práctica están vacíos salvo en clásicos muy tageados
-    (funcionan para "Smells Like Teen Spirit"; para "Get Lucky" de Daft Punk ya
-    no). Los del álbum sí están puestos, y son de gente que ha escuchado el
-    disco: donde Deezer decía "Pop" para SFDK, aquí sale "hip-hop, rap".
-    """
-    if not artist or not album:
+    if not votos:
         return None
+    ganador, peso = votos.most_common(1)[0]
+    total = sum(votos.values())
+    # "Unánime" = el ganador se lleva casi todo el peso. En Last.fm el tag más
+    # votado siempre vale 100, así que lo que distingue a un artista de un solo
+    # género de uno que cruza es cuánto se lleva el resto.
+    _client.ultima_fuerza = peso / total if total else 0.0
+    return ganador
+
+
+def _lastfm_album_tags(artist: str, album: str) -> Optional[str]:
+    """Género según los tags de un álbum concreto en Last.fm."""
     clave = (_norm_tight(artist), _norm_tight(album))
     if clave in _client.lastfm_album_cache:
         return _client.lastfm_album_cache[clave]
     d = _lastfm("album.getinfo", {"artist": artist, "album": album})
-    tags = ((d or {}).get("album", {}).get("tags") or {}).get("tag", [])
-    resultado = _tags_a_genero(tags)
+    resultado = _tags_a_genero(((d or {}).get("album", {}).get("tags") or {}).get("tag", []))
     _client.lastfm_album_cache[clave] = resultado
     return resultado
+
+
+def _lastfm_track_genre(artist: str, title: str, album_local: Optional[str]) -> Optional[str]:
+    """Género de ESTA pista según Last.fm, por la vía más fina que haya.
+
+    1. Los tags de la propia canción, si los tiene. Es lo ideal, pero en la
+       práctica solo están puestos en clásicos muy tageados: funcionan para
+       "Smells Like Teen Spirit" y ya no para "Get Lucky".
+    2. Los tags del álbum REAL en el que salió, que Last.fm sabe a partir de
+       artista + título. Esto es lo que de verdad funciona.
+    3. Como último recurso, el nombre de álbum que tengamos guardado.
+
+    El paso 2 importa más de lo que parece: los "álbumes" de esta biblioteca
+    son en su mayoría playlists ("KIDD KEO TEMAZOS", "javi's greatest hits
+    '25"), que no existen en ningún catálogo. Preguntando por la pista se
+    esquiva ese problema entero y se recupera el disco auténtico — y con él
+    unos tags que sí dicen algo: "Moon Talk" sale spain, trap, latin, rap.
+    """
+    if not artist or not title:
+        return None
+    clave = (_norm_tight(artist), _norm_tight(title))
+    if clave in _client.lastfm_track_cache:
+        return _client.lastfm_track_cache[clave]
+
+    resultado = None
+    d = _lastfm("track.getinfo", {"artist": artist, "track": title})
+    pista = (d or {}).get("track", {})
+    if pista:
+        resultado = _tags_a_genero((pista.get("toptags") or {}).get("tag", []))
+        if resultado is None:
+            album_real = (pista.get("album") or {}).get("title")
+            if album_real:
+                resultado = _lastfm_album_tags(artist, album_real)
+    if resultado is None and album_local:
+        resultado = _lastfm_album_tags(artist, album_local)
+
+    _client.lastfm_track_cache[clave] = resultado
+    return resultado
+
+
+def _lastfm_artist_fuerte(artist: str) -> Optional[str]:
+    """Género del artista solo si la comunidad está prácticamente de acuerdo.
+
+    Sirve para desempatar contra el género de álbum de Deezer, que es la fuente
+    menos fiable de todas: si Deezer dice "electronica" para una canción de
+    Kidd Keo pero sus tags son trap:100 frente a latin:7, gana el artista.
+
+    El umbral se limita solo: un artista que de verdad cruza géneros tiene los
+    tags repartidos, no llega al umbral, y su pista conserva lo que diga el
+    álbum. Que es justo lo que se quiere.
+    """
+    g = _lastfm_artist_genre(artist)
+    return g if g and _client.ultima_fuerza >= ARTISTA_UNANIME else None
 
 
 def _lastfm_artist_genre(artist: str) -> Optional[str]:
@@ -634,16 +692,27 @@ def resolve(
         # Evidencia de la PISTA primero. Un artista puede hacer rap y
         # reggaeton, y eso solo se ve disco a disco y pista a pista.
         #
-        # El álbum de Last.fm va el primero porque es la mejor granularidad
-        # disponible con datos fiables: tageado por gente que escuchó ese
-        # disco, no una etiqueta de catálogo.
-        canon = _lastfm_album_genre(artist, album) if album else None
+        # Last.fm va primero porque es la mejor granularidad con datos
+        # fiables: los tags los pone gente que escuchó la música, no un
+        # catálogo. Y resuelve el álbum real a partir de la pista, así que no
+        # depende de cómo se llamen los álbumes aquí dentro.
+        canon = _lastfm_track_genre(artist, title, album)
+        de_lastfm = canon is not None
         if canon is None:
             canon = canonicalize(_track_genre(artist, title))
         if canon is None:
             canon = _itunes_genre(artist, title)
         if canon is None and allow_artist_fallback:
             canon = _artist_genre(artist)
+
+        # Si la respuesta NO viene de Last.fm sino del género de álbum de
+        # Deezer —el menos fiable— y el artista tiene un género casi unánime
+        # que lo contradice, gana el artista. Sin esto, "Ma Vie" de Kidd Keo
+        # se quedaba en electronica por el disco donde Deezer la coloca.
+        if canon is not None and not de_lastfm and allow_artist_fallback:
+            fuerte = _lastfm_artist_fuerte(artist)
+            if fuerte and fuerte != canon:
+                canon = fuerte
 
         # Corrección: si lo que ha salido es vago —de lo que estas APIs sueltan
         # cuando no han clasificado— se afina con el artista. Los tags de
