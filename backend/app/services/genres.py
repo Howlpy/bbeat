@@ -21,11 +21,14 @@ from typing import Optional
 
 import httpx
 
+from app.config import settings
+
 log = logging.getLogger("bbeat.genres")
 
 DEEZER = "https://api.deezer.com"
 ITUNES = "https://itunes.apple.com/search"
 WIKIDATA = "https://www.wikidata.org/w/api.php"
+LASTFM = "https://ws.audioscrobbler.com/2.0/"
 HEADERS = {"User-Agent": "Bbeat/0.1 (https://github.com/Howlpy/bbeat)"}
 TIMEOUT = 15.0
 
@@ -262,6 +265,8 @@ class _Client:
         self.album_cache: dict[int, list[str]] = {}
         self.artist_cache: dict[str, Optional[str]] = {}
         self.wikidata_cache: dict[str, Optional[str]] = {}
+        self.lastfm_album_cache: dict[tuple, Optional[str]] = {}
+        self.lastfm_artist_cache: dict[str, Optional[str]] = {}
 
     def get(self, path: str, params: Optional[dict] = None) -> Optional[dict]:
         """GET a Deezer. None ante cualquier problema: esto nunca debe tumbar
@@ -316,6 +321,8 @@ class _Client:
         self.album_cache.clear()
         self.artist_cache.clear()
         self.wikidata_cache.clear()
+        self.lastfm_album_cache.clear()
+        self.lastfm_artist_cache.clear()
 
 
 _client = _Client()
@@ -326,6 +333,75 @@ _client = _Client()
 # justo la información que se busca. Si Wikidata tiene algo más concreto para
 # ese artista, manda Wikidata.
 GENEROS_VAGOS = frozenset({"pop", "rock", "latino"})
+
+
+def _lastfm(metodo: str, params: dict) -> Optional[dict]:
+    """Llamada a Last.fm. None si no hay clave configurada o si falla."""
+    key = settings.lastfm_api_key
+    if not key:
+        return None
+    return _client.get_json(
+        LASTFM, {"method": metodo, "format": "json", "api_key": key,
+                 "autocorrect": 1, **params}
+    )
+
+
+def _tags_a_genero(tags) -> Optional[str]:
+    """Vota el género canónico entre unos tags de Last.fm, usando sus pesos.
+
+    Los tags son libres y vienen mezclados con ruido —"spanish", "2022",
+    "9 of 10 stars"—, pero traen un `count` de 0 a 100 que dice cuánta gente
+    los puso. Votar con ese peso es lo que hace que Bad Bunny salga reggaeton
+    (Reggaeton:100 frente a trap:72) y Kidd Keo rap (trap:100 frente a
+    latin:7). El ruido no puntúa porque no se traduce a nada.
+    """
+    if isinstance(tags, dict):
+        tags = [tags]
+    votos: Counter[str] = Counter()
+    for t in (tags or [])[:12]:
+        canon = canonicalize_wikidata(t.get("name"))
+        if canon:
+            try:
+                peso = int(t.get("count") or 1)
+            except (TypeError, ValueError):
+                peso = 1
+            votos[canon] += max(peso, 1)
+    return votos.most_common(1)[0][0] if votos else None
+
+
+def _lastfm_album_genre(artist: str, album: str) -> Optional[str]:
+    """Género según los tags del ÁLBUM en Last.fm.
+
+    Es la mejor granularidad que existe gratis. Last.fm tiene tags por
+    canción, pero en la práctica están vacíos salvo en clásicos muy tageados
+    (funcionan para "Smells Like Teen Spirit"; para "Get Lucky" de Daft Punk ya
+    no). Los del álbum sí están puestos, y son de gente que ha escuchado el
+    disco: donde Deezer decía "Pop" para SFDK, aquí sale "hip-hop, rap".
+    """
+    if not artist or not album:
+        return None
+    clave = (_norm_tight(artist), _norm_tight(album))
+    if clave in _client.lastfm_album_cache:
+        return _client.lastfm_album_cache[clave]
+    d = _lastfm("album.getinfo", {"artist": artist, "album": album})
+    tags = ((d or {}).get("album", {}).get("tags") or {}).get("tag", [])
+    resultado = _tags_a_genero(tags)
+    _client.lastfm_album_cache[clave] = resultado
+    return resultado
+
+
+def _lastfm_artist_genre(artist: str) -> Optional[str]:
+    """Género según los tags del ARTISTA en Last.fm, ponderados."""
+    if not artist:
+        return None
+    clave = _norm_tight(artist)
+    if clave in _client.lastfm_artist_cache:
+        return _client.lastfm_artist_cache[clave]
+    d = _lastfm("artist.gettoptags", {"artist": artist})
+    tags = ((d or {}).get("toptags") or {}).get("tag", [])
+    resultado = _tags_a_genero(tags)
+    _client.lastfm_artist_cache[clave] = resultado
+    return resultado
 
 
 def _wikidata_genre(artist: str) -> Optional[str]:
@@ -540,7 +616,13 @@ def _split_artist_from_title(title: str) -> Optional[tuple[str, str]]:
     return left, right
 
 
-def resolve(artist: str, title: str, *, allow_artist_fallback: bool = True) -> Optional[str]:
+def resolve(
+    artist: str,
+    title: str,
+    *,
+    album: Optional[str] = None,
+    allow_artist_fallback: bool = True,
+) -> Optional[str]:
     """Género canónico de una pista, o None si no se puede decidir.
 
     Nunca lanza: si Deezer no responde, la canción se queda sin género y ya se
@@ -549,32 +631,38 @@ def resolve(artist: str, title: str, *, allow_artist_fallback: bool = True) -> O
     try:
         # _track_genre devuelve etiqueta de Deezer; _artist_genre ya devuelve
         # canónico (vota sobre canónicos). Se traduce solo lo primero.
-        # Primero la evidencia de la PISTA: el álbum concreto en el que salió y
-        # lo que diga iTunes de ella. Un artista puede hacer rap y reggaeton, y
-        # eso solo se ve pista a pista.
-        canon = canonicalize(_track_genre(artist, title))
+        # Evidencia de la PISTA primero. Un artista puede hacer rap y
+        # reggaeton, y eso solo se ve disco a disco y pista a pista.
+        #
+        # El álbum de Last.fm va el primero porque es la mejor granularidad
+        # disponible con datos fiables: tageado por gente que escuchó ese
+        # disco, no una etiqueta de catálogo.
+        canon = _lastfm_album_genre(artist, album) if album else None
+        if canon is None:
+            canon = canonicalize(_track_genre(artist, title))
         if canon is None:
             canon = _itunes_genre(artist, title)
         if canon is None and allow_artist_fallback:
             canon = _artist_genre(artist)
 
-        # Corrección: si lo que ha salido es una etiqueta vaga —de las que estas
-        # APIs sueltan cuando no han clasificado— y Wikidata tiene algo concreto
-        # para el artista, manda Wikidata. Sabaton sale "rock" y es metal;
-        # SFDK sale "pop" y es rap.
+        # Corrección: si lo que ha salido es vago —de lo que estas APIs sueltan
+        # cuando no han clasificado— se afina con el artista. Los tags de
+        # Last.fm van ponderados y son los mejores; Wikidata cubre lo que
+        # Last.fm no tenga.
         #
-        # Solo corrige lo vago: una respuesta específica de la pista (reggaeton
-        # en un tema de un rapero) se respeta, que es de lo que se trata.
+        # Solo se corrige lo vago: una respuesta específica de la pista
+        # (reggaeton en un tema de un rapero) se respeta, que es de lo que se
+        # trata.
         if canon is None or canon in GENEROS_VAGOS:
-            wd = _wikidata_genre(artist)
-            if wd and wd != canon:
-                canon = wd
+            mejor = _lastfm_artist_genre(artist) or _wikidata_genre(artist)
+            if mejor and mejor != canon:
+                canon = mejor
 
         # "bso" dice en qué disco salió la canción, no cómo suena. Un tema de
         # Snoop Dogg que aparece en una banda sonora sigue siendo rap, y para
         # "top de rap de la semana" etiquetarlo de bso es perderlo.
         if canon == "bso":
-            canon = _wikidata_genre(artist) or (
+            canon = _lastfm_artist_genre(artist) or _wikidata_genre(artist) or (
                 _artist_genre(artist) if allow_artist_fallback else None
             ) or "bso"
 
@@ -598,8 +686,8 @@ def resolve(artist: str, title: str, *, allow_artist_fallback: bool = True) -> O
 
 
 def resolve_meta(meta) -> Optional[str]:
-    """Como resolve(), pero tomando artista y título de un TrackMeta."""
-    return resolve(meta.primary_artist, meta.title)
+    """Como resolve(), pero tomando los datos de un TrackMeta."""
+    return resolve(meta.primary_artist, meta.title, album=meta.album or None)
 
 
 def reset_cache() -> None:
