@@ -116,6 +116,7 @@ def list_tracks(
     offset: int = Query(0, ge=0),
     artist_id: Optional[int] = None,
     album_id: Optional[int] = None,
+    genre: Optional[str] = None,
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
@@ -130,6 +131,11 @@ def list_tracks(
     if artist_id is not None:
         stmt = stmt.where(Track.artist_id == artist_id)
         count_stmt = count_stmt.where(Track.artist_id == artist_id)
+    if genre:
+        # Sin distinguir mayúsculas: el vocabulario es canónico y en minúsculas,
+        # pero una pista editada a mano puede traer "Rap".
+        stmt = stmt.where(func.lower(Track.genre) == genre.strip().lower())
+        count_stmt = count_stmt.where(func.lower(Track.genre) == genre.strip().lower())
     if album_id is not None:
         # AlbumTrack es la relación canónica y conserva el orden de la playlist.
         stmt = stmt.join(
@@ -162,6 +168,33 @@ def list_tracks(
         for track, artist, album in session.exec(stmt).all()
     ]
     return {"total": total, "limit": limit, "offset": offset, "items": items}
+
+
+@router.get("/genres")
+def list_genres(
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+) -> dict:
+    """Géneros presentes en la biblioteca, con su número de pistas.
+
+    Se cuenta en el servidor porque la vista de Canciones solo carga una página
+    de pistas: contar sobre lo cargado daría cifras que no cuadran con nada.
+    """
+    n = func.count(Track.id).label("n")
+    rows = session.exec(
+        select(func.lower(Track.genre).label("g"), n)
+        .where(Track.genre.is_not(None), func.trim(Track.genre) != "")
+        .group_by("g")
+        .order_by(n.desc())
+    ).all()
+    total = session.exec(select(func.count(Track.id)).select_from(Track)).one()
+    con_genero = sum(r[1] for r in rows)
+    return {
+        "items": [{"genre": g, "count": c} for g, c in rows],
+        "total": total,
+        "with_genre": con_genero,
+        "without_genre": total - con_genero,
+    }
 
 
 @router.get("/albums")
