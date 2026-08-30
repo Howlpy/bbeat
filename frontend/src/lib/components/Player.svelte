@@ -6,6 +6,15 @@
   import NowPlaying from './NowPlaying.svelte';
   import Queue from './Queue.svelte';
 
+  let {
+    bottom = 0,
+    height = $bindable(0)
+  }: {
+    /** Altura de la navbar: el mini player se apoya justo encima de ella. */
+    bottom?: number;
+    height?: number;
+  } = $props();
+
   let audioA: HTMLAudioElement;
   let audioB: HTMLAudioElement;
   let volumeOpen = $state(false);
@@ -46,8 +55,12 @@
 <audio bind:this={audioB} preload="auto"></audio>
 
 {#if player.current}
-  <!-- Mini player anclado al bottom -->
-  <div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-950/95 backdrop-blur">
+  <!-- Mini player apoyado justo encima de la navbar -->
+  <div
+    bind:clientHeight={height}
+    class="fixed inset-x-0 z-40 border-t border-slate-800 bg-slate-950/95 backdrop-blur"
+    style:bottom="{bottom}px"
+  >
     <!-- Barra de progreso fina arriba del player -->
     <div class="relative h-0.5 bg-slate-800">
       <div

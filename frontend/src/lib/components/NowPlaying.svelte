@@ -12,7 +12,10 @@
     Heart,
     ListMusic,
     Mic2,
-    Music2
+    Music2,
+    Volume1,
+    Volume2,
+    VolumeX
   } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { api, formatDuration } from '$lib/api';
@@ -93,6 +96,13 @@
     const target = e.target as HTMLInputElement;
     player.seek(Number(target.value));
   }
+
+  function onVolume(e: Event) {
+    const target = e.target as HTMLInputElement;
+    player.setVolume(Number(target.value));
+  }
+
+  const volumePct = $derived(Math.round((player.muted ? 0 : player.volume) * 100));
 
   // Cerrar con swipe down; cambiar pista deslizando horizontalmente la portada.
   let touchStart = $state(0);
@@ -338,6 +348,39 @@
             <Repeat size={22} />
           {/if}
         </button>
+      </div>
+
+      <!-- Volumen -->
+      <div class="mx-auto mt-6 flex w-full max-w-sm items-center gap-3">
+        <button
+          onclick={() => player.toggleMute()}
+          class="grid size-8 flex-none place-items-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+          aria-label={player.muted ? 'Quitar silencio' : 'Silenciar'}
+        >
+          {#if player.muted || player.volume === 0}
+            <VolumeX size={18} />
+          {:else if player.volume < 0.5}
+            <Volume1 size={18} />
+          {:else}
+            <Volume2 size={18} />
+          {/if}
+        </button>
+        <div class="relative h-5 flex-1">
+          <div class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-slate-800">
+            <div class="h-full rounded-full bg-slate-400" style:width="{volumePct}%"></div>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={player.muted ? 0 : player.volume}
+            oninput={onVolume}
+            class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label="Volumen"
+          />
+        </div>
+        <span class="w-8 flex-none text-right font-mono text-xs text-slate-500">{volumePct}</span>
       </div>
     </div>
   </div>

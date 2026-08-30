@@ -1,6 +1,7 @@
 import { api, type Track } from './api';
 import { offline } from './offline.svelte';
 import { media } from './media';
+import { advance, breakContinuity, newListen, type ListenState } from './listen';
 
 const VOLUME_KEY = "bbeat:volume";
 const MUTED_KEY = "bbeat:muted";
@@ -79,8 +80,10 @@ class PlayerState {
 
   /** Orden sin barajar de la cola actual (para poder restaurarlo al quitar shuffle). */
   private baseQueue: Track[] = [];
-  /** track_id cuya reproducción ya hemos registrado, para no contar dos veces. */
-  private playLogged: number | null = null;
+  /** Pista sobre la que se está acumulando escucha ahora mismo. */
+  private listenTrackId: number | null = null;
+  /** Contador de escucha continua de esa pista (ver lib/listen.ts). */
+  private listen: ListenState = newListen();
 
   /** Activo durante una transición de pista para suprimir el pause espurio. */
   private switching = false;
@@ -117,8 +120,14 @@ class PlayerState {
 
       el.addEventListener('timeupdate', () => {
         if (el !== this.el) return;
+        this.accumulateListened(el.currentTime);
         this.position = el.currentTime;
         this.updatePositionState();
+      });
+      // Cualquier salto (scrubber, mando del SO, ±10s) rompe el "de seguido".
+      el.addEventListener('seeking', () => {
+        if (el !== this.el) return;
+        breakContinuity(this.listen);
       });
       el.addEventListener('loadedmetadata', () => {
         if (el !== this.el) return;
@@ -193,6 +202,37 @@ class PlayerState {
       return;
     }
     el.pause();
+  }
+
+  /**
+   * Registro de escucha: una pista cuenta cuando se ha oído al menos el 70 %
+   * de su duración y de seguido. Acumulamos deltas de `currentTime` en vez de
+   * mirar el reloj, así una pausa no rompe nada (no llegan timeupdate) pero un
+   * salto sí, que es justo lo que "de seguido" significa.
+   */
+  private accumulateListened(now: number) {
+    const cur = this.current;
+    if (!cur) return;
+    // Red de seguridad: si la pista cambió sin pasar por beginListen(),
+    // empezamos de cero igualmente en vez de arrastrar el contador anterior.
+    if (this.listenTrackId !== cur.id) this.beginListen();
+
+    if (advance(this.listen, now, this.listenTargetSec(cur))) {
+      api.recordPlay(cur.id).catch(() => {});
+    }
+  }
+
+  /** Empieza a contar de cero la pista actual (y le permite volver a registrarse). */
+  private beginListen() {
+    this.listenTrackId = this.current?.id ?? null;
+    this.listen = newListen();
+  }
+
+  /** Duración de referencia: la del elemento si ya cargó, si no la del catálogo. */
+  private listenTargetSec(cur: Track): number {
+    const d = this.el?.duration ?? 0;
+    if (isFinite(d) && d > 0) return d;
+    return cur.duration_ms ? cur.duration_ms / 1000 : 0;
   }
 
   /** Marca 'sonando ahora' la pista actual y mantiene el heartbeat (~25s). */
@@ -287,8 +327,9 @@ class PlayerState {
 
     el.src = this.srcFor(this.current);
     el.load();
+    // Cada carga es una escucha nueva: vuelve a tener opción de contar.
+    this.beginListen();
 
-    const cur = this.current;
     const done = () => {
       this.switching = false;
       // Con la pista en marcha, precarga la siguiente en el elemento en espera.
@@ -297,11 +338,6 @@ class PlayerState {
     if (autoplay) {
       el.play().then(() => {
         done();
-        // Registrar la reproducción una sola vez por pista (historial + top).
-        if (cur && this.playLogged !== cur.id) {
-          this.playLogged = cur.id;
-          api.recordPlay(cur.id).catch(() => {});
-        }
       }, (err) => {
         console.warn('[bbeat] autoplay rechazado:', err);
         done();
@@ -348,8 +384,7 @@ class PlayerState {
   next(auto = false) {
     // Repeat-one: al acabar sola, reproduce de nuevo la misma (manual sí avanza).
     if (auto && this.repeat === 'one') {
-      this.playLogged = null; // que cuente como nueva reproducción
-      this.loadCurrent(true);
+      this.loadCurrent(true); // beginListen() ya la deja contar otra vez
       return;
     }
     const ni = this.autoNextIndex();
@@ -404,13 +439,9 @@ class PlayerState {
     this.position = nw.currentTime;
     this.updatePositionState();
 
-    const cur = this.current;
+    this.beginListen();
     nw.play().then(() => {
       this.switching = false;
-      if (cur && this.playLogged !== cur.id) {
-        this.playLogged = cur.id;
-        api.recordPlay(cur.id).catch(() => {});
-      }
       this.preloadNext(); // ahora precarga la siguiente en el elemento liberado
     }, (err) => {
       console.warn('[bbeat] play tras swap rechazado, recargo en frío:', err);
