@@ -27,7 +27,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import engine
-from app.models import Artist, Track
+from app.models import Album, Artist, Track
 from app.services import genres as genres_svc
 
 
@@ -65,8 +65,9 @@ def main() -> int:
 
     with Session(engine) as session:
         rows = session.exec(
-            select(Track, Artist)
+            select(Track, Artist, Album.title)
             .join(Artist, Artist.id == Track.artist_id)
+            .outerjoin(Album, Album.id == Track.album_id)
             .where(Track.genre.is_(None))
             .order_by(Track.id)
         ).all()
@@ -86,9 +87,12 @@ def main() -> int:
     sin_genero: list[dict] = []
     errores: list[dict] = []
 
-    for i, (track, artist) in enumerate(rows, 1):
+    for i, (track, artist, album_title) in enumerate(rows, 1):
         genre = genres_svc.resolve(
-            artist.name, track.title, allow_artist_fallback=not args.no_artist_fallback
+            artist.name,
+            track.title,
+            album=album_title,
+            allow_artist_fallback=not args.no_artist_fallback,
         )
         etiqueta = f"{artist.name} — {track.title}"
 

@@ -40,6 +40,11 @@ class Settings(BaseSettings):
 
     cors_origins: str = Field("http://localhost:5173", alias="BBEAT_CORS_ORIGINS")
 
+    # Last.fm: solo lectura de tags para deducir el género. Basta la api_key
+    # (el shared secret es para escribir, y no escribimos nada). Sin clave,
+    # la resolución de género simplemente se salta esa fuente.
+    lastfm_api_key: str = Field("", alias="BBEAT_LASTFM_API_KEY")
+
     @property
     def cors_origin_list(self) -> list[str]:
         configured = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
