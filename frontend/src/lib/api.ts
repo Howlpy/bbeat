@@ -282,6 +282,13 @@ export const api = {
   stats: () => json<LibraryStats>('/api/library/stats'),
 
   // ── Preferencias de UI por usuario (orden de listas, …) ──
+  genres: () =>
+    json<{
+      items: { genre: string; count: number }[];
+      total: number;
+      with_genre: number;
+      without_genre: number;
+    }>('/api/library/genres'),
   prefs: () => json<{ items: Record<string, string> }>('/api/library/me/prefs'),
   setPref: (key: string, value: string) =>
     json<{ ok: boolean; key: string; value: string }>('/api/library/me/prefs', {
@@ -290,7 +297,15 @@ export const api = {
       body: JSON.stringify({ key, value })
     }),
 
-  tracks: (params: { limit?: number; offset?: number; artist_id?: number; album_id?: number } = {}) => {
+  tracks: (
+    params: {
+      limit?: number;
+      offset?: number;
+      artist_id?: number;
+      album_id?: number;
+      genre?: string;
+    } = {}
+  ) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
     return json<{ total: number; limit: number; offset: number; items: Track[] }>(
