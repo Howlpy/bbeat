@@ -461,7 +461,17 @@ def _lastfm_artist_fuerte(artist: str, title: str) -> Optional[str]:
     if not _client.lastfm_track_existe.get((_norm_tight(artist), _norm_tight(title))):
         return None
     g, fuerza = _lastfm_artist_genre(artist)
-    return g if g and fuerza >= ARTISTA_UNANIME else None
+    if not g or fuerza < ARTISTA_UNANIME:
+        return None
+    # Y aun con la pista confirmada y los tags unánimes, hace falta que una
+    # segunda fuente lo diga también.
+    #
+    # Porque la unanimidad puede ser de otro artista mezclado en la misma
+    # página: el "FUFU" de Last.fm tiene techno:100 y trance:100 de un
+    # productor centroamericano, pero conoce igualmente "TIBURON" del rapero
+    # español. La comprobación de la pista no basta; la de Wikidata sí, porque
+    # ahí no hay ningún FUFU. Kidd Keo, en cambio, sale rap en las dos.
+    return g if _wikidata_genre(artist) == g else None
 
 
 def _lastfm_artist_genre(artist: str) -> tuple[Optional[str], float]:
