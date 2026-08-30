@@ -69,3 +69,6 @@ data/*.bak-*
 
 # build de la app nativa (Capacitor)
 frontend/build-native/
+
+# Copias sueltas de deploys manuales, no forman parte del proyecto
+*.deploy.py
