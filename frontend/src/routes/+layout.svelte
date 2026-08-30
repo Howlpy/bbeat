@@ -15,13 +15,19 @@
   import { offline } from '$lib/offline.svelte';
   import { net } from '$lib/net.svelte';
   import { server } from '$lib/server.svelte';
+  import { prefs } from '$lib/prefs.svelte';
 
   let { children } = $props();
 
   const PUBLIC_ROUTES = ['/login', '/register'];
   const isPublicPage = $derived(PUBLIC_ROUTES.some((p) => page.url.pathname.startsWith(p)));
 
-  let mainPadBottom = $derived(player.current ? 'pb-36' : 'pb-20');
+  // Alturas reales de las dos barras fijas de abajo. Medirlas (en vez de fijar
+  // píxeles a ojo) es lo que garantiza que el player quede pegado a la navbar
+  // sin hueco y que el contenido nunca quede tapado, salga la barra que salga.
+  let navHeight = $state(0);
+  let playerHeight = $state(0);
+  let mainPadBottom = $derived(navHeight + (player.current ? playerHeight : 0));
 
   onMount(async () => {
     server.init();
@@ -37,6 +43,7 @@
     if (auth.isLoggedIn) {
       jobs.start();
       offline.init();
+      prefs.init();
       // En la app nativa, pedir permiso de notificaciones (Android 13+) para que
       // aparezca el control de media en la notificación/bloqueo.
       if (Capacitor.isNativePlatform()) {
@@ -58,6 +65,7 @@
   $effect(() => {
     if (auth.initialized && !auth.isLoggedIn && !isPublicPage) {
       jobs.stop();
+      prefs.clear();
       goto('/login');
     }
   });
@@ -80,13 +88,14 @@
       <WifiOff size={14} /> Sin conexión · toca para ir a Descargas
     </a>
   {/if}
-  <main class="min-h-screen {mainPadBottom}">
+  <main class="min-h-screen" style:padding-bottom="{mainPadBottom}px">
     {#key page.url.pathname}
       <div in:fly={{ y: 10, duration: 220 }}>
         {@render children?.()}
       </div>
     {/key}
   </main>
-  <BottomNav />
-  <Player />
+  <!-- Orden en pantalla: el player va encima, la navbar debajo pegada al borde. -->
+  <Player bottom={navHeight} bind:height={playerHeight} />
+  <BottomNav bind:height={navHeight} />
 {/if}

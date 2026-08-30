@@ -2,9 +2,12 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { Home, Music2, Disc3, Download, Settings, Shield, LogOut, Flame, HardDriveDownload, Radio } from 'lucide-svelte';
-  import { player } from '$lib/player.svelte';
   import { jobs } from '$lib/jobs.svelte';
   import { auth } from '$lib/auth.svelte';
+
+  // La altura real la lee el layout para calcular el hueco inferior del <main>
+  // y para apoyar el reproductor justo encima, sin holguras a ojo.
+  let { height = $bindable(0) }: { height?: number } = $props();
 
   let menuOpen = $state(false);
   let menuEl = $state<HTMLDivElement | null>(null);
@@ -40,8 +43,8 @@
 </script>
 
 <nav
-  class="fixed inset-x-0 z-30 border-t border-slate-800 bg-slate-950/95 backdrop-blur"
-  style:bottom={player.current ? '78px' : '0'}
+  bind:clientHeight={height}
+  class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
 >
   <div class="mx-auto flex max-w-5xl">
     {#each items as item}

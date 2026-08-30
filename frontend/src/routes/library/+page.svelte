@@ -4,6 +4,8 @@
   import { api, type Track } from '$lib/api';
   import { player } from '$lib/player.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
+  import SortSelect from '$lib/components/SortSelect.svelte';
+  import { sortTracks, type TrackSort } from '$lib/sort';
 
   let tracks = $state<Track[]>([]);
   let total = $state(0);
@@ -12,6 +14,8 @@
   let searching = $state(false);
   let loading = $state(true);
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
+  let sort = $state<TrackSort>('original');
+  const visibleTracks = $derived(sortTracks(tracks, sort));
 
   async function load() {
     try {
@@ -75,7 +79,8 @@
     </button>
   {/if}
 
-  <div class="relative mb-4">
+  <div class="mb-4 flex items-center gap-2">
+    <div class="relative min-w-0 flex-1">
     <input
       type="search"
       bind:value={query}
@@ -92,6 +97,8 @@
         aria-label="Limpiar"
       ><X size={14} /></button>
     {/if}
+    </div>
+    <SortSelect prefKey="sort:library" bind:value={sort} originalLabel="Orden de la biblioteca" />
   </div>
 
   {#if error}
@@ -113,6 +120,6 @@
       {query ? 'Sin resultados.' : 'Biblioteca vacía. Importa algo desde /import.'}
     </p>
   {:else}
-    <TrackList bind:tracks showAlbum={false} onchanged={load} />
+    <TrackList tracks={visibleTracks} showAlbum={sort === 'album'} showGenre={sort === 'genre'} onchanged={load} />
   {/if}
 </div>

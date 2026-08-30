@@ -140,6 +140,21 @@ class Play(SQLModel, table=True):
     played_at: datetime = Field(default_factory=_now, index=True)
 
 
+class UserPref(SQLModel, table=True):
+    """Preferencia de UI de un usuario (p. ej. el orden elegido en una lista).
+
+    Va en el servidor y no en localStorage a propósito: el mismo usuario entra
+    desde el navegador y desde la app nativa, y espera encontrarse sus listas
+    igual en las dos.
+    """
+    __tablename__ = "user_prefs"
+
+    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    key: str = Field(primary_key=True)
+    value: str = Field(default="")
+    updated_at: datetime = Field(default_factory=_now)
+
+
 class Setting(SQLModel, table=True):
     """Pares clave/valor editables desde la UI (override del .env)."""
     __tablename__ = "settings"
