@@ -14,7 +14,9 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import get_session
-from app.models import Album, AlbumSave, AlbumTrack, Artist, Play, Track, TrackLike, User
+from app.models import (
+    Album, AlbumSave, AlbumTrack, Artist, Play, Track, TrackLike, User, UserPref,
+)
 from app.services import access as access_svc
 from app.services import auth as auth_svc
 from app.services import library as library_svc
@@ -1067,6 +1069,64 @@ def play_history(
         for t, ar, al, lp in session.exec(stmt).all()
     ]
     return {"items": items}
+
+
+# ─── Preferencias de UI (orden de listas, etc.) ───────────────
+
+# Techos defensivos: esto lo escribe el cliente, así que acotamos tamaño y
+# cantidad para que una preferencia no se convierta en almacenamiento libre.
+PREF_KEY_MAX = 120
+PREF_VALUE_MAX = 200
+PREF_MAX_PER_USER = 300
+
+
+class PrefIn(BaseModel):
+    key: str
+    value: str
+
+
+@router.get("/me/prefs")
+def get_prefs(
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Todas las preferencias del usuario de una tacada (son pocas y diminutas)."""
+    rows = session.exec(select(UserPref).where(UserPref.user_id == user.id)).all()
+    return {"items": {r.key: r.value for r in rows}}
+
+
+@router.put("/me/prefs")
+def set_pref(
+    body: PrefIn,
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    key = body.key.strip()
+    if not key or len(key) > PREF_KEY_MAX:
+        raise HTTPException(400, "clave inválida")
+    if len(body.value) > PREF_VALUE_MAX:
+        raise HTTPException(400, "valor demasiado largo")
+
+    existing = session.get(UserPref, (user.id, key))
+    # Valor vacío = volver al defecto. Borramos en vez de guardar "" para que la
+    # tabla no acumule filas muertas de listas que el usuario ya dejó en paz.
+    if not body.value:
+        if existing:
+            session.delete(existing)
+        return {"ok": True, "key": key, "value": ""}
+
+    if existing:
+        existing.value = body.value
+        existing.updated_at = datetime.utcnow()
+        session.add(existing)
+    else:
+        n = session.exec(
+            select(func.count()).select_from(UserPref).where(UserPref.user_id == user.id)
+        ).one()
+        if n >= PREF_MAX_PER_USER:
+            raise HTTPException(409, "demasiadas preferencias guardadas")
+        session.add(UserPref(user_id=user.id, key=key, value=body.value))
+    return {"ok": True, "key": key, "value": body.value}
 
 
 @router.get("/me/stats")

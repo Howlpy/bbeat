@@ -14,6 +14,10 @@
     Loader2,
     AlertCircle,
     Play,
+    ListMusic,
+    ChevronLeft,
+    Check,
+    Plus,
     X
   } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
@@ -39,21 +43,84 @@
   let albumsCache = $state<Album[]>([]);
   let poppedId = $state<number | null>(null);
 
-  onMount(async () => {
+  // El selector de playlist vive dentro del mismo sheet: en móvil, apilar
+  // diálogos encima del sheet acaba en una pila que no se sabe cerrar.
+  let sheetView = $state<'menu' | 'playlist'>('menu');
+  let newPlaylistName = $state('');
+  let addingTo = $state<number | null>(null);
+  let addError = $state<string | null>(null);
+  let toast = $state<string | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const playlists = $derived(albumsCache.filter((a) => a.kind === 'playlist'));
+
+  function flash(msg: string) {
+    toast = msg;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (toast = null), 2600);
+  }
+
+  async function refreshAlbums() {
     try {
-      // Solo los álbumes/playlists que puedes mutar (para mover/añadir pistas).
-      const r = await api.albums('mine');
-      albumsCache = r.items;
+      albumsCache = (await api.albums('mine')).items;
     } catch {}
-  });
+  }
+
+  async function addToPlaylist(playlist: Album, t: Track) {
+    if (addingTo !== null) return;
+    addingTo = playlist.id;
+    addError = null;
+    try {
+      const r = await api.addTracksToAlbum(playlist.id, [t.id]);
+      closeSheet();
+      flash(
+        r.added > 0
+          ? `Añadida a «${playlist.title}»`
+          : `«${t.title}» ya estaba en «${playlist.title}»`
+      );
+      // El contador de pistas de la playlist cambia: que no quede desfasado.
+      refreshAlbums();
+    } catch (e) {
+      addError = e instanceof Error ? e.message : String(e);
+    } finally {
+      addingTo = null;
+    }
+  }
+
+  async function createPlaylistWith(t: Track) {
+    const title = newPlaylistName.trim();
+    if (!title || addingTo !== null) return;
+    addingTo = -1;
+    addError = null;
+    try {
+      const album = await api.createAlbum({ title, kind: 'playlist' });
+      await api.addTracksToAlbum(album.id, [t.id]);
+      newPlaylistName = '';
+      closeSheet();
+      flash(`Playlist «${title}» creada con «${t.title}»`);
+      refreshAlbums();
+    } catch (e) {
+      addError = e instanceof Error ? e.message : String(e);
+    } finally {
+      addingTo = null;
+    }
+  }
+
+  // Solo los álbumes/playlists que puedes mutar (para mover/añadir pistas).
+  onMount(refreshAlbums);
 
   function openSheet(e: MouseEvent, t: Track, i: number) {
     e.stopPropagation();
     sheetTrack = t;
     sheetIndex = i;
+    sheetView = 'menu';
+    addError = null;
   }
   function closeSheet() {
     sheetTrack = null;
+    sheetView = 'menu';
+    newPlaylistName = '';
+    addError = null;
   }
 
   function openEdit(track: Track) {
@@ -184,7 +251,13 @@
   >
     <div class="flex justify-center pt-2.5"><span class="h-1 w-10 rounded-full bg-slate-600"></span></div>
     <div class="flex items-center gap-3 px-4 py-3">
-      {#if t.cover_url}
+      {#if sheetView === 'playlist'}
+        <button
+          onclick={() => (sheetView = 'menu')}
+          class="grid size-8 flex-none place-items-center rounded-full text-slate-400 hover:bg-slate-800"
+          aria-label="Volver"
+        ><ChevronLeft size={18} /></button>
+      {:else if t.cover_url}
         <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-12 flex-none rounded object-cover" />
       {:else}
         <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-slate-600"><Music2 size={18} /></div>
@@ -195,10 +268,12 @@
       </div>
       <button onclick={closeSheet} class="grid size-8 flex-none place-items-center rounded-full text-slate-400 hover:bg-slate-800" aria-label="Cerrar"><X size={18} /></button>
     </div>
+    {#if sheetView === 'menu'}
     <div class="border-t border-slate-800/70 py-1 text-sm">
       <button onclick={playFromSheet} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><Play size={17} /> Reproducir</button>
       <button onclick={() => addToQueue(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><ListPlus size={17} /> Añadir a la cola</button>
       <button onclick={() => playNext(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><CornerDownRight size={17} /> Reproducir a continuación</button>
+      <button onclick={() => (sheetView = 'playlist')} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><ListMusic size={17} /> Añadir a una playlist</button>
       <button onclick={(e) => { toggleLike(e, t); closeSheet(); }} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800">
         <Heart size={17} class={t.liked ? 'text-cyan-400' : ''} fill={t.liked ? 'currentColor' : 'none'} /> {t.liked ? 'Quitar de me gusta' : 'Me gusta'}
       </button>
@@ -220,7 +295,64 @@
       <button onclick={() => openEdit(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><Pencil size={17} /> Editar</button>
       <button onclick={() => deleteTrack(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-red-400 hover:bg-slate-800"><Trash2 size={17} /> Borrar</button>
     </div>
+    {:else}
+    <div class="border-t border-slate-800/70 text-sm">
+      <p class="px-4 pt-3 text-xs uppercase tracking-wider text-slate-500">Añadir a</p>
+      <div class="max-h-64 overflow-y-auto py-1">
+        {#each playlists as pl (pl.id)}
+          <button
+            onclick={() => addToPlaylist(pl, t)}
+            disabled={addingTo !== null}
+            class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800 disabled:opacity-50"
+          >
+            <span class="grid size-9 flex-none place-items-center overflow-hidden rounded bg-slate-800 text-slate-500">
+              {#if pl.cover_url}
+                <img loading="lazy" decoding="async" src={pl.cover_url} alt="" class="size-9 object-cover" />
+              {:else}
+                <ListMusic size={16} />
+              {/if}
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate">{pl.title}</span>
+              <span class="block text-xs text-slate-500">{pl.track_count} pistas</span>
+            </span>
+            {#if addingTo === pl.id}
+              <Loader2 size={16} class="flex-none animate-spin text-cyan-400" />
+            {:else}
+              <Check size={16} class="flex-none text-slate-700" />
+            {/if}
+          </button>
+        {:else}
+          <p class="px-4 py-3 text-xs text-slate-500">Todavía no tienes ninguna playlist.</p>
+        {/each}
+      </div>
+      <div class="flex items-center gap-2 border-t border-slate-800/70 px-4 py-3">
+        <Plus size={16} class="flex-none text-slate-500" />
+        <input
+          bind:value={newPlaylistName}
+          onkeydown={(e) => e.key === 'Enter' && createPlaylistWith(t)}
+          placeholder="Crear playlist nueva…"
+          class="min-w-0 flex-1 rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-sm placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
+        />
+        <button
+          onclick={() => createPlaylistWith(t)}
+          disabled={!newPlaylistName.trim() || addingTo !== null}
+          class="flex-none rounded bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 disabled:opacity-40"
+        >Crear</button>
+      </div>
+      {#if addError}
+        <p class="px-4 pb-3 text-xs text-red-400">{addError}</p>
+      {/if}
+    </div>
+    {/if}
   </div>
+{/if}
+
+{#if toast}
+  <div
+    class="fixed inset-x-0 bottom-24 z-[70] mx-auto w-fit max-w-[90vw] rounded-full border border-slate-700 bg-slate-900/95 px-4 py-2 text-sm text-slate-200 shadow-xl backdrop-blur"
+    transition:fade={{ duration: 150 }}
+  >{toast}</div>
 {/if}
 
 {#if editing}

@@ -3,6 +3,8 @@
   import { page } from '$app/state';
   import { api, type Track, type Artist } from '$lib/api';
   import TrackList from '$lib/components/TrackList.svelte';
+  import SortSelect from '$lib/components/SortSelect.svelte';
+  import { sortTracks, type TrackSort } from '$lib/sort';
   import { player } from '$lib/player.svelte';
   import { Play, Shuffle } from 'lucide-svelte';
   import { avatarGradient, initials, hueFor } from '$lib/visual';
@@ -10,6 +12,8 @@
   const artistId = $derived(Number(page.params.id));
 
   let tracks = $state<Track[]>([]);
+  let sort = $state<TrackSort>('original');
+  const visibleTracks = $derived(sortTracks(tracks, sort));
   let artist = $state<Artist | null>(null);
   let error = $state<string | null>(null);
 
@@ -55,7 +59,12 @@
         </div>
       </div>
     </header>
-    <TrackList bind:tracks />
+    {#if tracks.length > 0}
+      <div class="mb-2 flex justify-end px-2">
+        <SortSelect prefKey="sort:artist:{artistId}" bind:value={sort} originalLabel="Por álbum" />
+      </div>
+    {/if}
+    <TrackList tracks={visibleTracks} showGenre={sort === 'genre'} />
   {:else}
     <p class="text-slate-500">Cargando…</p>
   {/if}

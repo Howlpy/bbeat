@@ -5,7 +5,6 @@
   import {
     AlertTriangle,
     ArrowLeft,
-    ArrowUpDown,
     Bookmark,
     BookmarkCheck,
     Camera,
@@ -21,6 +20,8 @@
   } from 'lucide-svelte';
   import { api, type Track, type Album } from '$lib/api';
   import TrackList from '$lib/components/TrackList.svelte';
+  import SortSelect from '$lib/components/SortSelect.svelte';
+  import { sortTracks, trackMatches, type TrackSort } from '$lib/sort';
   import AddTracksDialog from '$lib/components/AddTracksDialog.svelte';
   import DownloadAllButton from '$lib/components/DownloadAllButton.svelte';
   import { player } from '$lib/player.svelte';
@@ -40,64 +41,16 @@
   let addingTracks = $state(false);
 
   let savingSave = $state(false);
-  type PlaylistSort = "original" | "title-asc" | "title-desc" | "artist" | "album" | "genre" | "duration-asc" | "duration-desc";
   let playlistQuery = $state("");
-  let playlistSort = $state<PlaylistSort>("original");
-  const collator = new Intl.Collator("es", { numeric: true, sensitivity: "base" });
+  let playlistSort = $state<TrackSort>("original");
 
-  function compareOptionalText(a: string | null | undefined, b: string | null | undefined) {
-    const av = a?.trim() ?? "";
-    const bv = b?.trim() ?? "";
-    if (!av && bv) return 1;
-    if (av && !bv) return -1;
-    return collator.compare(av, bv);
-  }
-
-  function trackMatches(track: Track, query: string) {
-    if (!query) return true;
-    return [track.title, track.artist_name, track.album_title, track.genre]
-      .filter(Boolean)
-      .some((value) => String(value).toLocaleLowerCase("es").includes(query));
-  }
-
+  const isPlaylist = $derived(album?.kind === "playlist");
+  // La búsqueda solo tiene sentido en playlists (un álbum cabe de un vistazo);
+  // la ordenación vale para las dos y se recuerda por lista.
   const visibleTracks = $derived.by<Track[]>(() => {
-    if (album?.kind !== "playlist") return tracks;
-    const query = playlistQuery.trim().toLocaleLowerCase("es");
-    const filtered = tracks.filter((track) => trackMatches(track, query));
-    if (playlistSort === "original") return filtered;
-
-    return [...filtered].sort((a, b) => {
-      let compared = 0;
-      switch (playlistSort) {
-        case "title-asc":
-          compared = collator.compare(a.title, b.title);
-          break;
-        case "title-desc":
-          compared = collator.compare(b.title, a.title);
-          break;
-        case "artist":
-          compared = collator.compare(a.artist_name, b.artist_name);
-          break;
-        case "album":
-          compared = compareOptionalText(a.album_title, b.album_title);
-          break;
-        case "genre":
-          compared = compareOptionalText(a.genre, b.genre);
-          break;
-        case "duration-asc":
-        case "duration-desc": {
-          const ad = a.duration_ms;
-          const bd = b.duration_ms;
-          if (ad == null && bd != null) compared = 1;
-          else if (ad != null && bd == null) compared = -1;
-          else if (ad != null && bd != null) {
-            compared = playlistSort === "duration-asc" ? ad - bd : bd - ad;
-          }
-          break;
-        }
-      }
-      return compared || collator.compare(a.title, b.title);
-    });
+    const query = isPlaylist ? playlistQuery.trim().toLocaleLowerCase("es") : "";
+    const filtered = query ? tracks.filter((track) => trackMatches(track, query)) : tracks;
+    return sortTracks(filtered, playlistSort);
   });
 
   async function load() {
@@ -350,8 +303,9 @@
       </div>
     </div>
 
-    {#if album.kind === "playlist" && tracks.length > 0}
+    {#if tracks.length > 0}
       <div class="mb-3 flex flex-col gap-2 sm:flex-row">
+        {#if isPlaylist}
         <div class="flex min-w-0 flex-1 items-center gap-2 rounded border border-slate-800 bg-slate-900 px-3 py-2">
           <Search size={16} class="flex-none text-slate-500" />
           <input
@@ -370,20 +324,14 @@
             ><X size={14} /></button>
           {/if}
         </div>
-        <label class="flex items-center gap-2 rounded border border-slate-800 bg-slate-900 px-3 py-2 text-sm">
-          <ArrowUpDown size={15} class="text-slate-500" />
-          <span class="sr-only">Ordenar playlist</span>
-          <select bind:value={playlistSort} class="bg-transparent text-sm focus:outline-none">
-            <option value="original">Orden original</option>
-            <option value="title-asc">Título A–Z</option>
-            <option value="title-desc">Título Z–A</option>
-            <option value="artist">Artista</option>
-            <option value="album">Álbum</option>
-            <option value="genre">Género</option>
-            <option value="duration-asc">Duración: menor</option>
-            <option value="duration-desc">Duración: mayor</option>
-          </select>
-        </label>
+        {:else}
+          <div class="min-w-0 flex-1"></div>
+        {/if}
+        <SortSelect
+          prefKey="sort:album:{albumId}"
+          bind:value={playlistSort}
+          originalLabel={isPlaylist ? "Orden de la playlist" : "Orden del álbum"}
+        />
       </div>
       <p class="mb-1 px-2 text-[11px] text-slate-600">
         {visibleTracks.length === tracks.length ? tracks.length + " pistas" : visibleTracks.length + " de " + tracks.length + " pistas"}
@@ -418,8 +366,8 @@
     {:else}
       <TrackList
         tracks={visibleTracks}
-        showAlbum={album.kind === "playlist" && playlistSort === "album"}
-        showGenre={album.kind === "playlist" && playlistSort === "genre"}
+        showAlbum={isPlaylist && playlistSort === "album"}
+        showGenre={playlistSort === "genre"}
         onchanged={load}
       />
     {/if}

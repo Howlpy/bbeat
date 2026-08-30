@@ -5,8 +5,12 @@
   import { player } from '$lib/player.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
   import DownloadAllButton from '$lib/components/DownloadAllButton.svelte';
+  import SortSelect from '$lib/components/SortSelect.svelte';
+  import { sortTracks, type TrackSort } from '$lib/sort';
 
   let tracks = $state<Track[]>([]);
+  let sort = $state<TrackSort>('original');
+  const visibleTracks = $derived(sortTracks(tracks, sort));
   let total = $state(0);
   let error = $state<string | null>(null);
   let loading = $state(true);
@@ -62,6 +66,7 @@
         <Shuffle size={16} /> Aleatorio
       </button>
       <DownloadAllButton {tracks} label="Descargar todo" />
+      <div class="ml-auto"><SortSelect prefKey="sort:liked" bind:value={sort} originalLabel="Más recientes" /></div>
     </div>
   {/if}
 
@@ -74,6 +79,6 @@
       Aún no tienes favoritos. Dale al corazón en cualquier canción para guardarla aquí.
     </p>
   {:else}
-    <TrackList bind:tracks onchanged={load} />
+    <TrackList tracks={visibleTracks} showGenre={sort === 'genre'} onchanged={load} />
   {/if}
 </div>

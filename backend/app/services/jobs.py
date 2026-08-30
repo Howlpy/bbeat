@@ -13,7 +13,7 @@ from sqlmodel import select
 
 from app.db import session_scope
 from app.models import Album, AlbumSave, AlbumTrack, Artist, Job, Track
-from app.services import downloader, library as library_svc, organizer, scanner, sources, spotify, ytdlp_resolver
+from app.services import downloader, genres as genres_svc, library as library_svc, organizer, scanner, sources, spotify, ytdlp_resolver
 
 log = logging.getLogger("bbeat.jobs")
 
@@ -554,6 +554,11 @@ def process_job(job_id: int) -> None:
 
         # Organize (tags + cover)
         _update_job_progress(job_id, 97, "etiquetando")
+        # El género se resuelve aquí y no al crear el job: una playlist de 200
+        # canciones haría 200 consultas dentro de la petición HTTP. Aquí se
+        # reparte por pista y, si falla, la descarga sigue sin género.
+        if not meta.genre:
+            meta.genre = genres_svc.resolve_meta(meta)
         try:
             final_path = organizer.organize(dl_result.file_path, meta)
         except Exception as e:
