@@ -15,12 +15,16 @@ class PrefsStore {
   private map = $state<Record<string, string>>({});
   loaded = $state(false);
 
+  /** Evita arrancar dos veces si el layout reevalúa la sesión. */
+  private started = false;
+
   /** Escrituras pendientes de mandar, agrupadas por clave. */
   private pending = new Map<string, string>();
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
 
   init() {
-    if (!browser) return;
+    if (!browser || this.started) return;
+    this.started = true;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) this.map = JSON.parse(raw) as Record<string, string>;
@@ -69,6 +73,7 @@ class PrefsStore {
     if (this.flushTimer) clearTimeout(this.flushTimer);
     this.flushTimer = null;
     this.loaded = false;
+    this.started = false;
     if (browser) localStorage.removeItem(CACHE_KEY);
   }
 

@@ -39,18 +39,8 @@
       return;
     }
 
-    // Polling de jobs + cargar descargas offline solo si hay sesión
-    if (auth.isLoggedIn) {
-      jobs.start();
-      offline.init();
-      prefs.init();
-      // En la app nativa, pedir permiso de notificaciones (Android 13+) para que
-      // aparezca el control de media en la notificación/bloqueo.
-      if (Capacitor.isNativePlatform()) {
-        const { LocalNotifications } = await import('@capacitor/local-notifications');
-        LocalNotifications.requestPermissions().catch(() => {});
-      }
-    }
+    // Los servicios de sesión los arranca el $effect de abajo, que además
+    // cubre el login en caliente (goto('/') no vuelve a montar el layout).
 
     if (dev && 'serviceWorker' in navigator) {
       try {
@@ -61,11 +51,34 @@
     }
   });
 
+  // Servicios que necesitan sesión. Va en un $effect y no en onMount porque al
+  // iniciar sesión se navega con goto('/'), que NO remonta el layout: con
+  // onMount, quien acababa de entrar se quedaba sin polling de jobs, sin
+  // descargas offline y sin sus preferencias hasta recargar la página.
+  // Bandera simple, no reactiva: si fuese $state, el efecto se leería a sí
+  // mismo y se reejecutaría sin necesidad.
+  let sessionStarted = false;
+  $effect(() => {
+    if (!auth.isLoggedIn || sessionStarted) return;
+    sessionStarted = true;
+    jobs.start();
+    offline.init();
+    prefs.init();
+    // En la app nativa, pedir permiso de notificaciones (Android 13+) para que
+    // aparezca el control de media en la notificación/bloqueo.
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/local-notifications')
+        .then(({ LocalNotifications }) => LocalNotifications.requestPermissions())
+        .catch(() => {});
+    }
+  });
+
   // Si el usuario hace logout en runtime, parar polling y redirigir
   $effect(() => {
     if (auth.initialized && !auth.isLoggedIn && !isPublicPage) {
       jobs.stop();
       prefs.clear();
+      sessionStarted = false;
       goto('/login');
     }
   });
