@@ -48,36 +48,46 @@ ARTIST_MIN_SHARE = 0.5
 # y una tabla escrita con la barra dentro no casa jamás — justo con el género
 # más frecuente de esta biblioteca.
 CANONICAL: dict[str, str] = {
+    # Los géneros de primer nivel, tal cual los devuelve /genre. OJO: la API
+    # responde en español ("Películas/Juegos", no "Films/Games").
+    "Pop": "pop",
     "Rap/Hip Hop": "rap",
+    "Reggaeton": "reggaeton",
+    "Rock": "rock",
+    "Dance": "electronica",
+    "R&B": "rnb",
+    "Alternativo": "rock",
+    "Electro": "electronica",
+    "Folk": "folk",
+    "Reggae": "reggae",
+    "Jazz": "jazz",
+    "Salsa": "latino",
+    "Clásica": "clasica",
+    "Metal": "metal",
+    "Películas/Juegos": "bso",
+    "Soul & Funk": "rnb",
+    "Blues": "blues",
+    "Cumbia": "latino",
+    "Latino": "latino",
+    "Música Brasileña": "latino",
+    "Música africana": "mundo",
+    "Música asiática": "mundo",
+    "Música india": "mundo",
+    "Niños": "infantil",
+    # Subgéneros que aparecen a nivel de álbum aunque no estén en /genre.
     "Hip Hop": "rap",
     "Rap": "rap",
-    "Reggaeton": "reggaeton",
-    "Latino": "latino",
-    "Flamenco": "latino",
-    "Salsa": "latino",
-    "Música latina": "latino",
-    "Electro": "electronica",
-    "Dance": "electronica",
+    "Trap": "rap",
     "Techno/House": "electronica",
     "Drum & Bass": "electronica",
     "Dubstep": "electronica",
-    "Rock": "rock",
+    "Electronic": "electronica",
     "Hard Rock": "rock",
-    "Alternativo": "rock",
     "Indie Pop/Rock": "rock",
     "Indie Rock": "rock",
     "Punk": "rock",
-    "Metal": "metal",
     "Metal extremo": "metal",
-    "Pop": "pop",
-    "Pop indie": "pop",
-    "R&B": "rnb",
-    "Soul & Funk": "rnb",
-    "Jazz": "jazz",
-    "Blues": "blues",
-    "Clásica": "clasica",
-    "Banda sonora": "bso",
-    "Films/Games": "bso",
+    "Bandas sonoras": "bso",
 }
 
 
@@ -189,9 +199,11 @@ def _track_genre(artist: str, title: str) -> Optional[str]:
         album_id = (item.get("album") or {}).get("id")
         if not album_id:
             continue
-        genres = _client.album_genres(int(album_id))
-        if genres:
-            return genres[0]
+        for raw in _client.album_genres(int(album_id)):
+            # No basta con coger la primera: un álbum puede venir como
+            # ["Películas/Juegos", "Bandas sonoras"] y la útil ser la segunda.
+            if canonicalize(raw):
+                return raw
     return None
 
 
@@ -215,10 +227,17 @@ def _artist_genre(name: str) -> Optional[str]:
         albums = _client.get(
             f"/artist/{hits[0]['id']}/albums", params={"limit": ARTIST_ALBUMS_SAMPLE}
         )
+        # Se vota el género CANÓNICO, no la etiqueta cruda. Deezer reparte una
+        # misma idea entre varias etiquetas —Daft Punk salía Electro 3,
+        # Techno/House 2, Dance 4— y contando etiquetas ninguna llegaba al 50 %
+        # aunque las tres digan "electronica" y sumen 9 de 12. Contando por
+        # canónico gana con el 75 % que le corresponde.
         votes: Counter[str] = Counter()
         for album in (albums or {}).get("data", []):
             for g in _client.album_genres(int(album["id"])):
-                votes[g] += 1
+                canon = canonicalize(g)
+                if canon:
+                    votes[canon] += 1
         if votes:
             top, n = votes.most_common(1)[0]
             if n >= ARTIST_MIN_VOTES and n / sum(votes.values()) >= ARTIST_MIN_SHARE:
@@ -251,22 +270,24 @@ def resolve(artist: str, title: str, *, allow_artist_fallback: bool = True) -> O
     rellenará en otra pasada.
     """
     try:
-        raw = _track_genre(artist, title)
-        if raw is None and allow_artist_fallback:
-            raw = _artist_genre(artist)
+        # _track_genre devuelve etiqueta de Deezer; _artist_genre ya devuelve
+        # canónico (vota sobre canónicos). Se traduce solo lo primero.
+        canon = canonicalize(_track_genre(artist, title))
+        if canon is None and allow_artist_fallback:
+            canon = _artist_genre(artist)
 
         # Último recurso para las pistas sin artista de verdad: sacarlo del
         # título. Sin esto, todo lo subido a mano se queda sin género para
         # siempre, porque "Unknown Artist" no existe en ningún catálogo.
-        if raw is None and _norm_tight(artist) in _ARTISTAS_VACIOS:
+        if canon is None and _norm_tight(artist) in _ARTISTAS_VACIOS:
             partido = _split_artist_from_title(title)
             if partido:
                 real_artist, real_title = partido
-                raw = _track_genre(real_artist, real_title)
-                if raw is None and allow_artist_fallback:
-                    raw = _artist_genre(real_artist)
+                canon = canonicalize(_track_genre(real_artist, real_title))
+                if canon is None and allow_artist_fallback:
+                    canon = _artist_genre(real_artist)
 
-        return canonicalize(raw)
+        return canon
     except Exception:
         log.exception("resolviendo género de %s — %s", artist, title)
         return None
