@@ -715,30 +715,29 @@ def resolve(
     try:
         # _track_genre devuelve etiqueta de Deezer; _artist_genre ya devuelve
         # canónico (vota sobre canónicos). Se traduce solo lo primero.
-        # Evidencia de la PISTA primero. Un artista puede hacer rap y
-        # reggaeton, y eso solo se ve disco a disco y pista a pista.
+        # Se pregunta a todas las fuentes y se decide entre ellas, en vez de
+        # quedarse con la primera que conteste.
         #
-        # Last.fm va primero porque es la mejor granularidad con datos
-        # fiables: los tags los pone gente que escuchó la música, no un
-        # catálogo. Y resuelve el álbum real a partir de la pista, así que no
-        # depende de cómo se llamen los álbumes aquí dentro.
-        canon = _lastfm_track_genre(artist, title, album)
-        de_lastfm = canon is not None
-        if canon is None:
-            canon = canonicalize(_track_genre(artist, title))
-        if canon is None:
-            canon = _itunes_genre(artist, title)
+        # Antes mandaba Last.fm sin apelacion, y cuando se equivocaba —porque
+        # casó con el álbum que no era— arrastraba a la pista entera: "Vidas
+        # Que Se Van" de Denom salía electronica con Deezer, iTunes y los tags
+        # del propio artista diciendo rap los tres.
+        lf = _lastfm_track_genre(artist, title, album)
+        dz = canonicalize(_track_genre(artist, title))
+        it = _itunes_genre(artist, title)
+
+        canon = lf or dz or it
         if canon is None and allow_artist_fallback:
             canon = _artist_genre(artist)
 
-        # Si la respuesta NO viene de Last.fm sino del género de álbum de
-        # Deezer —el menos fiable— y el artista tiene un género casi unánime
-        # que lo contradice, gana el artista. Sin esto, "Ma Vie" de Kidd Keo
-        # se quedaba en electronica por el disco donde Deezer la coloca.
-        if canon is not None and not de_lastfm and allow_artist_fallback:
-            fuerte = _lastfm_artist_fuerte(artist, title)
-            if fuerte and fuerte != canon:
-                canon = fuerte
+        # Para tumbar a Last.fm hacen falta tres fuentes independientes de
+        # acuerdo entre ellas. Es deliberadamente difícil: Last.fm es la mejor
+        # que tenemos y no se le lleva la contraria por un voto suelto.
+        if lf is not None and allow_artist_fallback:
+            art_lf, _ = _lastfm_artist_genre(artist)
+            rivales = [x for x in (dz, it, art_lf) if x is not None]
+            if len(rivales) == 3 and len(set(rivales)) == 1 and rivales[0] != lf:
+                canon = rivales[0]
 
         # Corrección: si lo que ha salido es vago —de lo que estas APIs sueltan
         # cuando no han clasificado— se afina con el artista. Los tags de
@@ -752,6 +751,15 @@ def resolve(
             mejor = _lastfm_artist_genre(artist)[0] or _wikidata_genre(artist)
             if mejor and mejor != canon:
                 canon = mejor
+
+        # Si la respuesta viene del género de álbum de Deezer —el menos
+        # fiable— y el artista tiene un género que dos fuentes confirman,
+        # gana el artista. Sin esto, "Ma Vie" de Kidd Keo se quedaba en
+        # electronica por el disco donde Deezer la coloca.
+        if canon is not None and lf is None and allow_artist_fallback:
+            fuerte = _lastfm_artist_fuerte(artist, title)
+            if fuerte and fuerte != canon:
+                canon = fuerte
 
         # "bso" dice en qué disco salió la canción, no cómo suena. Un tema de
         # Snoop Dogg que aparece en una banda sonora sigue siendo rap, y para
