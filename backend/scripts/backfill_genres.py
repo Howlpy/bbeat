@@ -23,12 +23,45 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from collections import Counter
+
 from sqlmodel import Session, select
 
 from app.config import settings
 from app.db import engine
 from app.models import Album, Artist, Track
 from app.services import genres as genres_svc
+
+
+def _album_majorities(session: Session) -> dict[int, str]:
+    """Género mayoritario por álbum REAL (kind='album'), para heredarlo.
+
+    Un álbum de verdad es homogéneo: si 8 de sus 10 pistas son rap, las 2 que
+    la cascada no resolvió casi seguro también lo son. Es un respaldo local,
+    sin red, y más fino que el del artista (un disco concreto no cruza géneros
+    como cruza una discografía).
+
+    Las playlists NO entran: son bolsas mixtas por definición y heredar ahí
+    inventaría géneros. Y los mínimos son los mismos que el respaldo por
+    artista: al menos 2 votos y la mitad del total, para que una sola pista
+    etiquetada no decida por todo el disco.
+    """
+    rows = session.exec(
+        select(Track.album_id, Track.genre)
+        .join(Album, Album.id == Track.album_id)
+        .where(Album.kind == "album", Track.genre.is_not(None))
+    ).all()
+    votos: dict[int, Counter[str]] = {}
+    for album_id, genre in rows:
+        g = (genre or "").strip().lower()
+        if g and album_id is not None:
+            votos.setdefault(album_id, Counter())[g] += 1
+    out: dict[int, str] = {}
+    for album_id, c in votos.items():
+        top, n = c.most_common(1)[0]
+        if n >= 2 and n / sum(c.values()) >= 0.5:
+            out[album_id] = top
+    return out
 
 
 def _write_tag(rel_path: str, genre: str) -> Optional[str]:
@@ -79,6 +112,7 @@ def main() -> int:
         if not args.reprocesar:
             stmt = stmt.where(Track.genre.is_(None))
         rows = session.exec(stmt).all()
+        herencia = _album_majorities(session)
 
     if args.limit:
         rows = rows[: args.limit]
@@ -91,10 +125,23 @@ def main() -> int:
     modo = "APLICANDO" if args.apply else "SIMULACRO (usa --apply para escribir)"
     print(f"{total} pistas sin género · {modo}\n")
 
+    if not settings.lastfm_api_key:
+        # Sin Last.fm no solo se pierde la mejor fuente: también las reglas
+        # que corrigen a Deezer (artista unánime, consenso) dependen de sus
+        # tags. La calidad baja de forma visible — medido: "Corrido Espacial"
+        # de Kidd Keo sale "electronica" sin la clave y "rap" con ella.
+        print(
+            "AVISO: BBEAT_LASTFM_API_KEY no está configurada. La cascada corre\n"
+            "sin su mejor fuente y sin las correcciones por artista; espera\n"
+            "bastantes más géneros vacíos o imprecisos. La clave es gratuita:\n"
+            "https://www.last.fm/api/account/create\n"
+        )
+
     resueltas: list[dict] = []
     sin_genero: list[dict] = []
     errores: list[dict] = []
 
+    heredadas = 0
     for i, (track, artist, album_title) in enumerate(rows, 1):
         genre = genres_svc.resolve(
             artist.name,
@@ -102,6 +149,11 @@ def main() -> int:
             album=album_title,
             allow_artist_fallback=not args.no_artist_fallback,
         )
+        # Lo que la red no resuelve puede resolverlo el propio álbum: si el
+        # resto del disco ya tiene un género mayoritario, la pista lo hereda.
+        if not genre and track.album_id in herencia:
+            genre = herencia[track.album_id]
+            heredadas += 1
         etiqueta = f"{artist.name} — {track.title}"
 
         if not genre:
@@ -140,6 +192,8 @@ def main() -> int:
 
     print()
     print(f"resueltas   : {len(resueltas)}/{total} ({100 * len(resueltas) // total}%)")
+    if heredadas:
+        print(f"  (de ellas, {heredadas} heredadas del género mayoritario de su álbum)")
     print(f"sin género  : {len(sin_genero)}")
     if errores:
         print(f"errores     : {len(errores)}")

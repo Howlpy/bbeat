@@ -1,0 +1,4 @@
+# Solo para desarrollo: correr los tests.
+#   pip install -r requirements-dev.txt
+#   python -m pytest tests/ -q     (desde backend/)
+pytest==8.3.4
