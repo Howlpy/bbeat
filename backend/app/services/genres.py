@@ -713,6 +713,19 @@ def resolve(
     rellenará en otra pasada.
     """
     try:
+        # Pistas sin artista de verdad ("Unknown Artist", "Various Artists"):
+        # el artista real suele venir dentro del título ("Gydra - Scourge").
+        # Se extrae ANTES de preguntar nada, porque buscar "Various Artists"
+        # en Deezer o iTunes casa con cualquier recopilatorio del planeta y
+        # devuelve un género al azar (medido: "SLEEPY" salía "infantil" por
+        # un disco de nanas cualquiera). Si el título no trae artista, mejor
+        # sin género que uno inventado.
+        if _norm_tight(artist) in _ARTISTAS_VACIOS:
+            partido = _split_artist_from_title(title)
+            if partido is None:
+                return None
+            artist, title = partido
+
         # _track_genre devuelve etiqueta de Deezer; _artist_genre ya devuelve
         # canónico (vota sobre canónicos). Se traduce solo lo primero.
         # Se pregunta a todas las fuentes y se decide entre ellas, en vez de
@@ -768,19 +781,6 @@ def resolve(
             canon = _lastfm_artist_genre(artist)[0] or _wikidata_genre(artist) or (
                 _artist_genre(artist) if allow_artist_fallback else None
             ) or "bso"
-
-        # Último recurso para las pistas sin artista de verdad: sacarlo del
-        # título. Sin esto, todo lo subido a mano se queda sin género para
-        # siempre, porque "Unknown Artist" no existe en ningún catálogo.
-        if canon is None and _norm_tight(artist) in _ARTISTAS_VACIOS:
-            partido = _split_artist_from_title(title)
-            if partido:
-                real_artist, real_title = partido
-                canon = canonicalize(_track_genre(real_artist, real_title))
-                if canon is None:
-                    canon = _itunes_genre(real_artist, real_title)
-                if canon is None and allow_artist_fallback:
-                    canon = _artist_genre(real_artist)
 
         return canon
     except Exception:
