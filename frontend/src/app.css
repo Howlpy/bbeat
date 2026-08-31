@@ -4,6 +4,13 @@ html,
 body {
   height: 100%;
   -webkit-font-smoothing: antialiased;
+  /* Cortafuegos móvil: si algún elemento se pasa de ancho, que se recorte.
+     Sin esto, en el WebView de Android (APK) la página entera se vuelve más
+     ancha que la pantalla: aparece scroll horizontal, el usuario panea el
+     viewport visual y las barras `fixed` (navbar y reproductor) parecen
+     despegarse. `clip` en vez de `hidden` para no crear un contenedor de
+     scroll nuevo. */
+  overflow-x: clip;
 }
 
 body {

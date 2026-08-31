@@ -52,7 +52,9 @@
   </header>
 
   {#if tracks.length > 0}
-    <div class="mb-4 flex gap-2">
+    <!-- flex-wrap: con cuatro controles esta fila no cabe en un móvil; sin
+         envolver desbordaba la página entera y rompía el layout en la APK. -->
+    <div class="mb-4 flex flex-wrap items-center gap-2">
       <button
         onclick={playAll}
         class="inline-flex items-center gap-2 rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
