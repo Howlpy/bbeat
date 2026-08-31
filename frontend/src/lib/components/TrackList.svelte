@@ -23,6 +23,7 @@
   import { player } from '$lib/player.svelte';
   import { offline } from '$lib/offline.svelte';
   import { formatDuration, api, type Track, type Album } from '$lib/api';
+  import { genreLabel } from '$lib/genres';
   import EditTrackDialog from './EditTrackDialog.svelte';
 
   let {
@@ -204,7 +205,7 @@
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm" class:text-cyan-400={isCurrent}>{t.title}</div>
             <div class="truncate text-xs text-slate-500">
-              {t.artist_name}{#if showAlbum && t.album_title} · {t.album_title}{/if}{#if showGenre} · {t.genre || "Sin género"}{/if}
+              {t.artist_name}{#if showAlbum && t.album_title} · {t.album_title}{/if}{#if showGenre} · {genreLabel(t.genre)}{/if}
             </div>
           </div>
           <span class="flex-none font-mono text-xs text-slate-500">

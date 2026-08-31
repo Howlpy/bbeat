@@ -6,6 +6,7 @@
   import TrackList from '$lib/components/TrackList.svelte';
   import SortSelect from '$lib/components/SortSelect.svelte';
   import { sortTracks, type TrackSort } from '$lib/sort';
+  import { genreLabel, SIN_GENERO } from '$lib/genres';
 
   type GenreRow = { genre: string; count: number };
 
@@ -30,7 +31,7 @@
   const nombreVista = $derived(selected === null ? 'Canciones' : etiqueta(selected));
 
   function etiqueta(g: string): string {
-    return g === '__all__' ? 'Todas las canciones' : g.charAt(0).toUpperCase() + g.slice(1);
+    return g === '__all__' ? 'Todas las canciones' : genreLabel(g);
   }
 
   async function loadGenres() {
@@ -84,7 +85,11 @@
       // género, se filtra aquí para no sacarte de él sin avisar.
       const items =
         selected && selected !== '__all__'
-          ? r.items.filter((t) => (t.genre || '').toLowerCase() === selected)
+          ? r.items.filter((t) =>
+              selected === SIN_GENERO
+                ? !(t.genre || '').trim()
+                : (t.genre || '').toLowerCase() === selected
+            )
           : r.items;
       tracks = items;
       total = items.length;
@@ -159,8 +164,8 @@
             onclick={() => abrir(g.genre)}
             class="group rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-left transition hover:border-cyan-500/60 hover:bg-slate-900"
           >
-            <span class="block truncate font-medium capitalize transition group-hover:text-cyan-400">
-              {g.genre}
+            <span class="block truncate font-medium transition group-hover:text-cyan-400">
+              {genreLabel(g.genre)}
             </span>
             <span class="mt-0.5 block font-mono text-xs text-slate-500">{g.count}</span>
             <!-- Barra proporcional: de un vistazo se ve qué pesa en tu biblioteca -->
@@ -174,9 +179,20 @@
         {/each}
       </div>
       {#if withoutGenre > 0}
-        <p class="mt-3 text-xs text-slate-600">
-          {withoutGenre} canciones aún sin género. Se les puede poner a mano desde el menú de cada pista.
-        </p>
+        <!-- Entrar a las pistas sin clasificar es lo que permite arreglarlas:
+             desde la lista se les pone género a mano con ⋮ → Editar. -->
+        <button
+          onclick={() => abrir(SIN_GENERO)}
+          class="mt-2 flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-3 py-2.5 text-left transition hover:border-cyan-500/60 hover:bg-slate-900"
+        >
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-medium text-slate-300">Sin género</span>
+            <span class="block text-xs text-slate-500">
+              {withoutGenre} {withoutGenre === 1 ? 'canción por clasificar' : 'canciones por clasificar'} · ponles género con ⋮ → Editar
+            </span>
+          </span>
+          <span class="flex-none font-mono text-xs text-slate-500">{withoutGenre}</span>
+        </button>
       {/if}
     {:else}
       <p class="mt-4 rounded-md border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">

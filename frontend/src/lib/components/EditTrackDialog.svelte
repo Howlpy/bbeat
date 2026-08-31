@@ -1,6 +1,7 @@
 <script lang="ts">
   import { AlertTriangle, X } from 'lucide-svelte';
   import { api, type Album, type Track } from '$lib/api';
+  import { GENRE_SLUGS, genreLabel } from '$lib/genres';
 
   let {
     track,
@@ -129,11 +130,19 @@
         </label>
         <label class="block">
           <span class="text-xs text-slate-400">Género</span>
+          <!-- El datalist sugiere el vocabulario canónico (en minúsculas, que
+               es como se guarda), pero sigue siendo texto libre a propósito. -->
           <input
             bind:value={genre}
             placeholder="Sin género"
+            list="bbeat-genres"
             class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
           />
+          <datalist id="bbeat-genres">
+            {#each GENRE_SLUGS as slug (slug)}
+              <option value={slug}>{genreLabel(slug)}</option>
+            {/each}
+          </datalist>
         </label>
         <div class="flex gap-2">
           <label class="block flex-1">
