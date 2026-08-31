@@ -47,7 +47,7 @@
       <div class="min-w-0">
         <h1 class="truncate text-2xl font-bold">{artist.name}</h1>
         <p class="text-xs text-slate-500">{artist.album_count} álbumes · {artist.track_count} pistas</p>
-        <div class="mt-2 flex gap-2">
+        <div class="mt-2 flex flex-wrap gap-2">
           <button
             onclick={() => tracks.length && player.playTracks(tracks, 0)}
             class="inline-flex items-center gap-1.5 rounded-full bg-cyan-500 px-4 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"

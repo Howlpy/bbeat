@@ -42,9 +42,12 @@
   });
 </script>
 
+<!-- z-[45]: por encima del reproductor (z-40), para que el menú de usuario que
+     se despliega hacia arriba no quede tapado por la barra de media; y por
+     debajo de los diálogos y overlays (z-50+), que sí deben cubrirlo todo. -->
 <nav
   bind:clientHeight={height}
-  class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+  class="fixed inset-x-0 bottom-0 z-[45] border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
 >
   <div class="mx-auto flex max-w-5xl">
     {#each items as item}
