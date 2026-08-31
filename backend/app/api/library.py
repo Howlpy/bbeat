@@ -132,10 +132,17 @@ def list_tracks(
         stmt = stmt.where(Track.artist_id == artist_id)
         count_stmt = count_stmt.where(Track.artist_id == artist_id)
     if genre:
-        # Sin distinguir mayúsculas: el vocabulario es canónico y en minúsculas,
-        # pero una pista editada a mano puede traer "Rap".
-        stmt = stmt.where(func.lower(Track.genre) == genre.strip().lower())
-        count_stmt = count_stmt.where(func.lower(Track.genre) == genre.strip().lower())
+        g = genre.strip().lower()
+        if g == "__none__":
+            # Valor especial: las pistas SIN género, para poder listarlas y
+            # clasificarlas a mano desde la UI.
+            cond = or_(Track.genre.is_(None), func.trim(Track.genre) == "")
+        else:
+            # Sin distinguir mayúsculas: el vocabulario es canónico y en
+            # minúsculas, pero una pista editada a mano puede traer "Rap".
+            cond = func.lower(Track.genre) == g
+        stmt = stmt.where(cond)
+        count_stmt = count_stmt.where(cond)
     if album_id is not None:
         # AlbumTrack es la relación canónica y conserva el orden de la playlist.
         stmt = stmt.join(
