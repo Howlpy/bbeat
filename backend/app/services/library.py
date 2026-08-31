@@ -270,8 +270,18 @@ def edit_track(
             cur_artist = s.get(Artist, t.artist_id)
             artist_name = (artist or (cur_artist.name if cur_artist else "Unknown Artist")).strip()
             cur_album = s.get(Album, t.album_id) if t.album_id else None
-            album_name = (album if album is not None else (cur_album.title if cur_album else "")).strip()
-            year_v = year if year is not None else (cur_album.year if cur_album else None)
+            # Una playlist no es un álbum: si la pista vive en una y no se pide
+            # un álbum explícito, se trata como canción suelta. Reutilizar el
+            # título de la playlist creaba un álbum fantasma con ese nombre
+            # bajo el artista nuevo ("Arce - Rap" duplicado por cada artista
+            # renombrado); la pertenencia a la playlist vive en album_tracks y
+            # no se pierde por esto.
+            if album is None and cur_album is not None and (cur_album.kind or "album") == "playlist":
+                album_name = ""
+                year_v = year
+            else:
+                album_name = (album if album is not None else (cur_album.title if cur_album else "")).strip()
+                year_v = year if year is not None else (cur_album.year if cur_album else None)
 
         # Asegurar artist + album en BD
         new_artist = _get_or_create_artist(s, artist_name)
@@ -343,6 +353,31 @@ def edit_track(
         t.file_path = str(new_path.relative_to(settings.music_dir))
         s.add(t)
         s.flush()
+
+        # Mantener album_tracks, la relación canónica: es de donde la UI saca
+        # el contador y el contenido de cada álbum. Sin esto, un álbum creado
+        # aquí salía "vacío" aunque tuviera pistas por album_id.
+        if t.album_id and t.album_id != old_album_id:
+            ya = s.exec(
+                select(AlbumTrack).where(
+                    AlbumTrack.album_id == t.album_id, AlbumTrack.track_id == t.id
+                )
+            ).first()
+            if not ya:
+                s.add(AlbumTrack(album_id=t.album_id, track_id=t.id, position=new_track_no))
+        if old_album_id and old_album_id != t.album_id:
+            viejo = s.get(Album, old_album_id)
+            # Solo se retira la relación del álbum-hogar antiguo si era un
+            # álbum de verdad: la pertenencia a playlists sobrevive a las
+            # ediciones de metadata.
+            if viejo is not None and (viejo.kind or "album") != "playlist":
+                stale = s.exec(
+                    select(AlbumTrack).where(
+                        AlbumTrack.album_id == old_album_id, AlbumTrack.track_id == t.id
+                    )
+                ).first()
+                if stale:
+                    s.delete(stale)
 
         # Limpiar álbum/artista huérfanos
         for aid in (old_album_id,):
