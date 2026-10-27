@@ -24,6 +24,7 @@
   import { sortTracks, trackMatches, type TrackSort } from '$lib/sort';
   import AddTracksDialog from '$lib/components/AddTracksDialog.svelte';
   import DownloadAllButton from '$lib/components/DownloadAllButton.svelte';
+  import DownloadZipButton from '$lib/components/DownloadZipButton.svelte';
   import { player } from '$lib/player.svelte';
 
   const albumId = $derived(Number(page.params.id));
@@ -236,6 +237,12 @@
               <Play size={14} fill="currentColor" /> Reproducir
             </button>
             <DownloadAllButton {tracks} label="Descargar" class="rounded border border-slate-800 px-3 py-1.5" />
+            <DownloadZipButton
+              albumId={albumId}
+              count={tracks.length}
+              label="Bajar .zip"
+              class="rounded border border-slate-800 px-3 py-1.5"
+            />
             <button
               onclick={toggleSave}
               disabled={savingSave}

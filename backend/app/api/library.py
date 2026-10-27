@@ -1,10 +1,13 @@
 import asyncio
 import json
 import shutil
+import tempfile
 import uuid
+import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -298,6 +301,111 @@ def get_album(
         track_count,
         is_saved=session.get(AlbumSave, (user.id, album_id)) is not None,
         is_mine=album.owner_id == user.id,
+    )
+
+
+def _zip_entry_name(name: str, fallback: str = "pista") -> str:
+    """Nombre de fichero seguro dentro del .zip (sin rutas ni caracteres raros)."""
+    clean = "".join(c if c.isalnum() or c in " ._-[]()&',+" else "_" for c in name)
+    clean = " ".join(clean.split()).strip(" .")
+    return clean[:120] or fallback
+
+
+@router.get("/albums/{album_id}/download.zip")
+def download_album_zip(
+    album_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(auth_svc.get_current_user),
+):
+    """Descarga el álbum/playlist entero en un .zip, con las pistas en su orden.
+
+    Se empaqueta en un temporal dentro del data_dir y se borra al terminar de
+    enviarse, también si el cliente corta a medias: no se acumulan zips en disco.
+    """
+    album = session.get(Album, album_id)
+    if not album:
+        raise HTTPException(404, "álbum no encontrado")
+
+    rows = session.exec(
+        select(Track)
+        .join(
+            AlbumTrack,
+            (AlbumTrack.track_id == Track.id) & (AlbumTrack.album_id == album_id),
+        )
+        .order_by(
+            AlbumTrack.position.is_(None),
+            AlbumTrack.position,
+            AlbumTrack.added_at,
+            Track.title,
+        )
+    ).all()
+
+    music_root = settings.music_dir.resolve()
+    entries: list[tuple[Path, str]] = []
+    for index, track in enumerate(rows, start=1):
+        path = (settings.music_dir / track.file_path).resolve()
+        # Sanity: la pista tiene que estar dentro de music_dir y existir.
+        try:
+            path.relative_to(music_root)
+        except ValueError:
+            continue
+        if not path.is_file():
+            continue
+        artist = session.get(Artist, track.artist_id)
+        artist_name = artist.name if artist else "Unknown Artist"
+        ext = path.suffix or f".{track.file_format or 'audio'}"
+        entry = _zip_entry_name(f"{index:02d} - {artist_name} - {track.title}")
+        entries.append((path, entry + ext))
+
+    if not entries:
+        raise HTTPException(404, "no hay ficheros que descargar en esta lista")
+
+    with tempfile.NamedTemporaryFile(
+        prefix="bbeat-download-", suffix=".zip", dir=settings.data_dir, delete=False
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+
+    try:
+        # compresslevel 1: el audio no comprime, así que el zip sale a la velocidad
+        # del disco en vez de comerse la CPU comprimiendo en balde.
+        zf = zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True, compresslevel=1)
+        with zf:
+            used: set[str] = set()
+            for path, name in entries:
+                entry = name
+                stem, suffix = Path(name).stem, Path(name).suffix
+                n = 2
+                while entry in used:
+                    entry = f"{stem} ({n}){suffix}"
+                    n += 1
+                used.add(entry)
+                zf.write(path, arcname=entry)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+    download_name = _zip_entry_name(album.title, "lista") + ".zip"
+    ascii_name = download_name.encode("ascii", "ignore").decode() or "lista.zip"
+
+    def _stream() -> Iterator[bytes]:
+        try:
+            with tmp_path.open("rb") as fh:
+                while chunk := fh.read(256 * 1024):
+                    yield chunk
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    return StreamingResponse(
+        _stream(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_name}"; '
+                f"filename*=UTF-8''{quote(download_name)}"
+            ),
+            "Content-Length": str(tmp_path.stat().st_size),
+            "Cache-Control": "no-store",
+        },
     )
 
 
