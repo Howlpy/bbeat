@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { onReconnect } from '$lib/net.svelte';
   import { X, Shuffle, Heart, ChevronLeft, Music2, Tag } from 'lucide-svelte';
   import { api, type Track } from '$lib/api';
   import { player } from '$lib/player.svelte';
@@ -109,7 +110,14 @@
     if (tracks.length) player.playShuffled(tracks);
   }
 
-  onMount(loadGenres);
+  onMount(() => {
+    loadGenres();
+    // Al volver la red, reintenta lo que esté a medias o con error.
+    return onReconnect(() => {
+      loadGenres();
+      if (selected !== null && (error || tracks.length === 0)) load(selected === '__all__' ? undefined : selected);
+    });
+  });
 </script>
 
 <div class="mx-auto max-w-3xl px-4 pt-6">

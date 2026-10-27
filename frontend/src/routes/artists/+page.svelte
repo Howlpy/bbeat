@@ -1,18 +1,25 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { onReconnect } from '$lib/net.svelte';
   import { api, type Artist } from '$lib/api';
   import { avatarGradient, initials } from '$lib/visual';
 
   let artists = $state<Artist[]>([]);
   let error = $state<string | null>(null);
 
-  onMount(async () => {
+  async function load() {
     try {
       const res = await api.artists();
       artists = res.items;
+      error = null;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  onMount(() => {
+    load();
+    return onReconnect(load);
   });
 </script>
 

@@ -118,43 +118,32 @@ function tokenizeUrls(node: any): any {
 async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; skipAuth?: boolean }): Promise<T> {
   const { timeoutMs = 30_000, skipAuth = false, ...fetchInit } = init ?? {};
   const isGet = !fetchInit.method || fetchInit.method.toUpperCase() === 'GET';
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  // GET idempotente: hasta 2 reintentos si falla la red o se agota el tiempo,
+  // con un timeout por intento más corto para que el total siga siendo razonable.
+  const retries = isGet ? 2 : 0;
+  const attemptMs = isGet ? Math.min(timeoutMs, 15_000) : timeoutMs;
   // Inyecta Authorization si tenemos token y no es un endpoint público
   const headers = new Headers(fetchInit.headers as HeadersInit);
   if (!skipAuth && auth.token) {
     headers.set('Authorization', `Bearer ${auth.token}`);
   }
   try {
-    const res = await fetch(apiUrl(url), { ...fetchInit, headers, signal: ctrl.signal });
-    net.online = true; // hubo respuesta del servidor → hay red
-    if (res.status === 401 && !skipAuth) {
-      // Token inválido/expirado → logout y redirect
-      auth.logout();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        goto('/login');
-      }
-    }
-    if (!res.ok) {
-      let detail = '';
+    for (let attempt = 0; ; attempt++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), attemptMs);
       try {
-        const data = await res.clone().json();
-        detail = typeof data?.detail === 'string' ? ` — ${data.detail}` : '';
-      } catch {
-        try {
-          const t = await res.text();
-          detail = t ? ` — ${t.slice(0, 200)}` : '';
-        } catch {}
+        return await attemptJson<T>(url, isGet, skipAuth, { ...fetchInit, headers, signal: ctrl.signal });
+      } catch (e) {
+        const transient = e instanceof TypeError || (e instanceof DOMException && e.name === 'AbortError');
+        if (!transient || attempt >= retries) throw e;
+        await new Promise((r) => setTimeout(r, attempt === 0 ? 500 : 1500));
+      } finally {
+        clearTimeout(timer);
       }
-      throw new Error(`${res.status} ${res.statusText}${detail}`);
     }
-    const data = await res.json();
-    // Cachea las respuestas GET para poder mostrarlas luego sin conexión.
-    if (isGet) cachePut(url, data);
-    return tokenizeUrls(data) as T;
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
-      throw new Error(`Tiempo agotado (${Math.round(timeoutMs / 1000)}s) — ${url}`);
+      throw new Error(`Tiempo agotado (${Math.round(attemptMs / 1000)}s) — ${url}`);
     }
     // fetch lanza TypeError cuando no se pudo establecer la conexión (sin red,
     // DNS, etc.). Sin red: si es un GET y lo tenemos cacheado, devolvemos lo
@@ -168,9 +157,37 @@ async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; s
       throw new OfflineError();
     }
     throw e;
-  } finally {
-    clearTimeout(timer);
   }
+}
+
+/** Un intento de petición. Deja pasar TypeError/AbortError para que json() decida. */
+async function attemptJson<T>(url: string, isGet: boolean, skipAuth: boolean, init: RequestInit): Promise<T> {
+  const res = await fetch(apiUrl(url), init);
+  net.online = true; // hubo respuesta del servidor → hay red
+  if (res.status === 401 && !skipAuth) {
+    // Token inválido/expirado → logout y redirect
+    auth.logout();
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      goto('/login');
+    }
+  }
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const data = await res.clone().json();
+      detail = typeof data?.detail === 'string' ? ` — ${data.detail}` : '';
+    } catch {
+      try {
+        const t = await res.text();
+        detail = t ? ` — ${t.slice(0, 200)}` : '';
+      } catch {}
+    }
+    throw new Error(`${res.status} ${res.statusText}${detail}`);
+  }
+  const data = await res.json();
+  // Cachea las respuestas GET para poder mostrarlas luego sin conexión.
+  if (isGet) cachePut(url, data);
+  return tokenizeUrls(data) as T;
 }
 
 export type Job = {

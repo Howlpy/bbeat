@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { onReconnect } from '$lib/net.svelte';
   import {
     Flame,
     Clock,
@@ -52,7 +53,12 @@
     load();
   }
 
-  onMount(load);
+  onMount(() => {
+    load();
+    return onReconnect(() => {
+      if (error) load();
+    });
+  });
 
   function pct(cur: number, prev: number): number | null {
     if (!prev) return null;

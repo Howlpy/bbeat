@@ -27,7 +27,7 @@
   import { jobs } from '$lib/jobs.svelte';
   import { player } from '$lib/player.svelte';
   import { offline } from '$lib/offline.svelte';
-  import { isOfflineError } from '$lib/net.svelte';
+  import { isOfflineError, onReconnect } from '$lib/net.svelte';
 
   let stats = $state<LibraryStats | null>(null);
   let recentTracks = $state<Track[]>([]);
@@ -50,6 +50,8 @@
       recentTracks = r.tracks ?? [];
       recentAlbums = r.albums ?? [];
       topTracks = top.items ?? [];
+      offlineMode = false;
+      error = null;
     } catch (e) {
       if (isOfflineError(e)) offlineMode = true;
       else error = e instanceof Error ? e.message : String(e);
@@ -81,9 +83,14 @@
 
   onMount(() => {
     load();
+    const offReconnect = onReconnect(load);
     // Cloudflare puede bufferizar SSE; refresca el snapshot cada 3 s.
     let stopped = false;
+    let inFlight = false;
     const refreshLive = async () => {
+      // Sin solapar peticiones (si una se cuelga, no se apilan) y con la app oculta no hace falta.
+      if (inFlight || document.hidden) return;
+      inFlight = true;
       try {
         const result = await api.nowPlayingSnapshot();
         if (!stopped) {
@@ -92,12 +99,15 @@
         }
       } catch {
         if (!stopped) liveConnected = false;
+      } finally {
+        inFlight = false;
       }
     };
     refreshLive();
     const liveTimer = setInterval(refreshLive, 3_000);
     return () => {
       stopped = true;
+      offReconnect();
       clearInterval(liveTimer);
     };
   });

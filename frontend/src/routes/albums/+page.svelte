@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { onReconnect } from '$lib/net.svelte';
   import {
     AlertTriangle,
     Bookmark,
@@ -40,6 +41,7 @@
   onMount(() => {
     load();
     api.likedTracks().then((r) => (likedCount = r.total)).catch(() => {});
+    return onReconnect(load);
   });
 
   // Recarga al cambiar de pestaña (inmediato) o de búsqueda (con debounce).

@@ -87,9 +87,23 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+/**
+ * fetch con tiempo máximo solo hasta que llegan las cabeceras: si el servidor no
+ * responde, aborta; pero una descarga lenta que sí avanza no se corta a medias.
+ */
+async function fetchStarted(url: string, ms = 30_000): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Descarga una URL como Blob. Lanza si la respuesta no es OK. */
 async function fetchBlob(url: string): Promise<Blob> {
-  const res = await fetch(url);
+  const res = await fetchStarted(url);
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return res.blob();
 }
@@ -210,12 +224,12 @@ class OfflineStore {
   }
 
   private async downloadWeb(t: Track) {
-    const res = await fetch(t.stream_url);
+    const res = await fetchStarted(t.stream_url);
     if (!res.ok) throw new Error('stream ' + res.status);
     const audio = await res.blob();
     let cover: Blob | null = null;
     if (t.cover_url) {
-      cover = await fetch(t.cover_url).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
+      cover = await fetch(t.cover_url, { signal: AbortSignal.timeout(20_000) }).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
     }
     const db = await openDB();
     await tx(db, 'readwrite', (s) =>

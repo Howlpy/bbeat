@@ -13,7 +13,7 @@
   import { jobs } from '$lib/jobs.svelte';
   import { auth } from '$lib/auth.svelte';
   import { offline } from '$lib/offline.svelte';
-  import { net } from '$lib/net.svelte';
+  import { net, triggerReconnect } from '$lib/net.svelte';
   import { server } from '$lib/server.svelte';
   import { prefs } from '$lib/prefs.svelte';
 
@@ -94,12 +94,14 @@
   </main>
 {:else}
   {#if !net.online}
-    <a
-      href="/downloads"
-      class="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-2 bg-amber-600/95 px-3 py-1.5 text-xs font-medium text-amber-50 backdrop-blur"
+    <div
+      class="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-amber-600/95 px-3 py-1.5 text-xs font-medium text-amber-50 backdrop-blur"
     >
-      <WifiOff size={14} /> Sin conexión · toca para ir a Descargas
-    </a>
+      <button type="button" class="flex items-center gap-2" onclick={triggerReconnect}>
+        <WifiOff size={14} /> Sin conexión · toca para reintentar
+      </button>
+      <a href="/downloads" class="underline">Descargas</a>
+    </div>
   {/if}
   <main class="min-h-screen" style:padding-bottom="{mainPadBottom}px">
     {#key page.url.pathname}

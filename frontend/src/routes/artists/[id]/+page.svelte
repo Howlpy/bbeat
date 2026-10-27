@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { onReconnect } from '$lib/net.svelte';
   import { page } from '$app/state';
   import { api, type Track, type Artist } from '$lib/api';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -17,7 +18,7 @@
   let artist = $state<Artist | null>(null);
   let error = $state<string | null>(null);
 
-  onMount(async () => {
+  async function load() {
     try {
       const [trackRes, artistsRes] = await Promise.all([
         api.tracks({ artist_id: artistId, limit: 500 }),
@@ -25,9 +26,17 @@
       ]);
       tracks = trackRes.items;
       artist = artistsRes.items.find((a) => a.id === artistId) ?? null;
+      error = null;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  onMount(() => {
+    load();
+    return onReconnect(() => {
+      if (error) load();
+    });
   });
 </script>
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { onReconnect } from '$lib/net.svelte';
   import { Heart, Shuffle, Play } from 'lucide-svelte';
   import { api, type Track } from '$lib/api';
   import { player } from '$lib/player.svelte';
@@ -21,6 +22,7 @@
       const r = await api.likedTracks();
       tracks = r.items;
       total = r.total;
+      error = null;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -35,6 +37,7 @@
     if (tracks.length) player.playShuffled(tracks);
   }
 
+  onMount(() => onReconnect(load));
   onMount(load);
 </script>
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
+  import { onReconnect } from '$lib/net.svelte';
   import { page } from '$app/state';
   import {
     AlertTriangle,
@@ -62,6 +63,7 @@
       ]);
       tracks = trackRes.items;
       album = albumRes;
+      error = null;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
@@ -83,7 +85,12 @@
     }
   }
 
-  onMount(load);
+  onMount(() => {
+    load();
+    return onReconnect(() => {
+      if (error) load();
+    });
+  });
 
   function playAll() {
     if (visibleTracks.length) player.playTracks(visibleTracks, 0);
