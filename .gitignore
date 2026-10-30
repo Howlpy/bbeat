@@ -74,3 +74,7 @@ frontend/build-native/
 *.deploy.py
 # Local Pi runtime state
 .atl/
+
+# Backups locales y de la biblioteca (pueden contener la BD con datos de usuarios y audio): nunca al repo
+backups/
+data/backups/
