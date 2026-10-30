@@ -9,23 +9,23 @@ from app.services import jobs as jobs_svc
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
-def _filter_for_user(items: list[dict], user: User) -> list[dict]:
-    """Admin ve todos; usuario solo los suyos."""
-    if user.is_admin:
-        return items
-    return [j for j in items if j.get("user_id") == user.id]
-
-
 @router.get("")
 def list_jobs(
     limit: int = 100,
     user: User = Depends(auth_svc.get_current_user),
 ) -> dict:
-    items = _filter_for_user(jobs_svc.list_jobs(limit=limit), user)
+    """Importaciones recientes de todo el servidor (con quién las lanzó).
+
+    `stats` sigue siendo del propio usuario (admin: todo), porque cuelga de él
+    el badge y los botones masivos; `stats_all` es el resumen de lo que se lista.
+    Reintentar/borrar sigue limitado al dueño o admin.
+    """
+    items = jobs_svc.list_jobs(limit=limit)
     return {
         "total": len(items),
         "items": items,
         "stats": jobs_svc.job_stats(user_id=None if user.is_admin else user.id),
+        "stats_all": jobs_svc.job_stats(),
     }
 
 

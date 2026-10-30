@@ -64,7 +64,13 @@ def _user_saved_album_ids(session: Session, user: User) -> set[int]:
 
 
 def _album_payload(
-    album: Album, artist_name: str, track_count: int, *, is_saved: bool, is_mine: bool
+    album: Album,
+    artist_name: str,
+    track_count: int,
+    *,
+    is_saved: bool,
+    is_mine: bool,
+    owner_name: Optional[str] = None,
 ) -> dict:
     """Dict serializado de un álbum/playlist para la UI (formato único)."""
     return {
@@ -80,6 +86,7 @@ def _album_payload(
             else None
         ),
         "owner_id": album.owner_id,
+        "owner_name": owner_name,
         "kind": album.kind,
         "is_mine": is_mine,
         "is_saved": is_saved,
@@ -299,12 +306,14 @@ def get_album(
     track_count = session.exec(
         select(func.count(AlbumTrack.track_id)).where(AlbumTrack.album_id == album_id)
     ).one()
+    owner = session.get(User, album.owner_id) if album.owner_id else None
     return _album_payload(
         album,
         artist.name if artist else "Unknown Artist",
         track_count,
         is_saved=session.get(AlbumSave, (user.id, album_id)) is not None,
         is_mine=album.owner_id == user.id,
+        owner_name=owner.username if owner else None,
     )
 
 
@@ -1297,6 +1306,56 @@ def weekly_charts(
     return {"days": days, "items": items}
 
 
+def _listener_users(
+    session: Session, track_ids: list[int], since: Optional[datetime]
+) -> dict[int, list[dict]]:
+    """Quién escuchó cada pista (usuario + reproducciones), en una sola consulta."""
+    if not track_ids:
+        return {}
+    n = func.count(Play.id)
+    stmt = (
+        select(Play.track_id, User.username, n)
+        .join(User, User.id == Play.user_id)
+        .where(Play.track_id.in_(track_ids))
+        .group_by(Play.track_id, Play.user_id)
+    )
+    if since is not None:
+        stmt = stmt.where(Play.played_at >= since)
+    out: dict[int, list[dict]] = {}
+    for tid, name, c in session.exec(stmt).all():
+        out.setdefault(tid, []).append({"username": name, "plays": c})
+    for lst in out.values():
+        lst.sort(key=lambda u: (-u["plays"], u["username"]))
+    return out
+
+
+def _filler_rows(
+    session: Session, slug: str, since: Optional[datetime], exclude: set[int], need: int
+) -> list[dict]:
+    """Pistas más reproducidas del género en una ventana (None = todo el histórico)."""
+    if need <= 0:
+        return []
+    plays = func.count(Play.id)
+    listeners = func.count(func.distinct(Play.user_id))
+    last = func.max(Play.played_at)
+    stmt = (
+        select(Play.track_id, plays, listeners, last)
+        .join(Track, Track.id == Play.track_id)
+        .where(func.lower(func.trim(Track.genre)) == slug)
+        .group_by(Play.track_id)
+        .order_by(plays.desc(), listeners.desc(), last.desc(), Play.track_id)
+        .limit(need + len(exclude))
+    )
+    if since is not None:
+        stmt = stmt.where(Play.played_at >= since)
+    rows = [
+        {"track_id": tid, "plays": n, "listeners": ls, "last": lp}
+        for tid, n, ls, lp in session.exec(stmt).all()
+        if tid not in exclude
+    ]
+    return rows[:need]
+
+
 @router.get("/charts/{genre}")
 def weekly_chart(
     genre: str,
@@ -1305,7 +1364,11 @@ def weekly_chart(
     user: User = Depends(auth_svc.get_current_user),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Lista semanal de un género: pistas más escuchadas en todo el servidor."""
+    """Lista semanal de un género: pistas más escuchadas en todo el servidor.
+
+    Si la ventana no llena `limit`, se completa con lo más reproducido del
+    género en 30 días y luego en todo el histórico (marcado `filler`).
+    """
     # Los slugs de /charts salen del lower() de SQLite (solo ASCII): comparar con
     # casefold() para que cualquier slug de la lista resuelva siempre.
     by_genre = _genre_chart_rows(session, days)
@@ -1314,26 +1377,55 @@ def weekly_chart(
     rows = by_genre.get(slug, [])
     if len(rows) < CHART_MIN_TRACKS:
         raise HTTPException(404, "este género aún no tiene lista")
-    top = rows[:limit]
-    stats = {r["track_id"]: r for r in top}
+    now = datetime.utcnow()
+    top = [{**r, "filler": False, "window_days": days} for r in rows[:limit]]
+    # Tramos de relleno: (ventana en días, None = histórico). Se salta el de 30
+    # días si la ventana pedida ya es igual o mayor.
+    seen = {r["track_id"] for r in top}
+    for tier in (30, None):
+        if len(top) >= limit:
+            break
+        if tier is not None and tier <= days:
+            continue
+        since = now - timedelta(days=tier) if tier else None
+        extra = _filler_rows(session, slug, since, seen, limit - len(top))
+        top += [{**r, "filler": True, "window_days": tier} for r in extra]
+        seen |= {r["track_id"] for r in extra}
+
     found = {
         t.id: (t, ar, al)
         for t, ar, al in session.exec(
             select(Track, Artist, Album)
             .join(Artist, Track.artist_id == Artist.id)
             .outerjoin(Album, Track.album_id == Album.id)
-            .where(Track.id.in_(list(stats)))
+            .where(Track.id.in_(list(seen)))
         ).all()
     }
+    # Oyentes por tramo (una consulta por ventana distinta: como mucho tres).
+    who: dict[int, list[dict]] = {}
+    for w in {r["window_days"] for r in top}:
+        ids = [r["track_id"] for r in top if r["window_days"] == w]
+        who.update(_listener_users(session, ids, now - timedelta(days=w) if w else None))
     liked = _user_liked_set(session, user)
     items = []
-    for rank, r in enumerate(top, start=1):
+    rank = 0
+    for r in top:
         row = found.get(r["track_id"])
         if row is None:
             continue
         t, ar, al = row
+        if not r["filler"]:
+            rank += 1
         items.append(
-            {**_track_payload(t, ar, al, t.id in liked), "rank": rank, "plays": r["plays"], "listeners": r["listeners"]}
+            {
+                **_track_payload(t, ar, al, t.id in liked),
+                "rank": None if r["filler"] else rank,
+                "plays": r["plays"],
+                "listeners": r["listeners"],
+                "listener_users": who.get(t.id, []),
+                "filler": r["filler"],
+                "window_days": r["window_days"],
+            }
         )
     n_plays, n_listeners = _genre_totals(session, days).get(slug, (0, 0))
     return {
@@ -1341,6 +1433,7 @@ def weekly_chart(
         "name": genres_svc.genre_label(slug),
         "days": days,
         "track_count": len(items),
+        "ranked_count": rank,
         "plays": n_plays,
         "listeners": n_listeners,
         "items": items,

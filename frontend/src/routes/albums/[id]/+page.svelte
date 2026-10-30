@@ -234,6 +234,11 @@
             {album.artist_name}{#if album.year} · {album.year}{/if} · {album.track_count}
             {album.track_count === 1 ? 'pista' : 'pistas'}
           </div>
+          {#if album.owner_name}
+            <div class="mt-0.5 text-xs text-fg-subtle">
+              Añadida por {album.is_mine ? 'ti' : album.owner_name}
+            </div>
+          {/if}
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <Button variant="primary" onclick={playAll} disabled={visibleTracks.length === 0}>
               <Play size={16} fill="currentColor" /> Reproducir

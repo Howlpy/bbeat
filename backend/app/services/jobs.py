@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from sqlmodel import select
 
 from app.db import session_scope
-from app.models import Album, AlbumSave, AlbumTrack, Artist, Job, Track
+from app.models import Album, AlbumSave, AlbumTrack, Artist, Job, Track, User
 from app.services import downloader, genres as genres_svc, library as library_svc, organizer, scanner, sources, spotify, ytdlp_resolver
 
 log = logging.getLogger("bbeat.jobs")
@@ -806,12 +806,18 @@ def start_worker() -> None:
 
 
 def list_jobs(limit: int = 100) -> list[dict]:
+    """Últimos jobs de todos, con el nombre de quien los lanzó (un solo join)."""
     with session_scope() as s:
-        rows = s.exec(select(Job).order_by(Job.created_at.desc()).limit(limit)).all()
-        return [_job_to_dict(j) for j in rows]
+        rows = s.exec(
+            select(Job, User.username)
+            .outerjoin(User, User.id == Job.user_id)
+            .order_by(Job.created_at.desc())
+            .limit(limit)
+        ).all()
+        return [_job_to_dict(j, name) for j, name in rows]
 
 
-def _job_to_dict(j: Job) -> dict:
+def _job_to_dict(j: Job, username: Optional[str] = None) -> dict:
     return {
         "id": j.id,
         "source_url": j.source_url,
@@ -834,6 +840,7 @@ def _job_to_dict(j: Job) -> dict:
         "error": j.error,
         "result_track_id": j.result_track_id,
         "user_id": j.user_id,
+        "username": username,
         "created_at": j.created_at.isoformat() if j.created_at else None,
         "started_at": j.started_at.isoformat() if j.started_at else None,
         "completed_at": j.completed_at.isoformat() if j.completed_at else None,

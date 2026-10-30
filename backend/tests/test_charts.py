@@ -116,3 +116,47 @@ def test_genero_se_normaliza_a_minusculas(db, client):
     for i in range(5):
         _play(s, users[0], _track(s, artist, i, genre="Rap " if i % 2 else "rap"))
     assert client.get("/api/library/charts/RAP").json()["track_count"] == 5
+
+
+def test_listener_users_y_sin_duplicar_conteos(db, client):
+    s, artist, users = db
+    ts = _rap_genre(s, artist, users)
+    _play(s, users[1], ts[0], times=3)
+    items = client.get("/api/library/charts/rap").json()["items"]
+    top = items[0]
+    assert top["id"] == ts[0].id
+    assert top["plays"] == 4 and top["listeners"] == 2
+    assert top["listener_users"] == [
+        {"username": "u1", "plays": 3},
+        {"username": "u0", "plays": 1},
+    ]
+    assert all(not i["filler"] for i in items)
+
+
+def test_relleno_con_30_dias_e_historico(db, client):
+    s, artist, users = db
+    _rap_genre(s, artist, users, count=5)
+    mes = _track(s, artist, 20)
+    _play(s, users[1], mes, times=4, ago=timedelta(days=15))
+    viejo = _track(s, artist, 21)
+    _play(s, users[2], viejo, times=9, ago=timedelta(days=100))
+    nunca = _track(s, artist, 22)  # sin plays: no es relleno
+    data = client.get("/api/library/charts/rap?limit=8").json()
+    items = data["items"]
+    assert [i["id"] for i in items[5:]] == [mes.id, viejo.id]
+    assert [i["filler"] for i in items] == [False] * 5 + [True, True]
+    assert items[5]["rank"] is None and items[5]["window_days"] == 30
+    assert items[6]["window_days"] is None and items[6]["listener_users"][0]["username"] == "u2"
+    assert data["ranked_count"] == 5 and data["track_count"] == 7
+    assert nunca.id not in [i["id"] for i in items]
+    # Con límite justo no hay relleno.
+    assert all(not i["filler"] for i in client.get("/api/library/charts/rap?limit=5").json()["items"])
+
+
+def test_relleno_no_repite_pistas_ni_otros_generos(db, client):
+    s, artist, users = db
+    ts = _rap_genre(s, artist, users, count=5)
+    _play(s, users[1], ts[0], times=5, ago=timedelta(days=20))  # ya listada
+    _play(s, users[1], _track(s, artist, 30, genre="pop"), times=5, ago=timedelta(days=20))
+    items = client.get("/api/library/charts/rap").json()["items"]
+    assert len(items) == 5 and len({i["id"] for i in items}) == 5

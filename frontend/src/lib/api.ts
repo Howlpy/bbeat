@@ -81,7 +81,19 @@ export type GenreChart = {
   track_count: number;
   plays: number;
   listeners: number;
-  items: (Track & { rank: number; plays: number; listeners: number })[];
+  /** Pistas del ranking (rank) + relleno de periodos más largos (filler). */
+  ranked_count: number;
+  items: ChartTrack[];
+};
+
+export type ChartTrack = Track & {
+  rank: number | null;
+  plays: number;
+  listeners: number;
+  listener_users: { username: string; plays: number }[];
+  filler: boolean;
+  /** Ventana de las cifras: 7/30 días, o null = histórico. */
+  window_days: number | null;
 };
 
 export type AlbumKind = 'album' | 'playlist';
@@ -95,6 +107,7 @@ export type Album = {
   track_count: number;
   cover_url: string | null;
   owner_id?: number | null;
+  owner_name?: string | null;
   kind?: AlbumKind;
   is_mine?: boolean;
   is_saved?: boolean;
@@ -259,6 +272,9 @@ export type Job = {
   backend_used: 'yt-dlp' | null;
   error: string | null;
   result_track_id: number | null;
+  user_id: number | null;
+  /** Quién lo lanzó (null en jobs antiguos). */
+  username: string | null;
   created_at: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -587,7 +603,7 @@ export const api = {
     );
   },
   listJobs: (limit = 100) =>
-    json<{ total: number; items: Job[]; stats: JobStats }>(`/api/jobs?limit=${limit}`),
+    json<{ total: number; items: Job[]; stats: JobStats; stats_all?: JobStats }>(`/api/jobs?limit=${limit}`),
   jobStats: () => json<JobStats>('/api/jobs/stats'),
   retryJob: (id: number) => json<{ ok: boolean }>(`/api/jobs/${id}/retry`, { method: 'POST' }),
   retryFailed: () => json<{ retried: number }>('/api/jobs/retry-failed', { method: 'POST' }),

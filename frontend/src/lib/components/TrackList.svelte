@@ -1,7 +1,7 @@
 <script lang="ts">
   import { pushBack } from '$lib/backstack.svelte';
   import { coverSrc } from '$lib/cover';
-  import { onMount } from 'svelte';
+  import { onMount, type Snippet } from 'svelte';
   import { fly, fade } from 'svelte/transition';
   import {
     MoreVertical,
@@ -34,6 +34,9 @@
     showGenre = false,
     numbered = false,
     meta,
+    trailing,
+    sectionLabel,
+    numberFor,
     onchanged
   }: {
     tracks: Track[];
@@ -43,6 +46,12 @@
     numbered?: boolean;
     /** Texto discreto extra al final del subtítulo de cada pista. */
     meta?: (t: Track) => string | null | undefined;
+    /** Contenido extra junto al botón de me gusta (fuera del botón de play). */
+    trailing?: Snippet<[Track, number]>;
+    /** Si devuelve texto, se pinta como separador antes de esa pista. */
+    sectionLabel?: (t: Track, i: number) => string | null | undefined;
+    /** Número a mostrar con `numbered`; null deja el hueco vacío. Por defecto i + 1. */
+    numberFor?: (t: Track, i: number) => number | null;
     onchanged?: () => void;
   } = $props();
 
@@ -195,6 +204,10 @@
 <ul class="divide-y divide-line">
   {#each tracks as t, i (t.id)}
     {@const isCurrent = player.current?.id === t.id}
+    {@const section = sectionLabel?.(t, i)}
+    {#if section}
+      <li class="px-3 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-fg-subtle" aria-hidden="true">{section}</li>
+    {/if}
     <li>
       <div
         class="flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-surface"
@@ -207,7 +220,7 @@
           aria-disabled={!offline.canPlay(t.id)}
         >
           {#if numbered}
-            <span class="w-6 flex-none text-center text-xs font-semibold tabular-nums" class:text-accent={isCurrent} class:text-fg-subtle={!isCurrent}>{i + 1}</span>
+            <span class="w-6 flex-none text-center text-xs font-semibold tabular-nums" class:text-accent={isCurrent} class:text-fg-subtle={!isCurrent}>{(numberFor ? numberFor(t, i) : i + 1) ?? ''}</span>
           {/if}
           <span class="relative size-10 flex-none">
             {#if t.cover_url}
@@ -230,13 +243,19 @@
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm" class:text-accent={isCurrent}>{t.title}</div>
             <div class="truncate text-xs text-fg-subtle">
-              {t.artist_name}{#if showAlbum && t.album_title} · {t.album_title}{/if}{#if showGenre} · {genreLabel(t.genre)}{/if}{#if meta && meta(t)} · {meta(t)}{/if}
+              {t.artist_name}{#if showAlbum && t.album_title} · {t.album_title}{/if}{#if showGenre} · {genreLabel(t.genre)}{/if}
             </div>
+            <!-- Meta en su propia línea: en móvil, tras el artista, se cortaba. -->
+            {#if meta && meta(t)}
+              <div class="truncate text-xs tabular-nums text-fg-muted">{meta(t)}</div>
+            {/if}
           </div>
-          <span class="flex-none text-xs tabular-nums text-fg-subtle">
+          <!-- Con columna extra (p. ej. oyentes) la duración sobra en móvil: deja sitio al texto. -->
+          <span class="flex-none text-xs tabular-nums text-fg-subtle" class:hidden={!!trailing} class:sm:inline={!!trailing}>
             {formatDuration(t.duration_ms)}
           </span>
         </button>
+        {@render trailing?.(t, i)}
         {#if offline.downloading.has(t.id)}
           <span class="flex-none text-accent" title="Descargando…"><Loader2 size={14} class="animate-spin" /></span>
         {:else if offline.has(t.id)}

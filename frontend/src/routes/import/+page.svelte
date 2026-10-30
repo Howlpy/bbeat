@@ -9,6 +9,7 @@
     type Job,
     type Source
   } from '$lib/api';
+  import { auth } from '$lib/auth.svelte';
   import { jobs } from '$lib/jobs.svelte';
   import { Check, ChevronDown, ChevronRight, Clock, Disc3, List, Loader2, Music2, RefreshCw, Trash2, X } from 'lucide-svelte';
   import LocalUpload from '$lib/components/LocalUpload.svelte';
@@ -221,6 +222,15 @@
     });
     return out;
   });
+
+  /** "tú", el nombre de quien lo importó o "—" en jobs antiguos. */
+  function uploader(j: Job): string {
+    if (j.user_id !== null && j.user_id === auth.user?.id) return 'ti';
+    return j.username ?? '—';
+  }
+
+  // Reintentar/borrar: solo el dueño o un admin (el servidor lo exige igual).
+  const canManage = (j: Job) => !!auth.user && (auth.user.is_admin || j.user_id === auth.user.id);
 
   function kindLabel(k: string): string {
     return ({ track: 'Pista', album: 'Álbum', playlist: 'Playlist' } as Record<string, string>)[k] ?? k;
@@ -550,18 +560,18 @@
     </header>
 
     <div class="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 text-xs min-h-11 sm:min-h-10">
-      <span class="text-fg-muted">Total: <b class="text-fg">{jobs.stats.total}</b></span>
-      {#if jobs.stats.pending > 0}
-        <span class="inline-flex items-center gap-1 text-fg-muted"><Clock size={11} /> {jobs.stats.pending}</span>
+      <span class="text-fg-muted">Total: <b class="text-fg">{jobs.statsAll.total}</b></span>
+      {#if jobs.statsAll.pending > 0}
+        <span class="inline-flex items-center gap-1 text-fg-muted"><Clock size={11} /> {jobs.statsAll.pending}</span>
       {/if}
-      {#if jobs.stats.running > 0}
-        <span class="inline-flex items-center gap-1 text-accent"><Loader2 size={11} class="animate-spin" /> {jobs.stats.running}</span>
+      {#if jobs.statsAll.running > 0}
+        <span class="inline-flex items-center gap-1 text-accent"><Loader2 size={11} class="animate-spin" /> {jobs.statsAll.running}</span>
       {/if}
-      {#if jobs.stats.done > 0}
-        <span class="inline-flex items-center gap-1 text-accent"><Check size={11} /> {jobs.stats.done}</span>
+      {#if jobs.statsAll.done > 0}
+        <span class="inline-flex items-center gap-1 text-accent"><Check size={11} /> {jobs.statsAll.done}</span>
       {/if}
-      {#if jobs.stats.failed > 0}
-        <span class="inline-flex items-center gap-1 text-danger"><X size={11} /> {jobs.stats.failed}</span>
+      {#if jobs.statsAll.failed > 0}
+        <span class="inline-flex items-center gap-1 text-danger"><X size={11} /> {jobs.statsAll.failed}</span>
       {/if}
       {#if jobs.active > 0}
         <span class="ml-auto inline-flex items-center gap-1 text-accent">
@@ -616,6 +626,7 @@
                     ></span>
                   </span>
                   <span class="text-fg-subtle">{g.counts.done}/{total}</span>
+                  <span class="text-fg-subtle">· por {uploader(g.items[0])}</span>
                   {#if g.counts.running > 0}
                     <span class="inline-flex items-center gap-0.5 text-accent">
                       <Loader2 size={10} class="animate-spin" /> {g.counts.running}
@@ -655,14 +666,16 @@
                         {/if}
                       </div>
                       <div class="flex flex-none gap-1">
-                        {#if job.status === 'failed'}
+                        {#if !canManage(job)}
+                          <!-- Job de otra persona: solo lectura -->
+                        {:else if job.status === 'failed'}
                           <button
                             onclick={() => retry(job.id)}
                             class="grid size-10 place-items-center rounded-lg border border-line transition hover:bg-surface-2"
                             title="Reintentar"
                           ><RefreshCw size={12} /></button>
                         {/if}
-                        {#if job.status !== 'running'}
+                        {#if canManage(job) && job.status !== 'running'}
                           <button
                             onclick={() => remove(job.id)}
                             class="grid size-10 place-items-center rounded-lg border border-line text-fg-subtle transition hover:bg-surface-2 hover:text-danger"

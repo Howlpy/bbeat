@@ -3,6 +3,8 @@ import { api, type Job, type JobStats } from './api';
 class JobsStore {
   items = $state<Job[]>([]);
   stats = $state<JobStats>({ pending: 0, running: 0, done: 0, failed: 0, total: 0 });
+  /** Resumen de todo lo que se lista (stats es solo lo propio). */
+  statsAll = $state<JobStats>({ pending: 0, running: 0, done: 0, failed: 0, total: 0 });
   lastError = $state<string | null>(null);
   loading = $state(false);
 
@@ -18,6 +20,7 @@ class JobsStore {
       const r = await api.listJobs(200);
       this.items = r.items;
       this.stats = r.stats;
+      this.statsAll = r.stats_all ?? r.stats;
       this.lastError = null;
     } catch (e) {
       this.lastError = e instanceof Error ? e.message : String(e);

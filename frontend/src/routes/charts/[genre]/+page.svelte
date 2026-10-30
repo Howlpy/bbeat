@@ -2,10 +2,11 @@
   import { page } from '$app/state';
   import { onMount } from 'svelte';
   import { Play, Shuffle, TrendingUp } from 'lucide-svelte';
-  import { api, type GenreChart, type Track } from '$lib/api';
+  import { api, type ChartTrack, type GenreChart, type Track } from '$lib/api';
   import { onReconnect } from '$lib/net.svelte';
   import { player } from '$lib/player.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
+  import ListenerAvatars from '$lib/components/ListenerAvatars.svelte';
   import ErrorState from '$lib/components/ErrorState.svelte';
   import BackButton from '$lib/components/ui/BackButton.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -44,11 +45,26 @@
     });
   });
 
-  // "1 oyente" / "N oyentes"
-  const listeners = (t: Track) => {
-    const n = (t as Track & { listeners?: number }).listeners ?? 0;
-    return n > 0 ? `${n} ${n === 1 ? 'oyente' : 'oyentes'}` : null;
+  const asChart = (t: Track) => t as ChartTrack;
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+  // Ranking: "M escuchas · N oyentes" (corto para que quepa en móvil). Relleno: escuchas y periodo.
+  const meta = (t: Track) => {
+    const c = asChart(t);
+    if (c.filler) {
+      const when = c.window_days ? `${c.window_days} días` : 'histórico';
+      return `${plural(c.plays, 'escucha', 'escuchas')} · ${when}`;
+    }
+    // Escuchas primero: si el móvil corta, los oyentes ya se ven en las iniciales.
+    return `${plural(c.plays, 'escucha', 'escuchas')} · ${plural(c.listeners, 'oyente', 'oyentes')}`;
   };
+
+  // Separador antes de la primera pista de relleno.
+  const section = (t: Track, i: number) =>
+    asChart(t).filler && !asChart(tracks[i - 1] ?? t).filler && i > 0
+      ? 'Para completar · más escuchadas del género'
+      : null;
+  const numberFor = (t: Track, i: number) => asChart(t).rank ?? null;
 </script>
 
 <div class="page">
@@ -84,7 +100,11 @@
         </Button>
       </div>
     </header>
-    <TrackList bind:tracks numbered meta={listeners} onchanged={load} />
+    <TrackList bind:tracks numbered {meta} {numberFor} sectionLabel={section} onchanged={load}>
+      {#snippet trailing(t)}
+        <ListenerAvatars users={asChart(t).listener_users ?? []} />
+      {/snippet}
+    </TrackList>
   {:else}
     <EmptyState
       icon={TrendingUp}
