@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { onReconnect } from '$lib/net.svelte';
   import ErrorState from '$lib/components/ErrorState.svelte';
-  import { X, Shuffle, Heart, ChevronLeft, Music2, Tag } from 'lucide-svelte';
+  import { X, Shuffle, Heart, ChevronLeft, Music2, Tag, Disc3, Mic2, HardDriveDownload, ChevronRight } from 'lucide-svelte';
   import { api, type Track } from '$lib/api';
   import { player } from '$lib/player.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -11,6 +11,13 @@
   import SortSelect from '$lib/components/SortSelect.svelte';
   import { sortTracks, type TrackSort } from '$lib/sort';
   import { genreLabel, SIN_GENERO } from '$lib/genres';
+
+  const hub = [
+    { href: '/liked', label: 'Favoritos', Icon: Heart },
+    { href: '/albums', label: 'Playlists y álbumes', Icon: Disc3 },
+    { href: '/artists', label: 'Artistas', Icon: Mic2 },
+    { href: '/downloads', label: 'Descargas', Icon: HardDriveDownload }
+  ];
 
   type GenreRow = { genre: string; count: number };
 
@@ -32,7 +39,7 @@
 
   // Los géneros se cuentan en el servidor: aquí solo hay una página de pistas,
   // así que contar sobre `tracks` daría cifras que no cuadran con la biblioteca.
-  const nombreVista = $derived(selected === null ? 'Canciones' : etiqueta(selected));
+  const nombreVista = $derived(selected === null ? 'Biblioteca' : etiqueta(selected));
 
   function etiqueta(g: string): string {
     return g === '__all__' ? 'Todas las canciones' : genreLabel(g);
@@ -141,10 +148,6 @@
       <h1 class="page-title truncate">{nombreVista}</h1>
     </div>
     <div class="flex items-center gap-3">
-      <a
-        href="/liked"
-        class="inline-flex min-h-10 items-center gap-1.5 text-sm text-fg-muted transition hover:text-accent"
-      ><Heart size={14} /> Favoritos</a>
       <span class="text-sm tabular-nums text-fg-subtle">
         {#if selected === null}
           {libraryTotal} en biblioteca
@@ -156,7 +159,18 @@
   </header>
 
   {#if selected === null}
-    <!-- Portada de la sección: por dónde entrar a las canciones -->
+    <!-- Hub: accesos a cada parte de la biblioteca -->
+    <nav class="mb-6 divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+      {#each hub as h (h.href)}
+        <a href={h.href} class="flex min-h-14 items-center gap-4 px-4 py-2 transition hover:bg-surface-2">
+          <span class="grid size-10 flex-none place-items-center rounded-lg bg-accent-soft text-accent"><h.Icon size={20} /></span>
+          <span class="min-w-0 flex-1 font-medium">{h.label}</span>
+          <ChevronRight size={18} class="flex-none text-fg-subtle" />
+        </a>
+      {/each}
+    </nav>
+
+    <!-- Todas las canciones -->
     <button
       onclick={() => abrir('__all__')}
       class="mb-3 flex w-full items-center gap-4 rounded-xl border border-accent/40 bg-accent-soft px-4 py-4 text-left transition hover:border-accent"

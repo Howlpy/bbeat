@@ -2,7 +2,7 @@
   import { pushBack } from '$lib/backstack.svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { Home, Music2, Disc3, Download, Settings, Shield, LogOut, Flame, HardDriveDownload, Radio } from 'lucide-svelte';
+  import { Home, Search, Library, Download, Settings, Shield, LogOut, Flame, Radio } from 'lucide-svelte';
   import { jobs } from '$lib/jobs.svelte';
   import { auth } from '$lib/auth.svelte';
 
@@ -15,14 +15,19 @@
 
   const items = $derived([
     { href: '/', label: 'Inicio', Icon: Home, badge: 0 },
-    { href: '/library', label: 'Pistas', Icon: Music2, badge: 0 },
-    { href: '/albums', label: 'Álbumes', Icon: Disc3, badge: 0 },
-    { href: '/import', label: 'Importar', Icon: Download, badge: jobs.active },
-    ...(auth.user?.is_admin ? [{ href: '/admin', label: 'Admin', Icon: Shield, badge: 0 }] : [])
+    { href: '/search', label: 'Buscar', Icon: Search, badge: 0 },
+    { href: '/library', label: 'Biblioteca', Icon: Library, badge: 0 },
+    { href: '/import', label: 'Importar', Icon: Download, badge: jobs.active }
   ]);
 
+  // Rutas que cuelgan de Biblioteca (no son pestaña propia).
+  const LIBRARY_CHILDREN = ['/library', '/albums', '/artists', '/liked', '/downloads'];
+
   function isActive(href: string): boolean {
-    return href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href);
+    const p = page.url.pathname;
+    if (href === '/') return p === '/';
+    if (href === '/library') return LIBRARY_CHILDREN.some((r) => p === r || p.startsWith(r + '/'));
+    return p === href || p.startsWith(href + '/');
   }
 
   function logout() {
@@ -98,29 +103,31 @@
               {/if}
             </div>
             <a
-              href="/live"
-              onclick={() => (menuOpen = false)}
-              class="flex min-h-11 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
-            ><Radio size={16} /> Sonando ahora</a>
-            <a
               href="/wrapped"
               onclick={() => (menuOpen = false)}
-              class="flex min-h-11 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
-            ><Flame size={16} /> Tu Wrapped</a>
+              class="flex min-h-12 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
+            ><Flame size={18} /> Tu Wrapped</a>
             <a
-              href="/downloads"
+              href="/live"
               onclick={() => (menuOpen = false)}
-              class="flex min-h-11 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
-            ><HardDriveDownload size={16} /> Descargas</a>
+              class="flex min-h-12 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
+            ><Radio size={18} /> Sonando ahora</a>
             <a
               href="/settings"
               onclick={() => (menuOpen = false)}
-              class="flex min-h-11 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
-            ><Settings size={16} /> Ajustes</a>
+              class="flex min-h-12 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
+            ><Settings size={18} /> Ajustes</a>
+            {#if auth.user.is_admin}
+              <a
+                href="/admin"
+                onclick={() => (menuOpen = false)}
+                class="flex min-h-12 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
+              ><Shield size={18} /> Admin</a>
+            {/if}
             <button
               onclick={logout}
-              class="flex min-h-11 w-full items-center gap-3 px-4 text-left text-sm text-danger hover:bg-surface-3"
-            ><LogOut size={16} /> Salir</button>
+              class="flex min-h-12 w-full items-center gap-3 border-t border-line px-4 text-left text-sm text-danger hover:bg-surface-3"
+            ><LogOut size={18} /> Cerrar sesión</button>
           </div>
         {/if}
       </div>

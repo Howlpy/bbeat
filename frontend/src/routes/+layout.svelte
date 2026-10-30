@@ -89,7 +89,7 @@
   afterNavigate(trackNav);
 
   // Raíces: pestañas de la barra inferior. Desde ellas el atrás no retrocede.
-  const ROOTS = ['/', '/library', '/albums', '/import', '/admin'];
+  const ROOTS = ['/', '/search', '/library', '/import'];
 
   // Atrás de Android: 1) cierra overlays, 2) historial interno, 3) inicio,
   // 4) minimiza (nunca cierra la app).

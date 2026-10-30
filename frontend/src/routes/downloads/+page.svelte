@@ -28,7 +28,7 @@
 </script>
 
 <div class="page-narrow">
-  <BackButton fallback="/" />
+  <BackButton fallback="/library" />
   <header class="mb-6 flex items-center gap-4">
     <span class="grid size-14 flex-none place-items-center rounded-xl bg-accent-soft text-accent">
       <HardDriveDownload size={26} />

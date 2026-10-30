@@ -27,6 +27,7 @@ from app.services import genres as genres_svc
 from app.services import library as library_svc
 from app.services import lyrics as lyrics_svc
 from app.services import organizer, presence as presence_svc, scanner, spotify
+from app.services import wrapped as wrapped_svc
 
 router = APIRouter(prefix="/library", tags=["library"])
 
@@ -1554,6 +1555,40 @@ def my_stats(
         "last_play": _iso(last_played),
         "prev": prev,
     }
+
+
+@router.get("/me/wrapped")
+def my_wrapped(
+    period: str = Query("all", pattern="^(week|month|year|all)$"),
+    tz: int = Query(0, ge=-840, le=840),
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Wrapped por periodo (semana/mes/año/todo), agregado en el servidor."""
+    data = wrapped_svc.compute(session, user.id, period, tz)
+    top_tracks = data.pop("top_track_ids")
+    top_artists = data.pop("top_artist_ids")
+
+    liked = _user_liked_set(session, user)
+    plays_of = dict(top_tracks)
+    rows = session.exec(
+        select(Track, Artist, Album)
+        .join(Artist, Track.artist_id == Artist.id)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .where(Track.id.in_(list(plays_of)))
+    ).all()
+    by_id = {t.id: {**_track_payload(t, ar, al, t.id in liked), "plays": plays_of[t.id]} for t, ar, al in rows}
+    data["top_tracks"] = [by_id[i] for i, _ in top_tracks if i in by_id]
+
+    names = dict(
+        session.exec(select(Artist.id, Artist.name).where(Artist.id.in_([i for i, _ in top_artists]))).all()
+    )
+    data["top_artists"] = [
+        {"id": i, "name": names.get(i, "—"), "plays": n} for i, n in top_artists if i in names
+    ]
+    for g in data["genres"]:
+        g["name"] = genres_svc.genre_label(g["genre"])
+    return data
 
 
 @router.get("/activity")

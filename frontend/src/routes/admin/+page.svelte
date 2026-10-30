@@ -1,8 +1,10 @@
 <script lang="ts">
+  import BackButton from '$lib/components/ui/BackButton.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { AlertTriangle, ArrowDown, ArrowUp, Ban, CheckCircle2, Clock, Check, Trash2 } from 'lucide-svelte';
+  import { AlertTriangle, ArrowDown, ArrowUp, Ban, CheckCircle2, Clock, Check, Trash2, RefreshCw } from 'lucide-svelte';
   import { api } from '$lib/api';
   import { auth, type AuthUser } from '$lib/auth.svelte';
 
@@ -75,6 +77,27 @@
     }
   }
 
+  // Mantenimiento: re-escanea el disco y espera a que termine.
+  let scanning = $state(false);
+  let scanMsg = $state<string | null>(null);
+  async function rescan() {
+    scanning = true;
+    scanMsg = null;
+    try {
+      await api.startScan();
+      let st = await api.scanStatus();
+      while (st.running) {
+        await new Promise((r) => setTimeout(r, 700));
+        st = await api.scanStatus();
+      }
+      scanMsg = 'Escaneo terminado.';
+    } catch (e) {
+      scanMsg = e instanceof Error ? e.message : String(e);
+    } finally {
+      scanning = false;
+    }
+  }
+
   onMount(() => {
     if (!auth.user?.is_admin) {
       goto('/');
@@ -85,7 +108,20 @@
 </script>
 
 <div class="page-narrow">
-  <h1 class="page-title mb-6">Admin · Usuarios</h1>
+  <BackButton fallback="/" />
+  <h1 class="page-title mb-6">Admin</h1>
+
+  <section class="mb-8 rounded-xl border border-line bg-surface p-4">
+    <h2 class="mb-1 text-sm font-semibold">Mantenimiento</h2>
+    <p class="mb-3 text-sm text-fg-muted">Vuelve a leer la carpeta de música y actualiza la biblioteca.</p>
+    <Button onclick={rescan} disabled={scanning}>
+      <RefreshCw size={16} class={scanning ? 'animate-spin' : ''} />
+      {scanning ? 'Escaneando…' : 'Re-escanear disco'}
+    </Button>
+    {#if scanMsg}<p class="mt-2 text-sm text-fg-muted">{scanMsg}</p>{/if}
+  </section>
+
+  <h2 class="section-title mb-3">Usuarios</h2>
 
   {#if loading}
     <div class="space-y-2">{#each Array(4) as _}<Skeleton class="h-16 w-full" />{/each}</div>

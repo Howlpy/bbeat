@@ -14,6 +14,7 @@
   } from 'lucide-svelte';
   import { api, type Album } from '$lib/api';
   import NewAlbumDialog from '$lib/components/NewAlbumDialog.svelte';
+  import BackButton from '$lib/components/ui/BackButton.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
@@ -81,6 +82,7 @@
 </script>
 
 <div class="page">
+  <BackButton fallback="/library" />
   <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
     <h1 class="page-title">Álbumes</h1>
     <div class="flex flex-wrap items-center gap-2">

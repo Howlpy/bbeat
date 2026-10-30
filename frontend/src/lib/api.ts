@@ -41,6 +41,28 @@ export type MyStats = {
   prev: { plays: number; minutes: number } | null;
 };
 
+export type WrappedPeriod = 'week' | 'month' | 'year' | 'all';
+
+/** Wrapped por periodo (GET /library/me/wrapped). */
+export type Wrapped = {
+  period: WrappedPeriod;
+  total_plays: number;
+  total_minutes: number;
+  unique_tracks: number;
+  unique_artists: number;
+  new_tracks: number;
+  new_artists: number;
+  /** % de usuarios del servidor a los que superas en minutos (null si estás solo). */
+  rank_pct: number | null;
+  best_streak: number;
+  active_days: number;
+  hours: number[]; // 24, plays por hora local
+  weekdays: number[]; // 7, lunes = 0
+  top_tracks: (Track & { plays: number })[];
+  top_artists: { id: number; name: string; plays: number }[];
+  genres: { genre: string; name: string; plays: number; pct: number }[];
+};
+
 /** Género con lista semanal (GET /library/charts). */
 export type ChartGenre = {
   genre: string;
@@ -530,6 +552,10 @@ export const api = {
     ),
   myStats: (days?: number) =>
     json<MyStats>(`/api/library/me/stats${days ? '?days=' + days : ''}`),
+  wrapped: (period: WrappedPeriod) =>
+    json<Wrapped>(
+      `/api/library/me/wrapped?period=${period}&tz=${-new Date().getTimezoneOffset()}`
+    ),
   activity: (limit = 30) =>
     json<{ items: (Track & { username: string; played_at: string | null })[] }>(
       `/api/library/activity?limit=${limit}`

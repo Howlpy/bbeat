@@ -2,23 +2,18 @@
   import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import {
-    Download,
     Disc3,
     Music2,
     Play,
-    Search,
-    RefreshCw,
     AudioWaveform,
     Flame,
     Heart,
     WifiOff,
-    HardDriveDownload,
     Radio,
     TrendingUp
   } from 'lucide-svelte';
   import {
     api,
-    formatBytes,
     formatDuration,
     type Album,
     type ChartGenre,
@@ -33,7 +28,6 @@
   import { isOfflineError, onReconnect } from '$lib/net.svelte';
   import OfflineEmpty from '$lib/components/OfflineEmpty.svelte';
   import ErrorState from '$lib/components/ErrorState.svelte';
-  import Button from '$lib/components/ui/Button.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
 
   let stats = $state<LibraryStats | null>(null);
@@ -46,7 +40,6 @@
   let error = $state<string | null>(null);
   // Sin red y sin caché de esta página: vacío compacto dentro del layout normal.
   let offlineMode = $state(false);
-  let scanning = $state(false);
 
   async function load() {
     try {
@@ -66,21 +59,6 @@
     } catch (e) {
       if (isOfflineError(e)) offlineMode = true;
       else error = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  async function rescan() {
-    scanning = true;
-    try {
-      await api.startScan();
-      let s = await api.scanStatus();
-      while (s.running) {
-        await new Promise((r) => setTimeout(r, 700));
-        s = await api.scanStatus();
-      }
-      await load();
-    } finally {
-      scanning = false;
     }
   }
 
@@ -166,7 +144,7 @@
     {#if jobs.active > 0}
       <a
         href="/import"
-        class="mb-6 flex items-center gap-3 rounded-xl border border-accent/40 bg-accent-soft p-3 text-sm transition hover:border-accent"
+        class="mb-8 flex items-center gap-3 rounded-xl border border-accent/40 bg-accent-soft p-3 text-sm transition hover:border-accent"
       >
         <span class="grid size-8 flex-none place-items-center rounded-full bg-accent/20">
           <AudioWaveform size={16} class="text-accent" />
@@ -179,44 +157,20 @@
       </a>
     {/if}
 
-    <!-- Resumen: pistas en la app + descargas offline -->
-    <section class="mb-6 grid grid-cols-2 gap-3 sm:gap-4">
+    <!-- Resumen compacto + accesos -->
+    <section class="mb-8 flex flex-wrap items-center gap-2">
       <a
         href="/library"
-        class="rounded-xl border border-line bg-surface p-4 transition hover:border-line-strong hover:bg-surface-2"
-      >
-        <div class="mb-2 flex items-center gap-2 text-fg-subtle">
-          <Music2 size={15} />
-          <span class="text-xs uppercase tracking-wider">canciones</span>
-        </div>
-        <div class="text-3xl font-bold tabular-nums text-accent">{stats.tracks}</div>
-        <div class="mt-0.5 text-xs text-fg-subtle">en la app</div>
-      </a>
+        class="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm transition hover:border-line-strong hover:bg-surface-2"
+      ><Music2 size={15} class="text-accent" /> <b class="tabular-nums">{stats.tracks}</b> canciones</a>
       <a
-        href="/downloads"
-        class="rounded-xl border border-line bg-surface p-4 transition hover:border-line-strong hover:bg-surface-2"
-      >
-        <div class="mb-2 flex items-center gap-2 text-fg-subtle">
-          <HardDriveDownload size={15} />
-          <span class="text-xs uppercase tracking-wider">descargas</span>
-        </div>
-        <div class="text-3xl font-bold tabular-nums">{offline.ids.size}</div>
-        <div class="mt-0.5 text-xs text-fg-subtle">{formatBytes(offline.totalBytes)} sin conexión</div>
-      </a>
-    </section>
-
-    <!-- Acciones rápidas -->
-    <section class="mb-10 flex flex-wrap gap-2">
-      <Button variant="primary" href="/import"><Download size={16} /> Importar</Button>
-      <Button href="/library"><Search size={16} /> Buscar</Button>
-      <Button href="/liked"><Heart size={16} /> Favoritos</Button>
-      <Button href="/wrapped"><Flame size={16} /> Wrapped</Button>
-      {#if auth.user?.is_admin}
-        <Button onclick={rescan} disabled={scanning}>
-          <RefreshCw size={16} class={scanning ? 'animate-spin' : ''} />
-          {scanning ? 'Escaneando…' : 'Re-escanear disco'}
-        </Button>
-      {/if}
+        href="/liked"
+        class="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm transition hover:border-line-strong hover:bg-surface-2"
+      ><Heart size={15} class="text-accent" /> Favoritos</a>
+      <a
+        href="/wrapped"
+        class="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm transition hover:border-line-strong hover:bg-surface-2"
+      ><Flame size={15} class="text-accent" /> Wrapped</a>
     </section>
 
     {#if stats.tracks === 0}

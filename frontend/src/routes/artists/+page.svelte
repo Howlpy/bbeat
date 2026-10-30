@@ -32,7 +32,7 @@
 </script>
 
 <div class="page-narrow">
-  <BackButton fallback="/" />
+  <BackButton fallback="/library" />
   <h1 class="page-title mb-6">Artistas</h1>
 
   {#if error}
