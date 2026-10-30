@@ -72,3 +72,5 @@ frontend/build-native/
 
 # Copias sueltas de deploys manuales, no forman parte del proyecto
 *.deploy.py
+# Local Pi runtime state
+.atl/

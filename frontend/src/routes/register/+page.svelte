@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Logo from '$lib/components/ui/Logo.svelte';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import { auth } from '$lib/auth.svelte';
@@ -41,7 +42,7 @@
 <div class="flex min-h-screen items-center justify-center px-4">
   <div class="w-full max-w-sm">
     <header class="mb-8 text-center">
-      <img src="/logo.png" alt="bbeat — tu música, libre" class="mx-auto w-56" />
+      <Logo />
       <p class="mt-3 text-sm text-fg-muted">crear cuenta</p>
     </header>
 

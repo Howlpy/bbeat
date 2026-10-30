@@ -16,10 +16,10 @@ const config: CapacitorConfig = {
   plugins: {
     // edge-to-edge-support mete los insets al WebView (el contenido deja de
     // dibujarse bajo la barra de estado y la de gestos). Pintamos esas zonas
-    // del color de fondo de la app (slate-950) para que se integren.
+    // del color de fondo de la app (--color-bg) para que se integren.
     EdgeToEdge: {
-      statusBarColor: '#020617',
-      navigationBarColor: '#020617'
+      statusBarColor: '#0b0d11',
+      navigationBarColor: '#0b0d11'
     }
   }
 };
