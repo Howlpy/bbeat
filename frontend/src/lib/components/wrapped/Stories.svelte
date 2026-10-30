@@ -43,6 +43,10 @@
   };
 
   const per = $derived(periodTitle(w.period));
+  // 'del mes' / 'de la semana': la preposición concuerda con el periodo.
+  const ofPer = $derived(
+    ({ week: 'de la semana', month: 'del mes', year: 'del año', all: 'de siempre' } as Record<string, string>)[w.period] ?? ''
+  );
   const hours = $derived(w.total_minutes / 60);
   const pers = $derived(persona(w.hours));
   const hoursMax = $derived(Math.max(1, ...w.hours));
@@ -204,7 +208,7 @@
           </div>
         {/if}
       {:else if kind === 'song' && song}
-        <p class="rise text-2xl font-bold">Tu canción del {per}</p>
+        <p class="rise text-2xl font-bold">Tu canción {ofPer}</p>
         <div class="my-auto">
           <div class="pop mx-auto w-[min(78vw,42vh)]" style:--d="150ms">
             {@render cover(song.cover_url, 'aspect-square w-full rounded-3xl', 800)}
@@ -229,7 +233,7 @@
           {/each}
         </ol>
       {:else if kind === 'artist' && artist}
-        <p class="rise text-2xl font-bold">Tu artista del {per}</p>
+        <p class="rise text-2xl font-bold">Tu artista {ofPer}</p>
         <div class="my-auto">
           <h2 class="rise text-[clamp(3rem,15vw,5.5rem)] font-extrabold leading-[0.95] tracking-tight [overflow-wrap:anywhere]" style:--d="200ms">{artist.name}</h2>
           <p class="rise mt-3 text-2xl font-bold" style:--d="400ms">{fmtNum(artist.plays)} plays</p>
