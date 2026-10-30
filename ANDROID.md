@@ -1,101 +1,106 @@
-# Bbeat — app nativa de Android (Capacitor)
+# Bbeat Android app (Capacitor)
 
-APK nativa que envuelve el frontend SvelteKit. Añade sobre la PWA:
+A native APK that wraps the SvelteKit frontend. On top of the PWA it adds:
 
-- **Offline real**: descargas a fichero en disco (`@capacitor/filesystem`), no caché del navegador.
-- **Reproducción en segundo plano / pantalla bloqueada** fiable (WebView Chromium + MediaSession nativo + doble `<audio>` con precarga).
-- **Android Auto**: BBeat aparece como app de música, expone la cola actual y acepta los controles del coche/volante.
-- **Multi-servidor**: te conectas al servidor bbeat que elijas dentro de la app (con favoritos guardados).
+- **Real offline storage**: downloads are written to disk (`@capacitor/filesystem`), not the browser cache.
+- **Reliable background and lock-screen playback** (Chromium WebView, native MediaSession, double `<audio>` with preloading).
+- **Android Auto**: Bbeat shows up as a music app, exposes the current queue and accepts car/steering wheel controls.
+- **Multi-server**: pick the Bbeat server inside the app; several servers can be saved.
+- **Back button handling**: back navigates inside the app instead of closing it (`@capacitor/app`).
+- **Offline detection** via `@capacitor/network`, and sharing of the Wrapped image via `@capacitor/share`.
+- Native icon, splash screen and system bars matching the app design.
 
-## Cómo se compila
+## Installing a release
 
-Requisitos: **JDK 21** y **Android SDK** con `platform-tools`, `platforms;android-36` y `build-tools;36.0.0`, con `ANDROID_HOME` apuntando al SDK. Capacitor 8 descarga Gradle por su cuenta.
+Download `bbeat-X.Y.Z.apk` from the [Releases page](https://github.com/Howlpy/bbeat/releases) and open it on the phone, accepting "install from unknown sources". The app can also check for updates from Settings.
+
+Over adb: `adb install -r bbeat-X.Y.Z.apk`. The `-r` flag reinstalls keeping data (including offline downloads), as long as the APK is signed with the same keystore.
+
+## Building the APK
+
+Requirements: **JDK 21** and the **Android SDK** with `platform-tools`, `platforms;android-36` and `build-tools;36.0.0`, with `ANDROID_HOME` pointing at the SDK. Capacitor 8 downloads Gradle by itself.
 
 ```bash
 cd frontend
+npm install
 npm run apk
 ```
 
-Eso hace, en orden:
-1. `build:native` — build de SvelteKit con `BBEAT_NATIVE=1` (sin service worker) → carpeta `frontend/build-native` (no pisa `frontend/build`, que sirve FastAPI a la PWA web). Opcional: `VITE_API_BASE=https://tu-servidor npm run apk` hornea un servidor por defecto; si no, el usuario lo elige en la app al entrar.
-2. `cap sync android` — copia el bundle y los plugins al proyecto Android.
-3. `./gradlew assembleRelease` — compila y **firma** la APK.
+This runs, in order:
 
-APK firmada resultante:
+1. `build:native`: a SvelteKit build with `BBEAT_NATIVE=1` (no service worker) into `frontend/build-native`, so it does not overwrite `frontend/build`, which FastAPI serves to the web PWA. Optionally, `VITE_API_BASE=https://your-server npm run apk` bakes in a default server; otherwise users choose one in the app.
+2. `cap sync android`: copies the bundle and plugins into the Android project.
+3. `./gradlew assembleRelease`: builds and **signs** the APK.
+
+Output:
 
 ```
 frontend/android/app/build/outputs/apk/release/app-release.apk
 ```
 
-(El primer build descarga Gradle + dependencias a `~/.gradle`, tarda varios minutos. Gradle corre sin daemon residente — ver `android/gradle.properties`.)
+The first build downloads Gradle and dependencies to `~/.gradle` and takes several minutes. Gradle runs without a resident daemon (see `android/gradle.properties`).
 
-## Instalar en el móvil
+## Testing Android Auto with a sideloaded APK
 
-- **Por cable (adb)**: `~/Android/Sdk/platform-tools/adb install -r .../app-release.apk`
-- **Sin cable**: copia el `.apk` al teléfono (Telegram, nube, `python -m http.server`…) y ábrelo; acepta "instalar de orígenes desconocidos".
+Android Auto hides apps that do not come from Google Play by default. To test a GitHub APK in a real car:
 
-El `-r` reinstala conservando datos (descargas offline incluidas), siempre que esté firmada con el mismo keystore.
+1. Open the Android Auto settings on the phone.
+2. Under **About**, tap the version ten times to enable Android Auto developer mode.
+3. Open the developer menu and enable **Unknown sources**.
+4. Open Bbeat once, start a song, and reconnect Android Auto.
 
-## Probar Android Auto con una APK instalada a mano
+The app exposes the last queue to the car even if the media service starts before the Bbeat UI.
 
-Android Auto oculta por defecto las apps que no proceden de Google Play. Para
-probar una APK de GitHub en un coche real:
-
-1. Abre los ajustes de Android Auto en el móvil.
-2. En **Información/Acerca de**, pulsa diez veces sobre la versión para activar
-   el modo desarrollador de Android Auto.
-3. Abre el menú de desarrollador y activa **Fuentes desconocidas**.
-4. Abre BBeat una vez, inicia una canción y vuelve a conectar Android Auto.
-
-La app expone la última cola al coche incluso si el servicio multimedia se
-inicia antes que la interfaz de BBeat.
-
-## Firma (keystore) — IMPORTANTE
+## Signing (keystore)
 
 - Keystore: `frontend/android/app/bbeat-release.jks`, alias `bbeat`.
-- Contraseñas: `frontend/android/app/keystore.properties`.
-- **Ambos están en `.gitignore` — NO se commitean.** Haz una **copia de seguridad fuera del repo**: si pierdes el keystore no podrás publicar actualizaciones sobre la app instalada (habría que desinstalar y perder las descargas).
+- Passwords: `frontend/android/app/keystore.properties`.
+- **Both are in `.gitignore` and must never be committed.** Keep a **backup outside the repo**: without the keystore you cannot publish updates over the installed app (users would have to uninstall and lose their downloads).
 
-## Subir de versión
+## Bumping the version
 
-Antes de un build nuevo que vayas a instalar encima, sube en `frontend/android/app/build.gradle`:
+Before a build that will be installed over an existing one, raise both values in `frontend/android/app/build.gradle`:
 
 ```gradle
-versionCode 2          // entero, +1 cada release
-versionName "1.1"      // string visible
+versionCode 27         // integer, +1 per release
+versionName "2.6.0"    // visible version string
 ```
 
-## Arquitectura (qué tocó la app nativa)
+## Architecture (what the native app touches)
 
-- `frontend/src/lib/config.ts` + `lib/server.svelte.ts` — base de la API en runtime: vacía en web (mismo origen); en nativo, el servidor elegido (multi-servidor con favoritos, selector en el login). `apiUrl()` la antepone en `api.ts`.
-- `frontend/src/lib/offline.svelte.ts` — misma interfaz, dos backends: IndexedDB (web) y `@capacitor/filesystem` + `convertFileSrc()` (nativo).
-- `frontend/src/lib/player.svelte.ts` — doble `<audio>` (activo + en espera precargado). El auto-avance intercambia al elemento ya bufferizado en vez de `load()` en frío → no se estrangula con la pantalla bloqueada. **Esto mejora también la PWA web.**
-- `backend/app/config.py` — CORS permite siempre `https://localhost` / `capacitor://localhost` (orígenes del WebView nativo).
+- `frontend/src/lib/config.ts` and `lib/server.svelte.ts`: runtime API base. Empty on the web (same origin); on native, the selected server (multi-server with favorites, picker on the login screen). `apiUrl()` prepends it in `api.ts`.
+- `frontend/src/lib/offline.svelte.ts`: one interface, two backends: IndexedDB (web) and `@capacitor/filesystem` + `convertFileSrc()` (native).
+- `frontend/src/lib/player.svelte.ts`: double `<audio>` (active plus a preloaded standby). Auto-advance swaps to the already buffered element instead of a cold `load()`, so it is not throttled with the screen locked. This also improves the web PWA.
+- `frontend/src/lib/backstack.svelte.ts` and the root layout: Android back button handling.
+- `backend/app/config.py`: CORS always allows `https://localhost` and `capacitor://localhost` (the native WebView origins).
 
-## Plugins nativos (Capacitor)
+## Native plugins (Capacitor)
 
-- `@capacitor/filesystem` — descargas offline a disco.
-- `BbeatAutoPlugin` + `BbeatAutoService` — sesión multimedia nativa, notificación, reproducción en segundo plano y catálogo navegable para Android Auto. Los eventos del coche se envían al reproductor Svelte mediante Capacitor.
-- `@capawesome/capacitor-android-edge-to-edge-support` — mete los insets al WebView (no se solapa con barras de estado/gestos). Colores en `capacitor.config.ts` → `EdgeToEdge`.
-- `@capacitor/local-notifications` — solo para pedir el permiso `POST_NOTIFICATIONS` (Android 13+) al arrancar.
+- `@capacitor/filesystem`: offline downloads to disk.
+- `@capacitor/app`: back button handling.
+- `@capacitor/network`: connectivity status for offline mode.
+- `@capacitor/share`: share the Wrapped image.
+- `BbeatAutoPlugin` and `BbeatAutoService`: native media session, notification, background playback and a browsable catalog for Android Auto. Car events are forwarded to the Svelte player through Capacitor.
+- `@capawesome/capacitor-android-edge-to-edge-support`: applies insets to the WebView so content does not overlap system bars. Colors are set in `capacitor.config.ts` under `EdgeToEdge`.
+- `@capacitor/local-notifications`: only used to request the `POST_NOTIFICATIONS` permission (Android 13+) at startup.
 
-**Permisos añadidos a mano** en `android/app/src/main/AndroidManifest.xml`: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (Android 14+) y `POST_NOTIFICATIONS` (Android 13+). Sin ellos, peta al reproducir o no se ve la notificación.
+**Manifest permissions added by hand** in `android/app/src/main/AndroidManifest.xml` include `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (Android 14+), `POST_NOTIFICATIONS` (Android 13+) and `REQUEST_INSTALL_PACKAGES` (in-app updates). Without the first three, playback crashes or the notification does not show.
 
-## Icono / splash
+## Icon and splash
 
-Fuente: `frontend/assets/icon.png` (1024, rasterizado del SVG maskable con sharp). Regenerar los recursos Android:
+Source: `frontend/assets/icon.png` (1024 px, rasterized from the maskable SVG with sharp). Regenerate the Android resources with:
 
 ```bash
 npx capacitor-assets generate --android --iconBackgroundColor '#0F1626' --iconBackgroundColorDark '#0F1626'
 ```
 
-⚠️ Ese comando **reformatea `AndroidManifest.xml`**: tras correrlo, comprueba que siguen los dos permisos de arriba.
+Warning: this command **reformats `AndroidManifest.xml`**. After running it, check that the permissions above are still present. The background color above is the value used before the redesign; check it against the current icon assets before regenerating.
 
-## Publicar una release
+## Publishing a release
 
 ```bash
-gh release create vX.Y ~/bbeat-vX.Y.apk --repo <tu-usuario>/bbeat --target main \
-  --title "Bbeat Android vX.Y" --notes "..."
+gh release create vX.Y.Z bbeat-X.Y.Z.apk --repo <your-user>/bbeat --target main \
+  --title "BBeat vX.Y.Z" --notes "..."
 ```
 
-La APK no va dentro del árbol de git (es binario), solo como asset de release. El keystore, `.env` y `data/secrets/` están en `.gitignore` — nunca se suben.
+The APK is not stored in git (it is a binary), only as a release asset. The keystore, `.env` and `data/secrets/` are in `.gitignore` and are never pushed.

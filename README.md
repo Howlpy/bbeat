@@ -1,173 +1,184 @@
 # Bbeat
 
-Servidor de música personal self-hosted. Webapp responsive mobile-first (+ app nativa de Android) que descarga música automáticamente desde URLs públicas y la sirve a tus dispositivos.
+A self-hosted personal music server. Paste a Spotify, YouTube or SoundCloud URL and Bbeat downloads the audio, tags it, organizes it and serves it to your devices through a mobile-first web app, a native Android app, and the Subsonic API.
 
-Pegas una URL de Spotify, YouTube o SoundCloud y Bbeat extrae la metadata, descarga el audio, lo etiqueta y organiza (`Artista/Álbum/NN - Título.ext`), lo indexa y lo deja listo para reproducir. Si la pista ya existe no la vuelve a bajar (detecta el duplicado por ID de origen y, si el ID no casa, por título + artista + duración): solo la enlaza al destino que elijas.
+Bbeat is built for yourself or a small group of friends sharing one instance: every user has their own favorites, history and Wrapped, and can download tracks for offline listening.
 
-Pensado para uso personal o entre amigos en una instancia compartida: cada usuario tiene sus favoritos, su historial y su "Wrapped", y puede **descargar canciones para escucharlas sin conexión**. Además habla la **API Subsonic**, así que puedes escuchar tu música desde cualquier cliente compatible (ideal para iPhone: Amperfy, play:Sub, substreamer… o Symfonium en cualquier plataforma).
+> Exposing Bbeat to the internet is your responsibility (platform ToS, copyright). It has authentication, but rate limiting is not included yet.
 
-> Aviso: exponer Bbeat a internet es bajo tu responsabilidad (ToS de las plataformas, copyright). Trae auth, pero el rate limiting aún no está incluido.
+## Features
 
-## Estado
+- **Import** from Spotify, YouTube and SoundCloud (single tracks, albums, playlists, mixes with track deselection), plus local file upload. Duplicates are detected by source ID, then by title + artist + duration, and are linked instead of downloaded again. The import list shows who imported what.
+- **Library** organized as `Artist/Album/NN - Title.ext`, with a Library hub (favorites, playlists and albums, artists, downloads, and genre cards). Multi-artist playlists are stored as a single "Various Artists" collection. Edit or delete tracks and albums from the UI; export a playlist or album as a `.zip`.
+- **Player** with queue, shuffle/repeat, Media Session controls (lock screen), a full-screen Now Playing view with cover-based colors and synced lyrics (LRCLIB), and a gapless-friendly double `<audio>` setup.
+- **Offline mode**: download tracks for offline listening (IndexedDB on the web, files on disk in the Android app). When the connection drops, Bbeat detects it immediately and keeps the same UI with non-downloaded tracks dimmed; playback continues with the downloaded tracks of the current queue.
+- **Network resilience**: failed GET requests are retried, and data reloads when the connection comes back.
+- **Genres**: a voting cascade (Last.fm, Deezer, iTunes, Wikidata) with per-artist consistency, genre cards in the Library, and an optional AI classifier. See [docs/genres.md](./docs/genres.md) and [docs/ai-genres.md](./docs/ai-genres.md).
+- **Weekly genre charts**: "most played this week" per genre, computed over the last 7 days across the whole server. Tracks are ranked by distinct listeners first, then plays, filled up to 30 entries, and show who listened.
+- **Wrapped**: stories-style recap per period (week, month, year, all time) with a shareable 1080x1920 image.
+- **Multi-user**: JWT auth, admin approval of new accounts (the first user becomes admin), ban/promote, and live "now playing" so you can see what others are listening to.
+- **Subsonic API** compatibility, so third-party clients (Amperfy, play:Sub, substreamer, Symfonium, DSub, Feishin...) work against your instance.
+- **Android app** (Capacitor) with background playback, Android Auto, native offline storage and multi-server support.
+- **Design and performance**: a calm design system (tokens, bundled Manrope font, no gradients); hashed assets served with immutable caching, WebP cover thumbnails (`?w=`), and SQLite tuned with WAL and pragmas.
 
-Listo para uso real, probado en producción.
+Audio is downloaded from YouTube through yt-dlp. The Opus stream is preferred and copied without re-encoding.
 
-| Pieza | Estado |
-|---|---|
-| **App nativa de Android** (Capacitor): offline real a disco, segundo plano, multi-servidor | listo |
-| **API Subsonic**: navegar, buscar, reproducir, crear/editar playlists, favoritos y scrobble desde clientes de terceros (iPhone, etc.) | listo |
-| Reproductor con Media Session (controles en lockscreen), cola, shuffle/repeat | listo |
-| "Now Playing" full-screen con color de la portada + letras sincronizadas (LRCLIB) | listo |
-| Favoritos, historial, "más escuchadas" y **Wrapped** | listo |
-| **Descargas offline** (PWA en IndexedDB / app nativa a disco) | listo |
-| Audio en **Opus** (copia del stream sin recodificar: mínimo tamaño, máxima calidad) | listo |
-| Carátula propia por pista (con miniatura de YouTube de fallback) | listo |
-| Pool global: cualquier usuario ve y reproduce todo el catálogo | listo |
-| Ingesta Spotify / YouTube / SoundCloud + playlists y mixes (con deselección) | listo |
-| Playlists multi-artista (una colección "Various Artists", no N álbumes) | listo |
-| Biblioteca por "guardados" (Guardados / Explorar), álbumes con dueño | listo |
-| Auth JWT + admin (registrar/banear/promover) · dedup por ID externo + título/artista/duración | listo |
-| Subir ficheros locales, editar/borrar pistas y álbumes desde la UI | listo |
-
-> **Pool global:** Pistas, álbumes, búsqueda y streaming son compartidos — cualquier usuario autenticado ve y reproduce todo el catálogo de la instancia. Lo que define tu biblioteca personal es **guardar**; el dueño de un álbum solo controla quién puede editarlo. Pensado para instancias entre gente de confianza.
+The catalog is a **global pool**: tracks, albums, search and streaming are shared, so any authenticated user can see and play everything on the instance. What defines your personal library is what you **save**; an album's owner only controls who can edit it. This is meant for instances shared among people you trust.
 
 ## Stack
 
-- **Backend**: FastAPI · SQLModel · SQLite · SpotifyScraper · yt-dlp · Mutagen · bcrypt · PyJWT · FFmpeg
-- **Frontend**: SvelteKit 5 · Tailwind 4 · TypeScript · PWA (Service Worker)
-- **App Android**: Capacitor (envuelve el mismo frontend) — ver [ANDROID.md](./ANDROID.md)
+- **Backend**: FastAPI, SQLModel, SQLite, SpotifyScraper, yt-dlp, Mutagen, bcrypt, PyJWT, FFmpeg
+- **Frontend**: SvelteKit 5, Tailwind 4, TypeScript, PWA (service worker)
+- **Android**: Capacitor wrapping the same frontend, see [ANDROID.md](./ANDROID.md)
 
-## Self-hosting
+## Quick start (Docker Compose)
 
-Requisitos: Python 3.12+, Node 22+, FFmpeg.
-
-1. **Backend**: crea un venv e instala `backend/requirements.txt`; copia `backend/.env.example` → `backend/.env`.
-2. **Frontend**: `cd frontend && npm install && npm run build` (el backend sirve ese build estático).
-3. **Arranca**: `python -m app.main` desde `backend/` y abre `http://localhost:8787`.
-
-El primer usuario que se registra pasa a admin automáticamente.
-
-Para producción, como servicio **systemd** (con `loginctl enable-linger` para sobrevivir a reboots) o con **Docker** (`docker compose up -d`). La app de Android se compila aparte — ver [ANDROID.md](./ANDROID.md).
-
-## Configuración
-
-Todo en `backend/.env` (ver `.env.example`). Lo más relevante:
-
-| Variable | Default | Notas |
-|---|---|---|
-| `BBEAT_HOST` / `BBEAT_PORT` | `0.0.0.0:8787` | Bind del servidor |
-| `BBEAT_DEBUG` | `false` | `true` = autoreload (no usar en prod) |
-| `BBEAT_MUSIC_DIR` | `../data/music` | Dónde se guarda la biblioteca |
-| `BBEAT_AUDIO_FORMAT` | `opus` | Formato de descarga (opus = copia del stream Opus, sin recodificar) |
-| `BBEAT_MAX_CONCURRENT_JOBS` | `1` | Descargas en paralelo (ojo con la RAM en hosts pequeños) |
-| `BBEAT_TRANSCODE_CONCURRENCY` | `2` | Procesos ffmpeg simultáneos de transcoding Subsonic (limita pico de CPU) |
-| `BBEAT_TRANSCACHE_MAX_MB` | `1024` | Tope en disco de la cache de transcoding; al superarlo purga los menos usados (0 = sin límite) |
-| `BBEAT_CORS_ORIGINS` | `http://localhost:5173` | Orígenes extra; los del WebView nativo se permiten siempre |
-
-Los secretos (JWT key, cookies opcionales de Spotify) viven en `data/secrets/` con permisos `600`. La carpeta `data/` está fuera de git.
-
-## Cómo funciona
-
-1. Pegas una URL en `/import`; el backend resuelve la metadata sin descargar (SpotifyScraper o yt-dlp) y muestra un preview.
-2. Eliges el destino: **auto** (canción suelta / su álbum / colección multi-artista según el tipo), **nuevo** o **añadir a uno tuyo**; en playlists puedes (des)marcar pistas.
-3. Un worker procesa la cola: busca en YouTube el mejor match (con scoring que penaliza reacciones, directos y vídeos sin relación), descarga el audio en **Opus**, etiqueta, embebe carátula e indexa.
-
-El audio viene de YouTube v?a yt-dlp; se prefiere el stream Opus y se copia sin recodificar.
-
-> No usamos la API pública de Spotify porque desde nov-2024 exige Premium en el dev app hasta para `search`; SpotifyScraper cubre la metadata sin credenciales.
-
-## Clientes Subsonic (iPhone y demás)
-
-Bbeat implementa la [API Subsonic](http://www.subsonic.org/pages/api.jsp), el estándar de facto de los servidores de música self-hosted. Sirve para escuchar desde apps de terceros — útil sobre todo en iPhone, donde no hay app nativa de Bbeat.
-
-1. En **Ajustes → Acceso Subsonic**, genera tu **token** (es un secreto aparte de tu contraseña).
-2. En el cliente, añade un servidor con la **URL** de tu instancia, tu **usuario** y el **token como contraseña**.
-
-Clientes recomendados: **Amperfy**, **play:Sub** o **substreamer** (iOS); **Symfonium**, **Tempo** o **DSub** (Android); **Sonixd** / **Feishin** (escritorio). Funciona el browsing por artistas/álbumes/canciones, búsqueda, crear/editar/borrar playlists, favoritos (estrella ↔ "me gusta") y scrobble (alimenta tu historial y Wrapped).
-
-> Las playlists creadas desde un cliente Subsonic son las mismas que ves en la app de Bbeat (colecciones multi-artista). Borrar una playlist solo elimina la lista, **nunca los ficheros de audio**. Solo puedes editar/borrar las playlists de las que eres dueño.
-
-> Por qué un token y no tu contraseña: Subsonic exige poder validar `md5(contraseña+salt)`, pero Bbeat guarda las contraseñas con bcrypt (irreversible). El token dedicado es regenerable y revocable desde Ajustes en cualquier momento.
-
-> Transcoding: por defecto el stream sirve el Opus tal cual. Si un cliente pide otro formato (`format=mp3|aac|ogg`), Bbeat transcodifica on-the-fly con FFmpeg y cachea el resultado en disco. El nº de procesos ffmpeg y el tamaño de la cache se ajustan con `BBEAT_TRANSCODE_CONCURRENCY` y `BBEAT_TRANSCACHE_MAX_MB`.
-
-## Géneros con IA (opcional)
-
-El género de cada pista sale de una cascada de fuentes (Last.fm, Deezer, iTunes, Wikidata). Acierta en los artistas grandes, pero a veces etiqueta mal a un artista entero. Esta función, **desactivada por defecto**, usa un LLM (el que tú elijas, sin dependencias de ningún proveedor) para revisarlos **por artista**:
-
-- Al modelo le llegan las pistas del artista, sus géneros actuales y (si lo configuras) fragmentos de una búsqueda web. Elige uno de los géneros de la lista cerrada de Bbeat, o `unknown` si no está seguro, y solo marca excepciones por pista con evidencia clara.
-- Solo se aplica con confianza ≥ `BBEAT_AI_MIN_CONFIDENCE` (0.75). Lo demás va a **Admin → Géneros con IA → Revisar sugerencias** para aceptar, rechazar o cambiar el género.
-- Una pista cuyo género edites a mano (o un artista entero desde su página, solo admin) queda **bloqueada**: ni la IA ni `backfill_genres` la vuelven a tocar.
-- Las pasadas son reanudables: si el proveedor agota la cuota (429), se para limpiamente; relanza más tarde y continúa con los artistas pendientes.
-- Aparte, y **sin necesitar IA**, al importar una pista cuyo género discrepa del de su artista (≥3 pistas y ≥80 % de acuerdo) se conserva el del artista (`BBEAT_ARTIST_CONSISTENCY`). Con IA activa, los casos desconocidos o discutidos se encolan en segundo plano.
-
-Variables (todas opcionales, en `backend/.env`):
-
-| Variable | Default | Notas |
-|---|---|---|
-| `BBEAT_AI_PROVIDER` | `none` | `openai` · `gemini` · `anthropic` · `ollama` · `none` |
-| `BBEAT_AI_API_KEY` | | Clave del proveedor (no hace falta en Ollama/LM Studio locales) |
-| `BBEAT_AI_MODEL` | según proveedor | Gemini: `gemini-2.5-flash-lite` · OpenAI: `gpt-4o-mini` · Anthropic: `claude-haiku-4-5` · Ollama: `llama3.2` |
-| `BBEAT_AI_BASE_URL` | según proveedor | Para cualquier servidor compatible con la API de OpenAI (usa `openai` como proveedor) |
-| `BBEAT_AI_RPM` | `10` | Peticiones por minuto; sube o baja según tu cuota |
-| `BBEAT_AI_TIMEOUT` | `60` | Segundos por petición |
-| `BBEAT_AI_MIN_CONFIDENCE` | `0.75` | Umbral para aplicar sin revisión |
-| `BBEAT_AI_BATCH_ARTISTS` | `5` | Artistas pequeños (≤10 pistas) que comparten petición, para ahorrar cuota |
-| `BBEAT_SEARCH_PROVIDER` | `none` | `searxng` · `none` (evidencia web; mejora mucho a artistas poco conocidos) |
-| `BBEAT_SEARXNG_URL` | | Ej. `http://localhost:8080` (necesita el formato JSON activado en SearXNG) |
-| `BBEAT_ARTIST_CONSISTENCY` | `true` | Coherencia por artista al importar |
-
-Ejemplos de `backend/.env`:
-
-```ini
-# Google Gemini (clave gratuita en https://aistudio.google.com/apikey; cuota diaria baja)
-BBEAT_AI_PROVIDER=gemini
-BBEAT_AI_API_KEY=AIza...
-
-# OpenRouter (o Groq, Together, Mistral, DeepSeek, LM Studio, vLLM...: cualquier API compatible con OpenAI)
-BBEAT_AI_PROVIDER=openai
-BBEAT_AI_BASE_URL=https://openrouter.ai/api/v1
-BBEAT_AI_API_KEY=sk-or-...
-BBEAT_AI_MODEL=meta-llama/llama-3.3-70b-instruct
-# Groq: BBEAT_AI_BASE_URL=https://api.groq.com/openai/v1
-
-# Ollama local (sin clave)
-BBEAT_AI_PROVIDER=ollama
-BBEAT_AI_MODEL=llama3.1:8b
-
-# Anthropic
-BBEAT_AI_PROVIDER=anthropic
-BBEAT_AI_API_KEY=sk-ant-...
-
-# OpenAI
-BBEAT_AI_PROVIDER=openai
-BBEAT_AI_API_KEY=sk-...
-
-# Búsqueda web con tu SearXNG (opcional, combina con cualquiera de los anteriores)
-BBEAT_SEARCH_PROVIDER=searxng
-BBEAT_SEARXNG_URL=http://localhost:8080
-```
-
-Desde la línea de comandos (`cd backend`; con Docker: `docker compose exec bbeat python -m scripts.ai_genres ...`):
+The provided `docker-compose.yml` runs the published image (`howl0y/bbeat:latest`), mounts `./data` as the library and reads `./backend/.env`.
 
 ```bash
-python -m scripts.ai_genres --limit 20 --report informe.csv   # simulacro: no escribe nada
-python -m scripts.ai_genres --apply --limit 100               # aplica y encola lo dudoso
-python -m scripts.ai_genres --apply --only-missing            # solo artistas con pistas sin género
-python -m scripts.ai_genres --artist "Maná" --force --apply   # reclasifica un artista
+git clone https://github.com/Howlpy/bbeat.git
+cd bbeat
+cp backend/.env.example backend/.env    # then edit as needed
+mkdir -p data && sudo chown 1000:1000 data
+docker compose up -d
 ```
 
-`--suspicious` limita a artistas sin género, con géneros mezclados o con 1–2 pistas. El simulacro no guarda progreso (gasta cuota cada vez); `--apply` sí es reanudable.
+Open `http://localhost:8787` and register. **The first user to register becomes admin**; later users wait for admin approval.
 
-## Exponer a internet (opcional)
+Notes:
 
-Lo más simple es ponerlo detrás de **Cloudflare**: un record `A` a tu IP con proxy activado, port forward del router al puerto del backend, y SSL/TLS en modo Flexible + Always Use HTTPS. Para mayor seguridad, **Cloudflare Tunnel + Access** (sin abrir puertos). Recuerda que el rate limiting aún no está incluido.
+- The container runs as `1000:1000` so files in `data/` are not owned by root. Change `user:` in the compose file if your uid differs.
+- The compose file also carries a Watchtower label so the container can be updated automatically (`WATCHTOWER_LABEL_ENABLE=true`). Remove it if you do not use Watchtower.
+- `docker compose build` builds the image locally instead of pulling it.
+- Health check: `GET /api/health`.
+
+### Without Docker
+
+Requirements: Python 3.12+, Node 22+, FFmpeg.
+
+```bash
+# Backend
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+
+# Frontend (the backend serves the static build)
+cd ../frontend
+npm install
+npm run build
+
+# Run
+cd ../backend
+python -m app.main        # http://localhost:8787
+```
+
+For production, run it as a systemd service (use `loginctl enable-linger` so it survives reboots) or use Docker.
+
+## Configuration
+
+Everything is configured through environment variables, usually in `backend/.env` (see `backend/.env.example`). Defaults below are read from `backend/app/config.py`.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `BBEAT_HOST` | `0.0.0.0` | Bind address |
+| `BBEAT_PORT` | `8787` | Bind port |
+| `BBEAT_DEBUG` | `false` | `true` enables autoreload; do not use in production |
+| `BBEAT_DATA_DIR` | `<repo>/data` | Root data directory |
+| `BBEAT_MUSIC_DIR` | `<data>/music` | Music library |
+| `BBEAT_COVERS_DIR` | `<data>/covers` | Cover art |
+| `BBEAT_SECRETS_DIR` | `<data>/secrets` | JWT key and other secrets |
+| `BBEAT_TRANSCACHE_DIR` | `<data>/transcache` | Transcoding cache |
+| `BBEAT_DB_PATH` | `<data>/library.db` | SQLite database |
+| `BBEAT_AUDIO_FORMAT` | `opus` | `opus`, `ogg`, `m4a`, `mp3` or `flac`. `opus` copies the source stream without re-encoding |
+| `BBEAT_AUDIO_QUALITY` | `auto` | Quality hint for the download |
+| `BBEAT_MAX_CONCURRENT_JOBS` | `1` | Parallel downloads (mind RAM on small hosts) |
+| `BBEAT_TRANSCODE_CONCURRENCY` | `2` | Simultaneous ffmpeg processes for Subsonic transcoding |
+| `BBEAT_TRANSCACHE_MAX_MB` | `1024` | Disk cap for the transcoding cache, least recently used files are purged (`0` = unlimited) |
+| `BBEAT_CORS_ORIGINS` | `http://localhost:5173` | Extra allowed origins (comma separated). Native app WebView origins are always allowed |
+| `BBEAT_LASTFM_API_KEY` | empty | Read-only Last.fm key used as a genre source; without it that source is skipped |
+| `BBEAT_ARTIST_CONSISTENCY` | `true` | Keep an artist's genre when an imported track disagrees (works without AI) |
+| `BBEAT_AI_PROVIDER` | `none` | `openai`, `gemini`, `anthropic`, `ollama` or `none` |
+| `BBEAT_AI_API_KEY` | empty | Provider key (not needed for local Ollama / LM Studio) |
+| `BBEAT_AI_MODEL` | per provider | See [docs/ai-genres.md](./docs/ai-genres.md) |
+| `BBEAT_AI_BASE_URL` | per provider | Any OpenAI-compatible endpoint (use `openai` as provider) |
+| `BBEAT_AI_RPM` | `10` | Requests per minute to the provider |
+| `BBEAT_AI_TIMEOUT` | `60` | Seconds per request |
+| `BBEAT_AI_MIN_CONFIDENCE` | `0.75` | Below this, suggestions go to the review queue instead of being applied |
+| `BBEAT_AI_BATCH_ARTISTS` | `5` | Small artists grouped into one request to save quota |
+| `BBEAT_SEARCH_PROVIDER` | `none` | `searxng` or `none` (web evidence for the AI classifier) |
+| `BBEAT_SEARXNG_URL` | empty | For example `http://localhost:8080` (SearXNG needs its JSON format enabled) |
+
+Secrets (JWT key, optional Spotify cookies) live in `data/secrets/` with `600` permissions. `data/` is meant to stay out of git.
+
+## Android app
+
+Download the latest `bbeat-X.Y.Z.apk` from the [Releases page](https://github.com/Howlpy/bbeat/releases) and install it (allow "install from unknown sources"). On first launch, enter the URL of your Bbeat server; several servers can be saved.
+
+The app adds native offline downloads to disk, reliable background and lock-screen playback, Android Auto, a native icon and splash screen, and Android back button handling (back navigates inside the app instead of closing it). To build the APK yourself, see [ANDROID.md](./ANDROID.md).
+
+## Subsonic clients
+
+Bbeat implements the [Subsonic API](http://www.subsonic.org/pages/api.jsp), the de facto standard for self-hosted music servers. This is especially useful on iPhone, where there is no native Bbeat app.
+
+1. In **Settings, Subsonic access**, generate your **token** (a secret separate from your password).
+2. In the client, add a server with your instance URL, your username and the **token as the password**.
+
+Browsing by artist/album/song, search, playlist create/edit/delete, favorites (star maps to "like") and scrobbling (which feeds your history and Wrapped) are supported. Playlists created from a Subsonic client are the same playlists you see in the Bbeat app, and deleting a playlist never deletes audio files.
+
+Why a token instead of your password: Subsonic authentication requires the server to verify `md5(password + salt)`, but Bbeat stores passwords with bcrypt, which is not reversible. The dedicated token can be regenerated or revoked at any time.
+
+By default the stream serves the Opus file as is. If a client asks for another format (`format=mp3|aac|ogg`), Bbeat transcodes on the fly with FFmpeg and caches the result. Tune it with `BBEAT_TRANSCODE_CONCURRENCY` and `BBEAT_TRANSCACHE_MAX_MB`.
+
+## AI genre classifier (optional)
+
+Disabled by default. When enabled, an LLM of your choice (Gemini, any OpenAI-compatible API such as OpenRouter or Groq, Anthropic, or local Ollama) reviews genres **per artist**, optionally using SearXNG web snippets as evidence. Confident answers are applied; the rest go to **Admin, AI genres, Review suggestions**. Genres you edit by hand are locked and never overwritten.
+
+Quick example for Gemini (free key at <https://aistudio.google.com/apikey>):
+
+```ini
+BBEAT_AI_PROVIDER=gemini
+BBEAT_AI_API_KEY=AIza...
+```
+
+Run a dry run (writes nothing) from the CLI:
+
+```bash
+cd backend
+python -m scripts.ai_genres --limit 20 --report report.csv
+```
+
+Full details, provider examples and CLI options: [docs/ai-genres.md](./docs/ai-genres.md).
+
+## Exposing it to the internet (optional)
+
+The simplest option is to put it behind Cloudflare (proxied `A` record, router port forward, SSL/TLS in Flexible mode plus Always Use HTTPS). For better security use Cloudflare Tunnel with Access, which needs no open ports. Remember that rate limiting is not included yet.
+
+## Development
+
+```bash
+# Backend (from backend/)
+pip install -r requirements.txt -r requirements-dev.txt
+python -m app.main                  # API on :8787
+python -m pytest tests/ -q          # tests
+
+# Frontend (from frontend/)
+npm install
+npm run dev                         # Vite dev server (proxy to the backend)
+npm run check                       # svelte-check / type check
+npm run build                       # static build served by the backend
+```
+
+Android build: `cd frontend && npm run apk` (requirements and signing details in [ANDROID.md](./ANDROID.md)).
 
 ## Roadmap
 
-- Cola persistente (sobrevive al cierre, con posición)
-- Editar/mover pistas en bulk · importar de Apple Music / Deezer
+See [docs/ROADMAP.md](./docs/ROADMAP.md).
 
-## Licencia
+## Contributing
 
-MIT. Ver [LICENSE](./LICENSE). El uso es bajo tu responsabilidad: cumplir los ToS de cada plataforma y la legislación de copyright es cosa del operador.
+Issues and pull requests are welcome. Please open an issue first for larger changes, keep commits in [Conventional Commits](https://www.conventionalcommits.org/) style, and run the backend tests and `npm run check` before submitting.
+
+## License
+
+MIT, see [LICENSE](./LICENSE). Use is at your own risk: complying with each platform's terms of service and with copyright law is the operator's responsibility.

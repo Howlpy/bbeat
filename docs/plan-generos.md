@@ -1,3 +1,5 @@
+> **Historical note (English):** this is the original design note for genre detection, written in Spanish while the cascade was first being built. Its numbers and "pending work" are outdated. For current behavior see [genres.md](./genres.md) and [ai-genres.md](./ai-genres.md).
+
 # Plan: rellenar el género de toda la biblioteca
 
 Objetivo final: poder preguntar *"¿cuáles son las 10 canciones de rap más
