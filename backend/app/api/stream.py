@@ -219,11 +219,13 @@ def _cover_response(path: Path, request: Request, w: Optional[int]) -> FileRespo
     """Sirve una carátula (o su miniatura si se pide ?w=) con la caché adecuada."""
     media_type = "image/jpeg" if path.suffix == ".jpg" else "image/png"
     width = thumbs_svc.snap_width(w)
+    failed = False  # miniatura pedida pero fallida: se sirve el original
     if width:
-        thumb = thumbs_svc.thumb_for(path, width)
+        thumb, failed = thumbs_svc.thumb_for(path, width)
         if thumb is not None:
             path, media_type = thumb, "image/webp"
-    cache = _COVER_IMMUTABLE if "v" in request.query_params else _COVER_SHORT
+    # Si falló, caché corta para poder recuperarse más tarde.
+    cache = _COVER_IMMUTABLE if "v" in request.query_params and not failed else _COVER_SHORT
     return FileResponse(path, media_type=media_type, headers={"Cache-Control": cache})
 
 

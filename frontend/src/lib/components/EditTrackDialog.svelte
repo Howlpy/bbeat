@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushBack } from '$lib/backstack.svelte';
   import { AlertTriangle, X } from 'lucide-svelte';
   import { api, type Album, type Track } from '$lib/api';
   import { GENRE_SLUGS, genreLabel } from '$lib/genres';
@@ -56,6 +57,9 @@
       saving = false;
     }
   }
+
+  // Atrás de Android cierra este overlay.
+  $effect(() => pushBack(() => onclose()));
 </script>
 
 <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" onclick={onclose}>

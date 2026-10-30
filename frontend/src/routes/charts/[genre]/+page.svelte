@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { onMount } from 'svelte';
-  import { ArrowLeft, Play, Shuffle, TrendingUp } from 'lucide-svelte';
+  import { Play, Shuffle, TrendingUp } from 'lucide-svelte';
   import { api, type GenreChart, type Track } from '$lib/api';
   import { onReconnect } from '$lib/net.svelte';
   import { player } from '$lib/player.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
   import ErrorState from '$lib/components/ErrorState.svelte';
+  import BackButton from '$lib/components/ui/BackButton.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -18,6 +18,8 @@
   let tracks = $state<Track[]>([]);
   let error = $state<string | null>(null);
   let loaded = $state(false);
+  // 404: el género ya no cumple el mínimo de esta semana (no es un fallo).
+  let notFound = $state(false);
 
   async function load() {
     try {
@@ -25,8 +27,11 @@
       chart = res;
       tracks = res.items;
       error = null;
+      notFound = false;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      notFound = /^404/.test(msg);
+      error = notFound ? null : msg;
     } finally {
       loaded = true;
     }
@@ -39,11 +44,6 @@
     });
   });
 
-  function goBack() {
-    if (typeof window !== 'undefined' && window.history.length > 1) window.history.back();
-    else goto('/');
-  }
-
   // "1 oyente" / "N oyentes"
   const listeners = (t: Track) => {
     const n = (t as Track & { listeners?: number }).listeners ?? 0;
@@ -52,16 +52,16 @@
 </script>
 
 <div class="page">
-  <button
-    onclick={goBack}
-    class="-ml-2 mb-4 inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-sm text-fg-muted transition hover:bg-surface hover:text-fg"
-    aria-label="Volver"
-  >
-    <ArrowLeft size={17} /> Volver
-  </button>
+  <BackButton fallback="/" />
 
   {#if error}
     <ErrorState {error} />
+  {:else if notFound}
+    <EmptyState
+      icon={TrendingUp}
+      title="Aún no hay lista"
+      text="Esta semana aún no hay suficiente música de este género."
+    />
   {:else if !loaded}
     <Skeleton class="mb-2 h-8 w-56" />
     <Skeleton class="mb-6 h-4 w-72" />
@@ -86,6 +86,10 @@
     </header>
     <TrackList bind:tracks numbered meta={listeners} onchanged={load} />
   {:else}
-    <EmptyState title="Aún no hay lista" text="Este género no tiene suficientes escuchas esta semana." />
+    <EmptyState
+      icon={TrendingUp}
+      title="Aún no hay lista"
+      text="Esta semana aún no hay suficiente música de este género."
+    />
   {/if}
 </div>

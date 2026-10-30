@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushBack } from '$lib/backstack.svelte';
   import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import { Check, Loader2, Music2, Search, X } from 'lucide-svelte';
@@ -109,6 +110,9 @@
   }
 
   const allSelected = $derived(results.length > 0 && selected.size === results.length);
+
+  // Atrás de Android cierra este overlay.
+  $effect(() => pushBack(() => onclose()));
 </script>
 
 <div

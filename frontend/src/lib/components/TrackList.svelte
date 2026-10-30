@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushBack } from '$lib/backstack.svelte';
   import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import { fly, fade } from 'svelte/transition';
@@ -124,6 +125,15 @@
     sheetView = 'menu';
     addError = null;
   }
+  // Atrás de Android: de la vista de playlist al menú, y luego cierra el sheet.
+  $effect(() => {
+    if (!sheetTrack) return;
+    return pushBack(() => {
+      if (sheetView === 'playlist') sheetView = 'menu';
+      else closeSheet();
+    });
+  });
+
   function closeSheet() {
     sheetTrack = null;
     sheetView = 'menu';

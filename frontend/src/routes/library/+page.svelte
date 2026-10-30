@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushBack } from '$lib/backstack.svelte';
   import { onMount } from 'svelte';
   import { onReconnect } from '$lib/net.svelte';
   import ErrorState from '$lib/components/ErrorState.svelte';
@@ -69,6 +70,11 @@
     load(g === '__all__' ? undefined : g);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
   }
+
+  // Atrás de Android: de un género a la lista de géneros.
+  $effect(() => {
+    if (selected !== null) return pushBack(volver);
+  });
 
   function volver() {
     selected = null;

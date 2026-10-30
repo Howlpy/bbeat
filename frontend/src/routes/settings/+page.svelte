@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BackButton from '$lib/components/ui/BackButton.svelte';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { AlertTriangle, Brush, CheckCircle2, Copy, Download, KeyRound, RefreshCw, Smartphone, Trash2 } from 'lucide-svelte';
@@ -104,6 +105,7 @@
 </script>
 
 <div class="page-narrow">
+  <BackButton fallback="/" />
   <h1 class="page-title mb-6">Ajustes</h1>
 
   <section class="rounded-xl border border-line bg-surface p-5">

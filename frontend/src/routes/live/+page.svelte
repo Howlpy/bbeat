@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BackButton from '$lib/components/ui/BackButton.svelte';
   import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import { Radio, Music2, Monitor, Smartphone, Flame, History } from 'lucide-svelte';
@@ -59,6 +60,7 @@
 </script>
 
 <div class="page-narrow">
+  <BackButton fallback="/" />
   <header class="mb-8 flex items-center gap-4">
     <span class="grid size-12 flex-none place-items-center rounded-xl bg-accent-soft text-accent">
       <Radio size={24} />

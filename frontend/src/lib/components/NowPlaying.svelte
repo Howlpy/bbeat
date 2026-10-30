@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushBack } from '$lib/backstack.svelte';
   import { onMount } from 'svelte';
   import {
     Play,
@@ -123,6 +124,9 @@
     else if (coverTouchDeltaX > 70) player.prev();
     coverTouchDeltaX = 0;
   }
+
+  // Atrás de Android cierra este overlay.
+  $effect(() => pushBack(() => onclose()));
 </script>
 
 {#if player.current}

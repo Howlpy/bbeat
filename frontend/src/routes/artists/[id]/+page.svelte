@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BackButton from '$lib/components/ui/BackButton.svelte';
   import { onMount } from 'svelte';
   import { onReconnect } from '$lib/net.svelte';
   import ErrorState from '$lib/components/ErrorState.svelte';
@@ -44,6 +45,7 @@
 </script>
 
 <div class="page-narrow">
+  <BackButton fallback="/artists" />
   {#if error}
     <ErrorState {error} />
   {:else if artist}

@@ -2,7 +2,8 @@
   import { onDestroy, onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { dev } from '$app/environment';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
+  import { nav, popBack, trackNav } from '$lib/backstack.svelte';
   import { page } from '$app/state';
   import '../app.css';
   import Player from '$lib/components/Player.svelte';
@@ -83,6 +84,38 @@
       sessionStarted = false;
       goto('/login');
     }
+  });
+
+  afterNavigate(trackNav);
+
+  // Raíces: pestañas de la barra inferior. Desde ellas el atrás no retrocede.
+  const ROOTS = ['/', '/library', '/albums', '/import', '/admin'];
+
+  // Atrás de Android: 1) cierra overlays, 2) historial interno, 3) inicio,
+  // 4) minimiza (nunca cierra la app).
+  onMount(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let handle: { remove: () => Promise<void> } | null = null;
+    let cancelled = false;
+    import('@capacitor/app')
+      .then(({ App }) =>
+        App.addListener('backButton', () => {
+          if (popBack()) return;
+          const path = page.url.pathname;
+          if (!ROOTS.includes(path) && nav.hasHistory) history.back();
+          else if (path !== '/') goto('/');
+          else App.minimizeApp();
+        })
+      )
+      .then((h) => {
+        if (cancelled) h.remove();
+        else handle = h;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      handle?.remove();
+    };
   });
 
   onDestroy(() => jobs.stop());

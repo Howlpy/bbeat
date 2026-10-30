@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushBack } from '$lib/backstack.svelte';
   import { coverSrc } from '$lib/cover';
   import { fly, fade } from 'svelte/transition';
   import { X, Music2, ListMusic, Trash2, Volume2 } from 'lucide-svelte';
@@ -6,6 +7,9 @@
   import { offline } from '$lib/offline.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
+
+  // Atrás de Android cierra este overlay.
+  $effect(() => pushBack(() => onclose()));
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />

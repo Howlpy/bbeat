@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushBack } from '$lib/backstack.svelte';
   import { goto } from '$app/navigation';
   import { X } from 'lucide-svelte';
   import { api } from '$lib/api';
@@ -34,6 +35,9 @@
       saving = false;
     }
   }
+
+  // Atrás de Android cierra este overlay.
+  $effect(() => pushBack(() => onclose()));
 </script>
 
 <div

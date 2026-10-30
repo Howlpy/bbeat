@@ -1305,8 +1305,12 @@ def weekly_chart(
     session: Session = Depends(get_session),
 ) -> dict:
     """Lista semanal de un género: pistas más escuchadas en todo el servidor."""
-    slug = genre.strip().lower()
-    rows = _genre_chart_rows(session, days).get(slug, [])
+    # Los slugs de /charts salen del lower() de SQLite (solo ASCII): comparar con
+    # casefold() para que cualquier slug de la lista resuelva siempre.
+    by_genre = _genre_chart_rows(session, days)
+    wanted = genre.strip().casefold()
+    slug = next((g for g in by_genre if g.casefold() == wanted), genre.strip().lower())
+    rows = by_genre.get(slug, [])
     if len(rows) < CHART_MIN_TRACKS:
         raise HTTPException(404, "este género aún no tiene lista")
     top = rows[:limit]

@@ -5,7 +5,6 @@
   import ErrorState from '$lib/components/ErrorState.svelte';
   import { page } from '$app/state';
   import {
-    ArrowLeft,
     Bookmark,
     BookmarkCheck,
     Camera,
@@ -24,6 +23,8 @@
   import TrackList from '$lib/components/TrackList.svelte';
   import SortSelect from '$lib/components/SortSelect.svelte';
   import { sortTracks, trackMatches, type TrackSort } from '$lib/sort';
+  import { pushBack } from '$lib/backstack.svelte';
+  import BackButton from '$lib/components/ui/BackButton.svelte';
   import AddTracksDialog from '$lib/components/AddTracksDialog.svelte';
   import DownloadAllButton from '$lib/components/DownloadAllButton.svelte';
   import DownloadZipButton from '$lib/components/DownloadZipButton.svelte';
@@ -47,6 +48,14 @@
   let addingTracks = $state(false);
   let menuOpen = $state(false);
   let menuEl = $state<HTMLDivElement | null>(null);
+
+  // Atrás de Android: cierra el menú ⋯ y sale del modo edición.
+  $effect(() => {
+    if (menuOpen) return pushBack(() => (menuOpen = false));
+  });
+  $effect(() => {
+    if (editing) return pushBack(() => (editing = false));
+  });
 
   // Cierra el menú ⋯ al tocar fuera
   $effect(() => {
@@ -112,15 +121,7 @@
     if (visibleTracks.length) player.playTracks(visibleTracks, 0);
   }
 
-  function goBack() {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      window.history.back();
-    } else {
-      goto("/albums");
-    }
-  }
-
-  function startEdit() {
+    function startEdit() {
     if (!album) return;
     editTitle = album.title;
     editYear = album.year ? String(album.year) : '';
@@ -180,13 +181,7 @@
 </script>
 
 <div class="page-narrow">
-  <button
-    onclick={goBack}
-    class="-ml-2 mb-4 inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-sm text-fg-muted transition hover:bg-surface hover:text-fg"
-    aria-label="Volver"
-  >
-    <ArrowLeft size={17} /> Volver
-  </button>
+  <BackButton fallback="/albums" />
   {#if error}
     <ErrorState {error} />
   {:else if album}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushBack } from '$lib/backstack.svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { Home, Music2, Disc3, Download, Settings, Shield, LogOut, Flame, HardDriveDownload, Radio } from 'lucide-svelte';
@@ -33,6 +34,11 @@
   function onDocClick(e: MouseEvent) {
     if (menuOpen && menuEl && !menuEl.contains(e.target as Node)) menuOpen = false;
   }
+
+  // Atrás de Android cierra el menú de usuario.
+  $effect(() => {
+    if (menuOpen) return pushBack(() => (menuOpen = false));
+  });
 
   $effect(() => {
     if (menuOpen) {

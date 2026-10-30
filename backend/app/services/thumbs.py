@@ -10,12 +10,15 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import Optional
 
 from app.config import settings
 
 log = logging.getLogger("bbeat.thumbs")
+
+_warned: set[str] = set()
 
 # Anchos permitidos: 96 (filas de 40-48 px a 2x), 192 y 384 (tarjetas de rejilla).
 THUMB_SIZES = (96, 192, 384)
@@ -31,30 +34,39 @@ def snap_width(w: Optional[int]) -> Optional[int]:
     return None
 
 
-def thumb_for(src: Path, w: int) -> Optional[Path]:
-    """Ruta de la miniatura WebP de `src` a ancho `w`, creándola si no existe.
+def thumb_for(src: Path, w: int) -> tuple[Optional[Path], bool]:
+    """Miniatura WebP de `src` a ancho `w`, creándola si no existe.
 
-    Devuelve None si no hace falta (el original ya es pequeño) o si algo falla:
-    el llamador sirve entonces el original.
+    Devuelve (ruta, fallo). Ruta None = servir el original; fallo True si fue
+    por un error (no porque el original ya sea pequeño), para no cachearlo
+    como definitivo.
     """
     try:
         st = src.stat()
         key = hashlib.sha1(f"{src.name}|{st.st_mtime_ns}|{st.st_size}|{w}".encode()).hexdigest()
         out = settings.data_dir / "thumbs" / f"{key}.webp"
         if out.is_file():
-            return out
+            return out, False
         from PIL import Image
 
         with Image.open(src) as im:
             if im.width <= w:
-                return None
+                return None, False
             im.thumbnail((w, w), Image.LANCZOS)
             im = im.convert("RGB")
             out.parent.mkdir(parents=True, exist_ok=True)
-            tmp = out.with_name(f"{out.name}.{os.getpid()}.tmp")
-            im.save(tmp, "WEBP", quality=80, method=4)
-        os.replace(tmp, out)
-        return out
+            # Temporal único: dos peticiones simultáneas no pisan el mismo fichero.
+            fd, tmp_name = tempfile.mkstemp(dir=out.parent, prefix=f"{key}.", suffix=".tmp")
+            os.close(fd)
+            tmp = Path(tmp_name)
+            try:
+                im.save(tmp, "WEBP", quality=80, method=4)
+                os.replace(tmp, out)
+            finally:
+                tmp.unlink(missing_ok=True)
+        return out, False
     except Exception as e:  # noqa: BLE001 — cualquier fallo cae al original
-        log.debug("miniatura de %s falló: %s", src, e)
-        return None
+        if str(src) not in _warned:  # una vez por fichero
+            _warned.add(str(src))
+            log.warning("miniatura de %s falló: %s", src, e)
+        return None, True
