@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import { fly, fade } from 'svelte/transition';
   import {
@@ -30,11 +31,17 @@
     tracks = $bindable(),
     showAlbum = true,
     showGenre = false,
+    numbered = false,
+    meta,
     onchanged
   }: {
     tracks: Track[];
     showAlbum?: boolean;
     showGenre?: boolean;
+    /** Muestra el número de posición (1, 2, 3…) antes de la carátula. */
+    numbered?: boolean;
+    /** Texto discreto extra al final del subtítulo de cada pista. */
+    meta?: (t: Track) => string | null | undefined;
     onchanged?: () => void;
   } = $props();
 
@@ -189,9 +196,12 @@
           class:opacity-40={!offline.canPlay(t.id)}
           aria-disabled={!offline.canPlay(t.id)}
         >
+          {#if numbered}
+            <span class="w-6 flex-none text-center text-xs font-semibold tabular-nums" class:text-accent={isCurrent} class:text-fg-subtle={!isCurrent}>{i + 1}</span>
+          {/if}
           <span class="relative size-10 flex-none">
             {#if t.cover_url}
-              <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 rounded-lg object-cover" />
+              <img loading="lazy" decoding="async" src={coverSrc(t.cover_url, 96)} alt="" class="size-10 rounded-lg object-cover" />
             {:else}
               <div class="grid size-10 place-items-center rounded-lg bg-surface-2 text-fg-subtle">
                 <Music2 size={16} />
@@ -210,7 +220,7 @@
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm" class:text-accent={isCurrent}>{t.title}</div>
             <div class="truncate text-xs text-fg-subtle">
-              {t.artist_name}{#if showAlbum && t.album_title} · {t.album_title}{/if}{#if showGenre} · {genreLabel(t.genre)}{/if}
+              {t.artist_name}{#if showAlbum && t.album_title} · {t.album_title}{/if}{#if showGenre} · {genreLabel(t.genre)}{/if}{#if meta && meta(t)} · {meta(t)}{/if}
             </div>
           </div>
           <span class="flex-none text-xs tabular-nums text-fg-subtle">
@@ -264,7 +274,7 @@
           aria-label="Volver"
         ><ChevronLeft size={18} /></button>
       {:else if t.cover_url}
-        <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-12 flex-none rounded-lg object-cover" />
+        <img loading="lazy" decoding="async" src={coverSrc(t.cover_url, 96)} alt="" class="size-12 flex-none rounded-lg object-cover" />
       {:else}
         <div class="grid size-12 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle"><Music2 size={18} /></div>
       {/if}

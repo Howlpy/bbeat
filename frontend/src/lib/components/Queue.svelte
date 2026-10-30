@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { coverSrc } from '$lib/cover';
   import { fly, fade } from 'svelte/transition';
   import { X, Music2, ListMusic, Trash2, Volume2 } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
@@ -58,7 +59,7 @@
                   <Volume2 size={16} />
                 </span>
               {:else if t.cover_url}
-                <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded-lg object-cover" />
+                <img loading="lazy" decoding="async" src={coverSrc(t.cover_url, 96)} alt="" class="size-10 flex-none rounded-lg object-cover" />
               {:else}
                 <div class="grid size-10 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle">
                   <Music2 size={14} />

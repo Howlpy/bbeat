@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import { onReconnect } from '$lib/net.svelte';
   import ErrorState from '$lib/components/ErrorState.svelte';
@@ -140,7 +141,7 @@
         <a href="/albums/{album.id}" class="group relative block">
           {#if album.cover_url}
             <img loading="lazy" decoding="async"
-              src={album.cover_url}
+              src={coverSrc(album.cover_url, 384)}
               alt={album.title}
               class="aspect-square w-full rounded-xl object-cover transition group-hover:opacity-90"
             />

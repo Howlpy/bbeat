@@ -41,6 +41,27 @@ export type MyStats = {
   prev: { plays: number; minutes: number } | null;
 };
 
+/** Género con lista semanal (GET /library/charts). */
+export type ChartGenre = {
+  genre: string;
+  name: string;
+  track_count: number;
+  plays: number;
+  listeners: number;
+  covers: string[];
+};
+
+/** Lista semanal de un género (GET /library/charts/{genre}). */
+export type GenreChart = {
+  genre: string;
+  name: string;
+  days: number;
+  track_count: number;
+  plays: number;
+  listeners: number;
+  items: (Track & { rank: number; plays: number; listeners: number })[];
+};
+
 export type AlbumKind = 'album' | 'playlist';
 
 export type Album = {
@@ -497,6 +518,12 @@ export const api = {
     const s = q.toString();
     return json<{ items: (Track & { plays: number })[] }>(`/api/library/top${s ? '?' + s : ''}`);
   },
+  charts: (days = 7) =>
+    json<{ days: number; items: ChartGenre[] }>(`/api/library/charts?days=${days}`),
+  chart: (genre: string, limit = 30, days = 7) =>
+    json<GenreChart>(
+      `/api/library/charts/${encodeURIComponent(genre)}?limit=${limit}&days=${days}`
+    ),
   history: (limit = 50) =>
     json<{ items: (Track & { last_played: string | null })[] }>(
       `/api/library/history?limit=${limit}`

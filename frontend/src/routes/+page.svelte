@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import {
     Download,
@@ -12,13 +13,15 @@
     Heart,
     WifiOff,
     HardDriveDownload,
-    Radio
+    Radio,
+    TrendingUp
   } from 'lucide-svelte';
   import {
     api,
     formatBytes,
     formatDuration,
     type Album,
+    type ChartGenre,
     type LibraryStats,
     type NowPlaying,
     type Track
@@ -37,6 +40,7 @@
   let recentTracks = $state<Track[]>([]);
   let recentAlbums = $state<Album[]>([]);
   let topTracks = $state<(Track & { plays: number })[]>([]);
+  let charts = $state<ChartGenre[] | null>(null);
   let live = $state<NowPlaying[]>([]);
   let liveConnected = $state(false);
   let error = $state<string | null>(null);
@@ -52,6 +56,8 @@
         api.topTracks({ limit: 8 }).catch(() => ({ items: [] }))
       ]);
       stats = s;
+      // Listas semanales: si fallan, la sección simplemente no aparece.
+      api.charts().then((c) => (charts = c.items)).catch(() => (charts = charts ?? []));
       recentTracks = r.tracks ?? [];
       recentAlbums = r.albums ?? [];
       topTracks = top.items ?? [];
@@ -89,7 +95,7 @@
   onMount(() => {
     load();
     const offReconnect = onReconnect(load);
-    // Cloudflare puede bufferizar SSE; refresca el snapshot cada 3 s.
+    // Cloudflare puede bufferizar SSE; refresca el snapshot cada 10 s.
     let stopped = false;
     let inFlight = false;
     const refreshLive = async () => {
@@ -109,7 +115,7 @@
       }
     };
     refreshLive();
-    const liveTimer = setInterval(refreshLive, 3_000);
+    const liveTimer = setInterval(refreshLive, 10_000);
     return () => {
       stopped = true;
       offReconnect();
@@ -220,6 +226,46 @@
       </p>
     {/if}
 
+    <!-- Lo más escuchado esta semana (una tarjeta por género) -->
+    {#if charts === null}
+      <section class="mb-10" aria-hidden="true">
+        <Skeleton class="mb-3 h-4 w-52" />
+        <div class="flex gap-3 overflow-hidden">
+          {#each Array(3) as _}<Skeleton class="h-44 w-40 flex-none rounded-xl" />{/each}
+        </div>
+      </section>
+    {:else if charts.length > 0}
+      <section class="mb-10">
+        <header class="mb-3">
+          <h2 class="section-title">
+            <TrendingUp size={14} class="text-accent" /> Lo más escuchado esta semana
+          </h2>
+        </header>
+        <div class="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+          {#each charts as g (g.genre)}
+            <a
+              href="/charts/{encodeURIComponent(g.genre)}"
+              class="w-40 flex-none snap-start rounded-xl border border-line bg-surface p-2.5 transition hover:border-line-strong hover:bg-surface-2"
+            >
+              <div class="grid aspect-square grid-cols-2 gap-0.5 overflow-hidden rounded-lg bg-surface-2">
+                {#if g.covers.length >= 4}
+                  {#each g.covers.slice(0, 4) as c}
+                    <img loading="lazy" decoding="async" src={coverSrc(c, 96)} alt="" class="size-full object-cover" />
+                  {/each}
+                {:else if g.covers.length > 0}
+                  <img loading="lazy" decoding="async" src={coverSrc(g.covers[0], 192)} alt="" class="col-span-2 row-span-2 size-full object-cover" />
+                {:else}
+                  <div class="col-span-2 row-span-2 grid place-items-center text-fg-subtle"><Music2 size={32} /></div>
+                {/if}
+              </div>
+              <div class="mt-2 truncate text-sm font-semibold">Top {g.name}</div>
+              <div class="truncate text-xs text-fg-subtle">{g.track_count} canciones · últimos 7 días</div>
+            </a>
+          {/each}
+        </div>
+      </section>
+    {/if}
+
     <!-- Escuchando ahora (stream en vivo) -->
     <section class="mb-10">
       <header class="mb-3 flex items-center justify-between">
@@ -240,7 +286,7 @@
           {#each live.slice(0, 3) as p (p.user_id)}
             <li class="flex items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2">
               {#if p.track.cover_url}
-                <img loading="lazy" decoding="async" src={p.track.cover_url} alt="" class="size-9 flex-none rounded-lg object-cover" />
+                <img loading="lazy" decoding="async" src={coverSrc(p.track.cover_url, 96)} alt="" class="size-9 flex-none rounded-lg object-cover" />
               {:else}
                 <div class="grid size-9 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle"><Music2 size={13} /></div>
               {/if}
@@ -279,7 +325,7 @@
             <a href="/albums/{album.id}" class="group">
               {#if album.cover_url}
                 <img loading="lazy" decoding="async"
-                  src={album.cover_url}
+                  src={coverSrc(album.cover_url, 384)}
                   alt={album.title}
                   class="aspect-square w-full rounded-xl object-cover transition active:opacity-80 group-hover:opacity-90"
                 />
@@ -316,7 +362,7 @@
               >
                 <span class="w-5 flex-none text-center text-xs tabular-nums text-fg-subtle">{i + 1}</span>
                 {#if t.cover_url}
-                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded-lg object-cover" />
+                  <img loading="lazy" decoding="async" src={coverSrc(t.cover_url, 96)} alt="" class="size-10 flex-none rounded-lg object-cover" />
                 {:else}
                   <div class="grid size-10 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle">
                     <Music2 size={14} />
@@ -358,7 +404,7 @@
                 class:opacity-40={!offline.canPlay(t.id)}
               >
                 {#if t.cover_url}
-                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded-lg object-cover" />
+                  <img loading="lazy" decoding="async" src={coverSrc(t.cover_url, 96)} alt="" class="size-10 flex-none rounded-lg object-cover" />
                 {:else}
                   <div class="grid size-10 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle">
                     <Music2 size={14} />

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import { Check, Loader2, Music2, Search, X } from 'lucide-svelte';
   import { api, formatDuration, type Track } from '$lib/api';
@@ -227,7 +228,7 @@
                   {/if}
                 </span>
                 {#if t.cover_url}
-                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded-lg object-cover" />
+                  <img loading="lazy" decoding="async" src={coverSrc(t.cover_url, 96)} alt="" class="size-10 flex-none rounded-lg object-cover" />
                 {:else}
                   <div class="grid size-10 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle">
                     <Music2 size={14} />

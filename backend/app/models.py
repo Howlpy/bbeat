@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import Index
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -133,6 +134,9 @@ class TrackLike(SQLModel, table=True):
 class Play(SQLModel, table=True):
     """Un evento de reproducción (para historial + más escuchadas)."""
     __tablename__ = "plays"
+    # Cubre las listas semanales: filtra por fecha y agrupa por pista/usuario
+    # sin tocar la tabla.
+    __table_args__ = (Index("ix_plays_played_at_track_user", "played_at", "track_id", "user_id"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)

@@ -30,6 +30,11 @@ def _set_sqlite_pragmas(dbapi_conn, _record) -> None:
     cur.execute("PRAGMA synchronous=NORMAL")
     cur.execute("PRAGMA busy_timeout=5000")
     cur.execute("PRAGMA foreign_keys=ON")
+    # Caché de páginas (~20 MB), temporales en RAM y lectura mapeada (128 MB):
+    # menos I/O en las consultas de agregado de la biblioteca.
+    cur.execute("PRAGMA cache_size=-20000")
+    cur.execute("PRAGMA temp_store=MEMORY")
+    cur.execute("PRAGMA mmap_size=134217728")
     cur.close()
 
 
@@ -76,6 +81,16 @@ def _migrate_schema() -> None:
                 )
             except Exception:
                 pass
+        # Índice de las listas semanales (las tablas ya creadas no lo reciben
+        # de create_all).
+        try:
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_plays_played_at_track_user "
+                "ON plays (played_at, track_id, user_id)"
+            )
+        except Exception as e:
+            import logging
+            logging.warning("índice de plays falló: %s", e)
         # Backfill: Track.external_id desde Jobs done
         try:
             conn.exec_driver_sql(

@@ -23,6 +23,7 @@ from app.models import (
 )
 from app.services import access as access_svc
 from app.services import auth as auth_svc
+from app.services import genres as genres_svc
 from app.services import library as library_svc
 from app.services import lyrics as lyrics_svc
 from app.services import organizer, presence as presence_svc, scanner, spotify
@@ -84,6 +85,15 @@ def _album_payload(
     }
 
 
+def _track_cover_url(track: Track, album: Optional[Album]) -> Optional[str]:
+    """URL versionada de la carátula de una pista (propia o la de su álbum)."""
+    if getattr(track, "has_cover", False):
+        return f"/api/library/cover/track/{track.id}{_cover_ver(_track_cover_file(track.id))}"
+    if album and album.cover_path:
+        return f"/api/library/cover/{album.id}{_cover_ver(album.cover_path)}"
+    return None
+
+
 def _track_payload(track: Track, artist: Artist, album: Optional[Album], liked: bool = False) -> dict:
     """Dict serializado de una pista para la UI (formato único compartido)."""
     return {
@@ -95,15 +105,7 @@ def _track_payload(track: Track, artist: Artist, album: Optional[Album], liked: 
         "album_title": album.title if album else None,
         "album_year": album.year if album else None,
         "genre": track.genre,
-        "cover_url": (
-            f"/api/library/cover/track/{track.id}{_cover_ver(_track_cover_file(track.id))}"
-            if getattr(track, "has_cover", False)
-            else (
-                f"/api/library/cover/{album.id}{_cover_ver(album.cover_path)}"
-                if album and album.cover_path
-                else None
-            )
-        ),
+        "cover_url": _track_cover_url(track, album),
         "track_number": track.track_number,
         "disc_number": track.disc_number,
         "duration_ms": track.duration_ms,
@@ -958,24 +960,21 @@ def library_stats(
     - mine: lo que este user puede ver (sus álbumes + públicos).
     - global: TODO lo que hay en la instancia, sin filtros.
     """
-    # ─── mine ───
-    visible_ids = access_svc.visible_track_ids_subquery(user)
-    mine_tracks = session.exec(
-        select(func.count()).select_from(select(Track).where(Track.id.in_(visible_ids)).subquery())
+    # Pool global: lo visible para el usuario es todo el catálogo, así que
+    # 'mine' y 'global' coinciden y salen de las mismas consultas.
+    g_tracks, artists_with_tracks, g_bytes = session.exec(
+        select(
+            func.count(Track.id),
+            func.count(func.distinct(Track.artist_id)),
+            func.coalesce(func.sum(Track.file_size), 0),
+        )
     ).one()
-    mine_albums = len(access_svc.visible_album_ids(session, user))
-    mine_artists = session.exec(
-        select(func.count(func.distinct(Track.artist_id))).where(Track.id.in_(visible_ids))
-    ).one()
-    mine_bytes = session.exec(
-        select(func.coalesce(func.sum(Track.file_size), 0)).where(Track.id.in_(visible_ids))
-    ).one()
-
-    # ─── global (sin filtros, todo el contenido del server) ───
-    g_tracks = session.exec(select(func.count(Track.id))).one()
     g_albums = session.exec(select(func.count(Album.id))).one()
+    # Artistas con ficha propia (puede haber alguno sin pistas).
     g_artists = session.exec(select(func.count(Artist.id))).one()
-    g_bytes = session.exec(select(func.coalesce(func.sum(Track.file_size), 0))).one()
+    mine_tracks, mine_albums, mine_artists, mine_bytes = (
+        g_tracks, g_albums, artists_with_tracks, g_bytes,
+    )
 
     return {
         "mine": {
@@ -1197,6 +1196,150 @@ def top_tracks(
         for t, ar, al, n in session.exec(stmt).all()
     ]
     return {"items": items}
+
+
+# ─── Listas semanales por género ──────────────────────────────
+
+# Un género entra en las listas solo si tuvo al menos tantas pistas distintas
+# escuchadas en la ventana (con menos, un "top" no tiene sentido).
+CHART_MIN_TRACKS = 5
+CHART_DEFAULT_LIMIT = 30
+CHART_COVERS = 4
+
+
+def _genre_chart_rows(session: Session, days: int) -> dict[str, list[dict]]:
+    """Pistas escuchadas en la ventana, agrupadas por género y ya ordenadas.
+
+    Orden: oyentes distintos, luego reproducciones, luego la escucha más
+    reciente. Contar oyentes (no solo plays) evita que una persona dando bucle
+    a una canción gane a una que escuchan varias.
+    """
+    since = datetime.utcnow() - timedelta(days=days)
+    genre = func.lower(func.trim(Track.genre))
+    plays = func.count(Play.id)
+    listeners = func.count(func.distinct(Play.user_id))
+    last = func.max(Play.played_at)
+    rows = session.exec(
+        select(Play.track_id, genre, plays, listeners, last)
+        .join(Track, Track.id == Play.track_id)
+        .where(Play.played_at >= since, Track.genre.is_not(None), func.trim(Track.genre) != "")
+        .group_by(Play.track_id)
+    ).all()
+    by_genre: dict[str, list[dict]] = {}
+    for track_id, g, n, ls, lp in rows:
+        by_genre.setdefault(g, []).append(
+            {"track_id": track_id, "plays": n, "listeners": ls, "last": lp}
+        )
+    for items in by_genre.values():
+        items.sort(key=lambda r: (-r["listeners"], -r["plays"], -(r["last"].timestamp() if r["last"] else 0), r["track_id"]))
+    return by_genre
+
+
+def _genre_totals(session: Session, days: int) -> dict[str, tuple[int, int]]:
+    """(reproducciones, oyentes distintos) por género en la ventana."""
+    since = datetime.utcnow() - timedelta(days=days)
+    genre = func.lower(func.trim(Track.genre))
+    rows = session.exec(
+        select(genre, func.count(Play.id), func.count(func.distinct(Play.user_id)))
+        .join(Track, Track.id == Play.track_id)
+        .where(Play.played_at >= since, Track.genre.is_not(None), func.trim(Track.genre) != "")
+        .group_by(genre)
+    ).all()
+    return {g: (n, ls) for g, n, ls in rows}
+
+
+@router.get("/charts")
+def weekly_charts(
+    days: int = Query(7, ge=1, le=30),
+    limit: int = Query(CHART_DEFAULT_LIMIT, ge=1, le=50),
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Géneros con lista semanal (con suficientes pistas escuchadas en el servidor)."""
+    by_genre = _genre_chart_rows(session, days)
+    eligible = {g: r for g, r in by_genre.items() if len(r) >= CHART_MIN_TRACKS}
+    if not eligible:
+        return {"days": days, "items": []}
+    totals = _genre_totals(session, days)
+
+    # Carátulas de las primeras pistas de cada género, en una sola consulta.
+    cover_ids = {g: [r["track_id"] for r in rows[:12]] for g, rows in eligible.items()}
+    wanted = {i for ids in cover_ids.values() for i in ids}
+    tracks = {
+        t.id: (t, al)
+        for t, al in session.exec(
+            select(Track, Album).outerjoin(Album, Track.album_id == Album.id).where(Track.id.in_(wanted))
+        ).all()
+    }
+    items = []
+    for g, rows in eligible.items():
+        covers: list[str] = []
+        for tid in cover_ids[g]:
+            pair = tracks.get(tid)
+            url = _track_cover_url(*pair) if pair else None
+            if url and url not in covers:
+                covers.append(url)
+            if len(covers) >= CHART_COVERS:
+                break
+        n_plays, n_listeners = totals.get(g, (0, 0))
+        items.append(
+            {
+                "genre": g,
+                "name": genres_svc.genre_label(g),
+                "track_count": min(len(rows), limit),
+                "plays": n_plays,
+                "listeners": n_listeners,
+                "covers": covers,
+            }
+        )
+    items.sort(key=lambda i: (-i["plays"], -i["listeners"], i["genre"]))
+    return {"days": days, "items": items}
+
+
+@router.get("/charts/{genre}")
+def weekly_chart(
+    genre: str,
+    days: int = Query(7, ge=1, le=30),
+    limit: int = Query(CHART_DEFAULT_LIMIT, ge=1, le=50),
+    user: User = Depends(auth_svc.get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Lista semanal de un género: pistas más escuchadas en todo el servidor."""
+    slug = genre.strip().lower()
+    rows = _genre_chart_rows(session, days).get(slug, [])
+    if len(rows) < CHART_MIN_TRACKS:
+        raise HTTPException(404, "este género aún no tiene lista")
+    top = rows[:limit]
+    stats = {r["track_id"]: r for r in top}
+    found = {
+        t.id: (t, ar, al)
+        for t, ar, al in session.exec(
+            select(Track, Artist, Album)
+            .join(Artist, Track.artist_id == Artist.id)
+            .outerjoin(Album, Track.album_id == Album.id)
+            .where(Track.id.in_(list(stats)))
+        ).all()
+    }
+    liked = _user_liked_set(session, user)
+    items = []
+    for rank, r in enumerate(top, start=1):
+        row = found.get(r["track_id"])
+        if row is None:
+            continue
+        t, ar, al = row
+        items.append(
+            {**_track_payload(t, ar, al, t.id in liked), "rank": rank, "plays": r["plays"], "listeners": r["listeners"]}
+        )
+    n_plays, n_listeners = _genre_totals(session, days).get(slug, (0, 0))
+    return {
+        "genre": slug,
+        "name": genres_svc.genre_label(slug),
+        "days": days,
+        "track_count": len(items),
+        "plays": n_plays,
+        "listeners": n_listeners,
+        "items": items,
+    }
 
 
 @router.get("/history")

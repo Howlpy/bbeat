@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import { Radio, Music2, Monitor, Smartphone, Flame, History } from 'lucide-svelte';
   import { api, type Track, type NowPlaying } from '$lib/api';
@@ -80,7 +81,7 @@
         {#each live as p (p.user_id)}
           <li class="flex items-center gap-3 rounded-xl border border-line bg-surface px-3 py-3">
             {#if p.track.cover_url}
-              <img loading="lazy" decoding="async" src={p.track.cover_url} alt="" class="size-12 flex-none rounded-lg object-cover" />
+              <img loading="lazy" decoding="async" src={coverSrc(p.track.cover_url, 96)} alt="" class="size-12 flex-none rounded-lg object-cover" />
             {:else}
               <div class="grid size-12 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle"><Music2 size={16} /></div>
             {/if}
@@ -125,7 +126,7 @@
               class="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2"
             >
               {#if item.cover_url}
-                <img loading="lazy" decoding="async" src={item.cover_url} alt="" class="size-10 flex-none rounded-lg object-cover" />
+                <img loading="lazy" decoding="async" src={coverSrc(item.cover_url, 96)} alt="" class="size-10 flex-none rounded-lg object-cover" />
               {:else}
                 <div class="grid size-10 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle"><Music2 size={14} /></div>
               {/if}
@@ -158,7 +159,7 @@
             >
               <span class="w-5 flex-none text-center text-xs tabular-nums text-fg-subtle">{i + 1}</span>
               {#if t.cover_url}
-                <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded-lg object-cover" />
+                <img loading="lazy" decoding="async" src={coverSrc(t.cover_url, 96)} alt="" class="size-10 flex-none rounded-lg object-cover" />
               {:else}
                 <div class="grid size-10 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle"><Music2 size={14} /></div>
               {/if}

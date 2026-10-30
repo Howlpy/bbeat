@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { coverSrc } from '$lib/cover';
   import { onMount } from 'svelte';
   import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music2, ListMusic } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
@@ -78,7 +79,7 @@
       >
         {#if player.current.cover_url}
           <img loading="lazy" decoding="async"
-            src={player.current.cover_url}
+            src={coverSrc(player.current.cover_url, 96)}
             alt=""
             class="size-12 flex-none rounded-lg object-cover"
           />

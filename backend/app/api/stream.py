@@ -6,9 +6,9 @@ import subprocess
 import threading
 import uuid
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlmodel import Session, select
 
@@ -16,6 +16,7 @@ from app.config import settings
 from app.db import get_session
 from app.models import Album, Track, User
 from app.services import auth as auth_svc
+from app.services import thumbs as thumbs_svc
 
 log = __import__("logging").getLogger("bbeat.stream")
 
@@ -208,9 +209,29 @@ def stream_track(
     )
 
 
+# La URL de las carátulas lleva ?v=<mtime>: si cambia el fichero cambia la URL,
+# así que con v presente la respuesta es inmutable.
+_COVER_IMMUTABLE = "public, max-age=31536000, immutable"
+_COVER_SHORT = "public, max-age=86400"
+
+
+def _cover_response(path: Path, request: Request, w: Optional[int]) -> FileResponse:
+    """Sirve una carátula (o su miniatura si se pide ?w=) con la caché adecuada."""
+    media_type = "image/jpeg" if path.suffix == ".jpg" else "image/png"
+    width = thumbs_svc.snap_width(w)
+    if width:
+        thumb = thumbs_svc.thumb_for(path, width)
+        if thumb is not None:
+            path, media_type = thumb, "image/webp"
+    cache = _COVER_IMMUTABLE if "v" in request.query_params else _COVER_SHORT
+    return FileResponse(path, media_type=media_type, headers={"Cache-Control": cache})
+
+
 @router.get("/cover/{album_id}")
 def get_cover(
     album_id: int,
+    request: Request,
+    w: Optional[int] = Query(None, ge=1, le=4096),
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ):
@@ -225,17 +246,14 @@ def get_cover(
         path.relative_to(settings.covers_dir.resolve())
     except ValueError:
         raise HTTPException(400, "invalid path")
-    media_type = "image/jpeg" if path.suffix == ".jpg" else "image/png"
-    return FileResponse(
-        path,
-        media_type=media_type,
-        headers={"Cache-Control": "public, max-age=86400"},
-    )
+    return _cover_response(path, request, w)
 
 
 @router.get("/cover/track/{track_id}")
 def get_track_cover(
     track_id: int,
+    request: Request,
+    w: Optional[int] = Query(None, ge=1, le=4096),
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ):
@@ -250,9 +268,5 @@ def get_track_cover(
                 path.relative_to(settings.covers_dir.resolve())
             except ValueError:
                 raise HTTPException(400, "invalid path")
-            return FileResponse(
-                path,
-                media_type="image/jpeg" if ext == ".jpg" else "image/png",
-                headers={"Cache-Control": "public, max-age=86400"},
-            )
+            return _cover_response(path, request, w)
     raise HTTPException(404, "cover file missing")

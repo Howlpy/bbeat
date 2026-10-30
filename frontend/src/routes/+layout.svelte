@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
+  import { fade } from 'svelte/transition';
   import { dev } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -113,7 +113,7 @@
   {/if}
   <main class="min-h-screen" style:padding-bottom="{mainPadBottom}px">
     {#key page.url.pathname}
-      <div in:fly={{ y: 10, duration: 220 }}>
+      <div in:fade={{ duration: 100 }}>
         {@render children?.()}
       </div>
     {/key}

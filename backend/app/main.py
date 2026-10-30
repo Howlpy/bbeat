@@ -48,6 +48,27 @@ async def lifespan(app: FastAPI):
     log.info("Bbeat parando")
 
 
+IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+
+
+class AppStaticFiles(StaticFiles):
+    """StaticFiles de /_app: los ficheros de immutable/ llevan hash en el nombre,
+    así que se cachean un año; el resto (p. ej. version.json) se revalida."""
+
+    def file_response(self, full_path, stat_result, scope, status_code=200):
+        resp = super().file_response(full_path, stat_result, scope, status_code)
+        path = scope.get("path", "")
+        resp.headers["Cache-Control"] = (
+            IMMUTABLE_CACHE if "/immutable/" in path else "no-cache"
+        )
+        return resp
+
+
+def _html_response(path: Path, status_code: int = 200) -> FileResponse:
+    """index.html: siempre revalidar, apunta a los bundles con hash de cada build."""
+    return FileResponse(path, status_code=status_code, headers={"Cache-Control": "no-cache"})
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Bbeat",
@@ -84,7 +105,7 @@ def create_app() -> FastAPI:
     if build_dir.is_dir():
         log.info("Sirvo frontend desde %s", build_dir)
         # Recursos del build (JS, CSS, assets)
-        app.mount("/_app", StaticFiles(directory=str(build_dir / "_app")), name="static_app")
+        app.mount("/_app", AppStaticFiles(directory=str(build_dir / "_app")), name="static_app")
 
         # Catch-all para SPA: cualquier path no-API devuelve el fichero
         # estático correspondiente, o index.html para deep links.
@@ -102,15 +123,19 @@ def create_app() -> FastAPI:
                 try:
                     candidate.relative_to(build_root)
                 except ValueError:
-                    return FileResponse(index_html)
+                    return _html_response(index_html)
                 if candidate.is_file():
+                    # El service worker y los HTML se revalidan siempre; el
+                    # resto de ficheros raíz (iconos, manifest) usa la caché por defecto.
+                    if candidate.name == "service-worker.js" or candidate.suffix == ".html":
+                        return _html_response(candidate)
                     return FileResponse(candidate)
                 # Un path con pinta de fichero (tiene extensión) que no existe es
                 # un 404 real, no el SPA: así los escáneres que piden /admin/config.php
                 # reciben 404 en vez de un 200 con el index.
                 if "." in Path(full_path).name:
-                    return FileResponse(index_html, status_code=404)
-            return FileResponse(index_html)
+                    return _html_response(index_html, 404)
+            return _html_response(index_html)
     else:
         log.info("Sin build de frontend (modo dev). Usa npm run dev para servirlo.")
 

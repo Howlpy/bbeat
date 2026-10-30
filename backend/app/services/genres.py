@@ -801,3 +801,30 @@ def reset_cache() -> None:
 # Se construye al final porque _norm() se define más abajo que la tabla.
 _LOOKUP: dict[str, str] = {_norm(k): v for k, v in CANONICAL.items()}
 _LOOKUP_ITUNES: dict[str, str] = {_norm(k): v for k, v in ITUNES_CANONICAL.items()}
+
+
+# Nombre de cara al usuario de cada género canónico (espejo de frontend/src/lib/genres.ts).
+GENRE_LABELS = {
+    "rap": "Rap / Hip-Hop",
+    "reggaeton": "Reggaetón",
+    "rock": "Rock",
+    "electronica": "Electrónica",
+    "pop": "Pop",
+    "latino": "Latino",
+    "rnb": "R&B / Soul",
+    "reggae": "Reggae",
+    "metal": "Metal",
+    "jazz": "Jazz",
+    "blues": "Blues",
+    "folk": "Folk",
+    "clasica": "Clásica",
+    "bso": "Banda sonora",
+    "mundo": "Músicas del mundo",
+    "infantil": "Infantil",
+}
+
+
+def genre_label(slug: str) -> str:
+    """Nombre legible de un slug; si no está en el vocabulario, lo capitaliza."""
+    g = (slug or "").strip().lower()
+    return GENRE_LABELS.get(g) or (g[:1].upper() + g[1:])
