@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { AlertTriangle, ArrowDown, ArrowUp, Ban, CheckCircle2, Clock, Check, Trash2 } from 'lucide-svelte';
@@ -83,19 +84,19 @@
   });
 </script>
 
-<div class="mx-auto max-w-3xl px-4 pt-6">
-  <h1 class="mb-4 text-2xl font-bold">Admin · Usuarios</h1>
+<div class="page-narrow">
+  <h1 class="page-title mb-6">Admin · Usuarios</h1>
 
   {#if loading}
-    <p class="text-slate-500">Cargando…</p>
+    <div class="space-y-2">{#each Array(4) as _}<Skeleton class="h-16 w-full" />{/each}</div>
   {:else if error}
-    <p class="inline-flex items-center gap-2 rounded border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
+    <p class="inline-flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
       <AlertTriangle size={16} /> {error}
     </p>
   {:else}
     {#if pending.length}
-      <section class="mb-5 rounded-md border border-amber-900/40 bg-amber-950/15 p-3">
-        <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-300">
+      <section class="mb-5 rounded-lg border border-warning/40 bg-warning/10 p-4">
+        <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold text-warning">
           <Clock size={15} /> Pendientes de aprobación ({pending.length})
         </h2>
         <ul class="space-y-2">
@@ -103,15 +104,15 @@
             <li class="flex flex-wrap items-center gap-2">
               <div class="min-w-0 flex-1">
                 <span class="font-medium">{u.username}</span>
-                <span class="block truncate text-xs text-slate-500">{u.email}</span>
+                <span class="block truncate text-xs text-fg-subtle">{u.email}</span>
               </div>
               <button
                 onclick={() => approve(u)}
-                class="inline-flex items-center gap-1 rounded bg-cyan-500 px-2.5 py-1 text-xs font-semibold text-slate-950 transition hover:bg-cyan-400"
+                class="inline-flex items-center gap-1 rounded-lg bg-accent px-3.5 py-2 text-xs font-semibold text-accent-fg transition hover:bg-accent-hover min-h-11 sm:min-h-10"
               ><Check size={13} /> Aprobar</button>
               <button
                 onclick={() => reject(u)}
-                class="inline-flex items-center gap-1 rounded border border-red-900/50 px-2.5 py-1 text-xs text-red-300 transition hover:bg-red-950/40"
+                class="inline-flex items-center gap-1 rounded-lg border border-danger/40 px-3.5 py-2 text-xs text-danger transition hover:bg-danger/20 min-h-11 sm:min-h-10"
               ><Trash2 size={13} /> Rechazar</button>
             </li>
           {/each}
@@ -119,18 +120,18 @@
       </section>
     {/if}
 
-    <ul class="divide-y divide-slate-900 rounded-md border border-slate-800">
+    <ul class="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
       {#each users as u (u.id)}
         <li class="flex flex-wrap items-center gap-3 p-3">
           <div class="min-w-0 flex-1">
             <div class="flex items-baseline gap-2">
               <span class="font-medium">{u.username}</span>
-              {#if u.is_admin}<span class="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">admin</span>{/if}
-              {#if !u.is_approved}<span class="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">pendiente</span>{/if}
-              {#if !u.is_active}<span class="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-300">bloqueado</span>{/if}
-              {#if u.id === auth.user?.id}<span class="text-[10px] text-slate-500">(tú)</span>{/if}
+              {#if u.is_admin}<span class="rounded-lg bg-warning/15 px-1.5 py-0.5 text-xs text-warning">admin</span>{/if}
+              {#if !u.is_approved}<span class="rounded-lg bg-warning/15 px-1.5 py-0.5 text-xs text-warning">pendiente</span>{/if}
+              {#if !u.is_active}<span class="rounded-lg bg-danger/15 px-1.5 py-0.5 text-xs text-danger">bloqueado</span>{/if}
+              {#if u.id === auth.user?.id}<span class="text-xs text-fg-subtle">(tú)</span>{/if}
             </div>
-            <div class="text-xs text-slate-500">
+            <div class="text-xs text-fg-subtle">
               {u.email}
               {#if u.created_at} · alta {new Date(u.created_at).toLocaleDateString('es-ES')}{/if}
             </div>
@@ -140,17 +141,17 @@
               {#if u.is_active}
                 <button
                   onclick={() => setActive(u, false)}
-                  class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1 text-xs transition hover:bg-slate-800"
+                  class="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-2 text-xs transition hover:bg-surface-2 min-h-11 sm:min-h-10"
                 ><Ban size={12} /> Bloquear</button>
               {:else}
                 <button
                   onclick={() => setActive(u, true)}
-                  class="inline-flex items-center gap-1 rounded border border-cyan-700/40 px-2 py-1 text-xs text-cyan-300 transition hover:bg-cyan-950/30"
+                  class="inline-flex items-center gap-1 rounded-lg border border-accent/40 px-3 py-2 text-xs text-accent transition  min-h-11 sm:min-h-10"
                 ><CheckCircle2 size={12} /> Desbloquear</button>
               {/if}
               <button
                 onclick={() => toggleAdmin(u)}
-                class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1 text-xs transition hover:bg-slate-800"
+                class="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-2 text-xs transition hover:bg-surface-2 min-h-11 sm:min-h-10"
               >
                 {#if u.is_admin}
                   <ArrowDown size={12} /> Quitar admin
@@ -160,7 +161,7 @@
               </button>
               <button
                 onclick={() => del(u)}
-                class="grid size-6 place-items-center rounded border border-red-900/50 text-red-300 transition hover:bg-red-950/40"
+                class="grid size-10 place-items-center rounded-lg border border-danger/40 text-danger transition hover:bg-danger/20"
                 title="Borrar usuario"
               ><Trash2 size={12} /></button>
             </div>

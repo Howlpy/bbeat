@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { fly } from 'svelte/transition';
+  import { fade, fly } from 'svelte/transition';
   import { dev } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -13,7 +13,8 @@
   import { jobs } from '$lib/jobs.svelte';
   import { auth } from '$lib/auth.svelte';
   import { offline } from '$lib/offline.svelte';
-  import { net, triggerReconnect } from '$lib/net.svelte';
+  import { initNet, net, triggerReconnect } from '$lib/net.svelte';
+  import { toast } from '$lib/toast.svelte';
   import { server } from '$lib/server.svelte';
   import { prefs } from '$lib/prefs.svelte';
 
@@ -30,6 +31,7 @@
   let mainPadBottom = $derived(navHeight + (player.current ? playerHeight : 0));
 
   onMount(async () => {
+    initNet();
     server.init();
     auth.init();
 
@@ -90,18 +92,24 @@
   <main class="min-h-screen">{@render children?.()}</main>
 {:else if !auth.initialized}
   <main class="grid min-h-screen place-items-center">
-    <p class="text-slate-500">Cargando…</p>
+    <p class="text-sm text-fg-subtle">Cargando…</p>
   </main>
 {:else}
   {#if !net.online}
     <div
-      class="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-amber-600/95 px-3 py-1.5 text-xs font-medium text-amber-50 backdrop-blur"
+      class="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-warning px-3 py-1 text-xs font-semibold leading-5 text-accent-fg"
     >
-      <button type="button" class="flex items-center gap-2" onclick={triggerReconnect}>
-        <WifiOff size={14} /> Sin conexión · toca para reintentar
+      <button type="button" class="flex items-center gap-1.5" onclick={triggerReconnect}>
+        <WifiOff size={11} /> Sin conexión · reintentar
       </button>
       <a href="/downloads" class="underline">Descargas</a>
     </div>
+  {/if}
+  {#if toast.msg}
+    <div
+      class="pointer-events-none fixed inset-x-0 bottom-36 z-[70] mx-auto w-fit max-w-[90vw] rounded-full border border-line-strong bg-surface-2 px-4 py-2.5 text-sm text-fg shadow-xl"
+      transition:fade={{ duration: 150 }}
+    >{toast.msg}</div>
   {/if}
   <main class="min-h-screen" style:padding-bottom="{mainPadBottom}px">
     {#key page.url.pathname}

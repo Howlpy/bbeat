@@ -4,6 +4,7 @@
   import { auth } from '$lib/auth.svelte';
   import { server } from '$lib/server.svelte';
   import ServerPicker from '$lib/components/ServerPicker.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
 
   let username = $state('');
   let email = $state('');
@@ -41,71 +42,69 @@
   <div class="w-full max-w-sm">
     <header class="mb-8 text-center">
       <img src="/logo.png" alt="bbeat — tu música, libre" class="mx-auto w-56" />
-      <p class="mt-3 text-xs text-slate-500">crear cuenta</p>
+      <p class="mt-3 text-sm text-fg-muted">crear cuenta</p>
     </header>
 
     {#if pending}
-      <div class="rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-5 text-center">
-        <p class="text-sm font-medium text-cyan-200">Cuenta creada ✓</p>
-        <p class="mt-2 text-xs text-slate-400">
+      <div class="rounded-xl border border-accent/40 bg-accent-soft p-5 text-center">
+        <p class="text-sm font-medium text-accent">Cuenta creada ✓</p>
+        <p class="mt-2 text-xs text-fg-muted">
           Está <b>pendiente de aprobación</b> por el administrador. Cuando te aprueben
           podrás iniciar sesión.
         </p>
-        <a href="/login" class="mt-4 inline-block text-xs text-cyan-400 hover:underline">Volver a entrar</a>
+        <a href="/login" class="mt-4 inline-block text-xs text-accent hover:underline">Volver a entrar</a>
       </div>
     {:else}
     <ServerPicker />
 
     <form onsubmit={(e) => { e.preventDefault(); submit(); }} class="space-y-3">
       <label class="block">
-        <span class="text-xs text-slate-400">Nombre de usuario</span>
+        <span class="text-sm text-fg-muted">Nombre de usuario</span>
         <input
           bind:value={username}
           autocomplete="username"
           minlength="2"
           maxlength="40"
           required
-          class="mt-1 w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+          class="mt-1.5 w-full rounded-lg border border-line bg-surface px-3 text-sm focus:border-accent focus:outline-none"
         />
       </label>
       <label class="block">
-        <span class="text-xs text-slate-400">Email</span>
+        <span class="text-sm text-fg-muted">Email</span>
         <input
           type="email"
           bind:value={email}
           autocomplete="email"
           required
-          class="mt-1 w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+          class="mt-1.5 w-full rounded-lg border border-line bg-surface px-3 text-sm focus:border-accent focus:outline-none"
         />
       </label>
       <label class="block">
-        <span class="text-xs text-slate-400">Contraseña <span class="text-slate-600">(mínimo 6)</span></span>
+        <span class="text-sm text-fg-muted">Contraseña <span class="text-fg-subtle">(mínimo 6)</span></span>
         <input
           type="password"
           bind:value={password}
           autocomplete="new-password"
           minlength="6"
           required
-          class="mt-1 w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+          class="mt-1.5 w-full rounded-lg border border-line bg-surface px-3 text-sm focus:border-accent focus:outline-none"
         />
       </label>
 
       {#if error}
-        <p class="rounded border border-red-900/50 bg-red-950/30 p-2 text-xs text-red-300">{error}</p>
+        <p class="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</p>
       {/if}
 
-      <button
-        type="submit"
+      <Button type="submit" variant="primary" size="lg" class="w-full"
         disabled={busy || !username.trim() || !email.trim() || password.length < 6 || server.needsPick}
-        class="w-full rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
-      >
+        >
         {busy ? 'Creando…' : 'Crear cuenta'}
-      </button>
+      </Button>
     </form>
 
-    <p class="mt-6 text-center text-xs text-slate-500">
+    <p class="mt-6 text-center text-sm text-fg-muted">
       ¿Ya tienes cuenta?
-      <a href="/login" class="text-cyan-400 hover:underline">Entrar</a>
+      <a href="/login" class="text-accent hover:underline">Entrar</a>
     </p>
     {/if}
   </div>

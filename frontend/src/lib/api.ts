@@ -91,7 +91,7 @@ export type ScanState = {
 import { auth } from './auth.svelte';
 import { goto } from '$app/navigation';
 import { apiUrl } from './config';
-import { net, OfflineError } from './net.svelte';
+import { markOffline, markOnline, OfflineError } from './net.svelte';
 import { cacheGet, cachePut } from './apicache';
 
 /** Añade ?token=XXX a URLs internas /api/library/cover|stream para que <img> y <audio>
@@ -149,7 +149,7 @@ async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; s
     // DNS, etc.). Sin red: si es un GET y lo tenemos cacheado, devolvemos lo
     // último visto (UI tipo Spotify offline); si no, error de offline.
     if (e instanceof TypeError) {
-      net.online = false;
+      markOffline();
       if (isGet) {
         const cached = await cacheGet(url);
         if (cached !== undefined) return tokenizeUrls(cached) as T;
@@ -163,7 +163,7 @@ async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; s
 /** Un intento de petición. Deja pasar TypeError/AbortError para que json() decida. */
 async function attemptJson<T>(url: string, isGet: boolean, skipAuth: boolean, init: RequestInit): Promise<T> {
   const res = await fetch(apiUrl(url), init);
-  net.online = true; // hubo respuesta del servidor → hay red
+  markOnline(); // hubo respuesta del servidor → hay red
   if (res.status === 401 && !skipAuth) {
     // Token inválido/expirado → logout y redirect
     auth.logout();

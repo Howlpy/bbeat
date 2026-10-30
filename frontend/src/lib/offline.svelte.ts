@@ -2,6 +2,7 @@ import { browser } from '$app/environment';
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import type { Track } from './api';
+import { net } from './net.svelte';
 
 // Descargas offline.
 //
@@ -182,6 +183,11 @@ class OfflineStore {
 
   has(id: number): boolean {
     return this.ids.has(id);
+  }
+
+  /** ¿Se puede reproducir ahora? Con red todo; sin red, solo lo descargado. */
+  canPlay(id: number): boolean {
+    return net.online || this.ids.has(id);
   }
 
   audioUrl(id: number): string | null {

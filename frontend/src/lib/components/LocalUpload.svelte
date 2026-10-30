@@ -95,55 +95,55 @@
   <label
     role="button"
     class="block cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition"
-    class:border-cyan-500={dragOver}
-    class:bg-cyan-500={dragOver}
+    class:border-accent={dragOver}
+    class:bg-accent={dragOver}
     class:bg-opacity-5={dragOver}
-    class:border-slate-800={!dragOver}
+    class:border-line={!dragOver}
     ondragover={(e) => { e.preventDefault(); dragOver = true; }}
     ondragleave={() => (dragOver = false)}
     ondrop={onDrop}
   >
     <input type="file" multiple accept="audio/*" class="hidden" onchange={onPick} />
-    <div class="mx-auto mb-2 grid size-12 place-items-center rounded-full bg-slate-800 text-slate-400">
+    <div class="mx-auto mb-2 grid size-12 place-items-center rounded-full bg-surface-2 text-fg-muted">
       <FolderOpen size={22} />
     </div>
     <p class="mt-2 text-sm">
-      Arrastra ficheros aquí o <span class="text-cyan-400 underline">elige del disco</span>
+      Arrastra ficheros aquí o <span class="text-accent underline">elige del disco</span>
     </p>
-    <p class="mt-1 text-xs text-slate-500">mp3 · flac · ogg · opus · m4a · aac · wav</p>
+    <p class="mt-1 text-xs text-fg-subtle">mp3 · flac · ogg · opus · m4a · aac · wav</p>
   </label>
 
   {#if items.length > 0}
     <!-- Overrides -->
-    <div class="rounded-md border border-slate-800 bg-slate-900 p-3">
-      <p class="mb-2 text-xs uppercase tracking-wider text-slate-500">Organizar como…</p>
+    <div class="rounded-lg border border-line bg-surface p-3">
+      <p class="mb-2 text-xs uppercase tracking-wider text-fg-subtle">Organizar como…</p>
       <div class="mb-2 grid grid-cols-3 gap-2 text-xs">
         <label
-          class="cursor-pointer rounded border px-3 py-1.5 text-center"
-          class:border-cyan-500={mode === 'single'}
-          class:bg-cyan-500={mode === 'single'}
-          class:text-slate-950={mode === 'single'}
-          class:border-slate-800={mode !== 'single'}
+          class="cursor-pointer rounded-lg border px-3 py-1.5 text-center"
+          class:border-accent={mode === 'single'}
+          class:bg-accent={mode === 'single'}
+          class:text-accent-fg={mode === 'single'}
+          class:border-line={mode !== 'single'}
         >
           <input type="radio" bind:group={mode} value="single" class="sr-only" />
           Canción suelta
         </label>
         <label
-          class="cursor-pointer rounded border px-3 py-1.5 text-center"
-          class:border-cyan-500={mode === 'new'}
-          class:bg-cyan-500={mode === 'new'}
-          class:text-slate-950={mode === 'new'}
-          class:border-slate-800={mode !== 'new'}
+          class="cursor-pointer rounded-lg border px-3 py-1.5 text-center"
+          class:border-accent={mode === 'new'}
+          class:bg-accent={mode === 'new'}
+          class:text-accent-fg={mode === 'new'}
+          class:border-line={mode !== 'new'}
         >
           <input type="radio" bind:group={mode} value="new" class="sr-only" />
           Álbum nuevo / tags del fichero
         </label>
         <label
-          class="cursor-pointer rounded border px-3 py-1.5 text-center"
-          class:border-cyan-500={mode === 'existing'}
-          class:bg-cyan-500={mode === 'existing'}
-          class:text-slate-950={mode === 'existing'}
-          class:border-slate-800={mode !== 'existing'}
+          class="cursor-pointer rounded-lg border px-3 py-1.5 text-center"
+          class:border-accent={mode === 'existing'}
+          class:bg-accent={mode === 'existing'}
+          class:text-accent-fg={mode === 'existing'}
+          class:border-line={mode !== 'existing'}
         >
           <input type="radio" bind:group={mode} value="existing" class="sr-only" />
           Añadir a existente
@@ -155,7 +155,7 @@
           <input
             bind:value={artistOv}
             placeholder="Artista (override)"
-            class="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
+            class="rounded-lg border border-line bg-bg px-2 py-1.5 text-xs focus:border-accent focus:outline-none"
           />
           <input
             type="number"
@@ -163,10 +163,10 @@
             placeholder="Año"
             min="1900"
             max="2100"
-            class="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
+            class="rounded-lg border border-line bg-bg px-2 py-1.5 text-xs focus:border-accent focus:outline-none"
           />
         </div>
-        <p class="mt-1 text-[10px] text-slate-600">
+        <p class="mt-1 text-xs text-fg-subtle">
           Se ignorará el álbum del fichero y quedará como canción suelta. Podrás añadirla a un álbum después.
         </p>
       {:else if mode === 'new'}
@@ -174,12 +174,12 @@
           <input
             bind:value={artistOv}
             placeholder="Artista (override)"
-            class="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
+            class="rounded-lg border border-line bg-bg px-2 py-1.5 text-xs focus:border-accent focus:outline-none"
           />
           <input
             bind:value={albumOv}
             placeholder="Álbum (override)"
-            class="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
+            class="rounded-lg border border-line bg-bg px-2 py-1.5 text-xs focus:border-accent focus:outline-none"
           />
           <input
             type="number"
@@ -187,16 +187,16 @@
             placeholder="Año"
             min="1900"
             max="2100"
-            class="col-span-2 rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
+            class="col-span-2 rounded-lg border border-line bg-bg px-2 py-1.5 text-xs focus:border-accent focus:outline-none"
           />
         </div>
-        <p class="mt-1 text-[10px] text-slate-600">
+        <p class="mt-1 text-xs text-fg-subtle">
           Vacío = se usan los tags ID3/Vorbis del fichero tal cual.
         </p>
       {:else}
         <select
           bind:value={targetAlbumId}
-          class="w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs focus:border-cyan-500 focus:outline-none"
+          class="w-full rounded-lg border border-line bg-bg px-2 py-1.5 text-xs focus:border-accent focus:outline-none"
         >
           <option value={null}>— seleccionar álbum —</option>
           {#each albums as a}
@@ -207,18 +207,18 @@
     </div>
 
     <!-- Listado -->
-    <ul class="divide-y divide-slate-900 rounded-md border border-slate-800">
+    <ul class="divide-y divide-line-strong rounded-lg border border-line">
       {#each items as it, i}
         <li class="flex items-center gap-3 px-3 py-2">
           <span class="flex-none">
             {#if it.status === 'pending'}
-              <Clock size={14} class="text-slate-500" />
+              <Clock size={14} class="text-fg-subtle" />
             {:else if it.status === 'uploading'}
-              <Loader2 size={14} class="animate-spin text-sky-400" />
+              <Loader2 size={14} class="animate-spin text-accent" />
             {:else if it.status === 'done'}
-              <Check size={14} class="text-cyan-400" />
+              <Check size={14} class="text-accent" />
             {:else}
-              <X size={14} class="text-red-400" />
+              <X size={14} class="text-danger" />
             {/if}
           </span>
           <div class="min-w-0 flex-1">
@@ -226,20 +226,20 @@
               <input
                 bind:value={it.title}
                 placeholder="Título"
-                class="w-full rounded border border-slate-800 bg-slate-950 px-2 py-1 text-sm focus:border-cyan-500 focus:outline-none"
+                class="w-full rounded-lg border border-line bg-bg px-2 py-1 text-sm focus:border-accent focus:outline-none"
               />
             {:else}
               <div class="truncate text-sm">{it.title || it.file.name}</div>
             {/if}
-            <div class="mt-0.5 truncate text-xs text-slate-500">{it.file.name} · {formatBytes(it.file.size)}</div>
+            <div class="mt-0.5 truncate text-xs text-fg-subtle">{it.file.name} · {formatBytes(it.file.size)}</div>
             {#if it.error}
-              <div class="truncate text-xs text-red-400/80" title={it.error}>{it.error}</div>
+              <div class="truncate text-xs text-danger/80" title={it.error}>{it.error}</div>
             {/if}
           </div>
           {#if it.status === 'pending'}
             <button
               onclick={() => removeItem(i)}
-              class="grid size-6 place-items-center rounded text-slate-500 transition hover:bg-slate-800 hover:text-red-400"
+              class="grid size-10 place-items-center rounded-lg text-fg-subtle transition hover:bg-surface-2 hover:text-danger"
             ><X size={14} /></button>
           {/if}
         </li>
@@ -250,14 +250,14 @@
       <button
         onclick={uploadAll}
         disabled={uploading || (mode === 'existing' && !targetAlbumId)}
-        class="flex-1 rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+        class="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg hover:bg-accent-hover disabled:opacity-50 min-h-11 sm:min-h-10"
       >
         {uploading ? 'Subiendo…' : `Subir ${items.filter((x) => x.status !== 'done').length} ${items.length === 1 ? 'fichero' : 'ficheros'}`}
       </button>
       {#if items.some((x) => x.status === 'done')}
         <button
           onclick={clearDone}
-          class="rounded-md border border-slate-800 px-3 py-2 text-xs text-slate-500 hover:bg-slate-800"
+          class="rounded-lg border border-line px-3 py-2 text-xs text-fg-subtle hover:bg-surface-2 min-h-11 sm:min-h-10"
         >limpiar completados</button>
       {/if}
     </div>

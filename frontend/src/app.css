@@ -1,4 +1,37 @@
+@import '@fontsource-variable/manrope';
 @import 'tailwindcss';
+
+/* Tokens de diseño: paleta oscura fría y calmada, acento cian-azulado apagado. */
+@theme {
+  --font-sans: 'Manrope Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --color-bg: oklch(0.16 0.008 255);
+  --color-surface: oklch(0.205 0.01 255);
+  --color-surface-2: oklch(0.25 0.012 255);
+  --color-surface-3: oklch(0.3 0.013 255);
+  --color-line: oklch(0.29 0.012 255);
+  --color-line-strong: oklch(0.38 0.014 255);
+
+  --color-fg: oklch(0.95 0.005 255);
+  --color-fg-muted: oklch(0.77 0.014 255);
+  --color-fg-subtle: oklch(0.68 0.015 255);
+
+  --color-accent: oklch(0.73 0.08 205);
+  --color-accent-hover: oklch(0.79 0.08 205);
+  --color-accent-fg: oklch(0.17 0.02 230);
+  --color-accent-soft: oklch(0.29 0.04 215);
+
+  --color-danger: oklch(0.7 0.12 25);
+  --color-warning: oklch(0.8 0.1 80);
+  --color-warning-soft: oklch(0.3 0.04 80);
+  --color-success: oklch(0.75 0.1 160);
+
+  /* Escala de radios: controles lg, tarjetas xl, círculo solo para iconos/avatares */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1rem;
+}
 
 html,
 body {
@@ -14,7 +47,66 @@ body {
 }
 
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+/* Foco visible y coherente */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Maquetación común de páginas */
+@utility page {
+  margin-inline: auto;
+  max-width: 64rem;
+  padding: 1.5rem 1rem 2rem;
+  @media (min-width: 640px) {
+    padding: 2.5rem 2rem 3rem;
+  }
+}
+@utility page-narrow {
+  margin-inline: auto;
+  max-width: 42rem;
+  padding: 1.5rem 1rem 2rem;
+  @media (min-width: 640px) {
+    padding: 2.5rem 2rem 3rem;
+  }
+}
+@utility page-title {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+@utility section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+/* Rejilla de tarjetas */
+@utility card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 /* Pop del corazón al dar me gusta */
@@ -36,10 +128,32 @@ body {
   width: 3px;
   height: 100%;
   border-radius: 2px;
-  background: #22d3ee;
+  background: var(--color-accent);
   animation: eqbar 0.85s ease-in-out infinite;
+}
+
+/* Slider de progreso/volumen: relleno y pulgar los pinta el navegador con accent-color */
+input[type='range'].seek {
+  accent-color: var(--color-accent);
+  height: 1.5rem;
+  cursor: pointer;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .heart-pop, .eq-bar { animation: none; }
+}
+
+/* Controles de formulario con alto táctil cómodo */
+@layer base {
+  input:not([type='range'], [type='checkbox'], [type='radio'], [type='file']),
+  select,
+  textarea {
+    min-height: 2.75rem;
+  }
+  @media (min-width: 640px) {
+    input:not([type='range'], [type='checkbox'], [type='radio'], [type='file']),
+    select {
+      min-height: 2.5rem;
+    }
+  }
 }

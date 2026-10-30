@@ -36,8 +36,8 @@
 </script>
 
 {#if server.pickable}
-  <div class="mb-6 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-    <div class="mb-3 flex items-center gap-2 text-slate-400">
+  <div class="mb-6 rounded-xl border border-line bg-surface p-4">
+    <div class="mb-3 flex items-center gap-2 text-fg-muted">
       <Server size={15} />
       <span class="text-xs font-semibold uppercase tracking-wider">Servidor</span>
     </div>
@@ -48,18 +48,18 @@
           <li class="flex items-center gap-2">
             <button
               onclick={() => { server.select(fav); msg = null; }}
-              class="flex flex-1 items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition {server.current === fav ? 'border-cyan-500 bg-cyan-500/10' : 'border-slate-800 hover:bg-slate-800/50'}"
+              class="flex flex-1 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition {server.current === fav ? 'border-accent bg-accent/10' : 'border-line hover:bg-surface-2'}"
             >
               {#if server.current === fav}
-                <Check size={14} class="flex-none text-cyan-400" />
+                <Check size={14} class="flex-none text-accent" />
               {:else}
-                <Star size={14} class="flex-none text-slate-600" />
+                <Star size={14} class="flex-none text-fg-subtle" />
               {/if}
               <span class="truncate">{fav.replace(/^https?:\/\//, '')}</span>
             </button>
             <button
               onclick={() => server.removeFavorite(fav)}
-              class="grid size-8 flex-none place-items-center rounded text-slate-600 hover:bg-slate-800 hover:text-red-400"
+              class="grid size-10 flex-none place-items-center rounded-lg text-fg-subtle hover:bg-surface-2 hover:text-danger"
               aria-label="Quitar servidor"
             ><Trash2 size={14} /></button>
           </li>
@@ -75,12 +75,12 @@
         autocorrect="off"
         spellcheck="false"
         onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
-        class="min-w-0 flex-1 rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+        class="min-w-0 flex-1 rounded-lg border border-line bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none"
       />
       <button
         onclick={add}
         disabled={checking || !input.trim()}
-        class="grid size-9 flex-none place-items-center rounded-md bg-slate-800 text-cyan-400 hover:bg-slate-700 disabled:opacity-50"
+        class="grid size-10 flex-none place-items-center rounded-lg bg-surface-2 text-accent hover:bg-surface-3 disabled:opacity-50"
         aria-label="Añadir servidor"
       >
         {#if checking}<Loader2 size={16} class="animate-spin" />{:else}<Plus size={16} />{/if}
@@ -88,9 +88,9 @@
     </div>
 
     {#if msg}
-      <p class="mt-2 text-xs {msg.ok ? 'text-cyan-400' : 'text-red-400'}">{msg.text}</p>
+      <p class="mt-2 text-xs {msg.ok ? 'text-accent' : 'text-danger'}">{msg.text}</p>
     {:else if server.needsPick}
-      <p class="mt-2 text-xs text-amber-400/80">Añade tu servidor bbeat para entrar.</p>
+      <p class="mt-2 text-xs text-warning">Añade tu servidor bbeat para entrar.</p>
     {/if}
   </div>
 {/if}

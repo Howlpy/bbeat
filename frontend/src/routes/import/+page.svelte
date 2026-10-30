@@ -228,19 +228,19 @@
 
   function sourceLabel(s: Source): { name: string; color: string } {
     return {
-      spotify: { name: 'Spotify', color: 'bg-cyan-500/15 text-cyan-300 border-cyan-700/40' },
-      youtube: { name: 'YouTube', color: 'bg-red-500/15 text-red-300 border-red-700/40' },
-      soundcloud: { name: 'SoundCloud', color: 'bg-orange-500/15 text-orange-300 border-orange-700/40' },
-      unknown: { name: 'Desconocido', color: 'bg-slate-800 text-slate-400 border-slate-700' }
+      spotify: { name: 'Spotify', color: 'bg-accent/15 text-accent border-accent/40' },
+      youtube: { name: 'YouTube', color: 'bg-danger/15 text-danger border-danger/40' },
+      soundcloud: { name: 'SoundCloud', color: 'bg-warning/15 text-warning border-warning/40' },
+      unknown: { name: 'Desconocido', color: 'bg-surface-2 text-fg-muted border-line-strong' }
     }[s];
   }
 
   function statusColor(s: Job['status']): string {
     return ({
-      pending: 'text-slate-400',
-      running: 'text-sky-400',
-      done: 'text-cyan-400',
-      failed: 'text-red-400'
+      pending: 'text-fg-muted',
+      running: 'text-accent',
+      done: 'text-accent',
+      failed: 'text-danger'
     } as Record<string, string>)[s];
   }
 
@@ -254,33 +254,35 @@
 
 </script>
 
-<div class="mx-auto max-w-2xl px-4 pt-6">
-  <header class="mb-5 flex flex-wrap items-baseline justify-between gap-2">
-    <h1 class="text-2xl font-bold">Importar</h1>
+<div class="page-narrow">
+  <header class="mb-6 flex flex-wrap items-baseline justify-between gap-2">
+    <h1 class="page-title">Importar</h1>
   </header>
 
   <!-- Tabs -->
-  <div class="mb-4 flex gap-1 rounded-md border border-slate-800 bg-slate-900 p-1 text-sm">
+  <div class="mb-6 flex gap-1 rounded-lg bg-surface p-1 text-sm">
     <button
       onclick={() => (tab = 'url')}
-      class="flex-1 rounded px-3 py-1.5"
-      class:bg-slate-800={tab === 'url'}
+      class="min-h-10 flex-1 rounded-md px-3 text-fg-muted"
+      class:bg-surface-3={tab === 'url'}
+      class:text-fg={tab === 'url'}
     >URL (Spotify · YouTube · SoundCloud)</button>
     <button
       onclick={() => (tab = 'file')}
-      class="flex-1 rounded px-3 py-1.5"
-      class:bg-slate-800={tab === 'file'}
+      class="min-h-10 flex-1 rounded-md px-3 text-fg-muted"
+      class:bg-surface-3={tab === 'file'}
+      class:text-fg={tab === 'file'}
     >Ficheros locales</button>
   </div>
 
   {#if tab === 'url'}
   <!-- Source pills -->
   <div class="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
-    <span class="text-slate-500">Fuentes:</span>
+    <span class="text-fg-subtle">Fuentes:</span>
     {#each ['spotify', 'youtube', 'soundcloud'] as s (s)}
       {@const info = sourceLabel(s as Source)}
       <span
-        class="rounded border px-2 py-0.5 {info.color}"
+        class="rounded-lg border px-2 py-0.5 {info.color}"
         class:opacity-100={detectedSource === s}
         class:opacity-40={detectedSource !== s && detectedSource !== 'unknown'}
       >{info.name}</span>
@@ -296,47 +298,47 @@
       placeholder="Pega URL de Spotify, YouTube o SoundCloud…"
       autocomplete="off"
       inputmode="url"
-      class="w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2.5 pr-24 text-sm placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
+      class="w-full rounded-lg border border-line bg-surface px-3 pr-28 text-sm placeholder:text-fg-subtle focus:border-accent focus:outline-none"
     />
     <button
       type="submit"
       disabled={busy || !url.trim() || detectedSource === 'unknown'}
-      class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded bg-slate-800 px-3 py-1.5 text-xs font-medium hover:bg-slate-700 disabled:opacity-40"
+      class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-surface-3 px-3 py-2 text-sm font-medium hover:bg-line-strong disabled:opacity-40"
     >
       {busy && !preview ? '…' : 'Examinar'}
     </button>
   </form>
 
   {#if detectedSource === 'unknown' && url.trim().length > 5}
-    <p class="mt-2 text-xs text-amber-400">
+    <p class="mt-2 text-xs text-warning">
       URL no reconocida — soporta Spotify, YouTube y SoundCloud.
     </p>
   {/if}
 
   {#if previewError}
-    <div class="mt-3 rounded-md border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
+    <div class="mt-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
       {previewError}
     </div>
   {/if}
 
   {#if lastImportMsg}
-    <div class="mt-3 rounded-md border border-cyan-900/50 bg-cyan-950/30 p-3 text-sm text-cyan-300">
+    <div class="mt-3 rounded-lg border border-accent/40 bg-accent-soft p-3 text-sm text-accent">
       {lastImportMsg}
     </div>
   {/if}
 
   {#if busy && !preview && !previewError}
-    <section class="mt-4 overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+    <section class="mt-4 overflow-hidden rounded-lg border border-line bg-surface">
       <div class="flex items-start gap-3 p-4">
-        <div class="size-20 flex-none animate-pulse rounded bg-slate-800"></div>
+        <div class="size-20 flex-none animate-pulse rounded-lg bg-surface-2"></div>
         <div class="min-w-0 flex-1 space-y-2 pt-1">
-          <div class="h-3 w-24 animate-pulse rounded bg-slate-800"></div>
-          <div class="h-5 w-3/4 animate-pulse rounded bg-slate-800"></div>
-          <div class="h-3 w-1/2 animate-pulse rounded bg-slate-800"></div>
+          <div class="h-3 w-24 animate-pulse rounded-lg bg-surface-2"></div>
+          <div class="h-5 w-3/4 animate-pulse rounded-lg bg-surface-2"></div>
+          <div class="h-3 w-1/2 animate-pulse rounded-lg bg-surface-2"></div>
         </div>
       </div>
-      <div class="flex items-center gap-2 border-t border-slate-800 bg-slate-950 px-4 py-2.5 text-xs text-sky-400">
-        <span class="size-1.5 animate-pulse rounded-full bg-sky-400"></span>
+      <div class="flex items-center gap-2 border-t border-line bg-bg px-4 py-2.5 text-xs text-accent">
+        <span class="size-1.5 animate-pulse rounded-full bg-accent"></span>
         Examinando URL…
       </div>
     </section>
@@ -344,24 +346,24 @@
 
   {#if preview}
     {@const srcInfo = sourceLabel(preview.source)}
-    <section class="mt-4 overflow-hidden rounded-lg border border-cyan-900/40 bg-slate-900">
+    <section class="mt-4 overflow-hidden rounded-lg border border-accent/40 bg-surface">
       <div class="flex items-start gap-3 p-4">
         {#if preview.tracks[0]?.cover_url}
-          <img loading="lazy" decoding="async" src={preview.tracks[0].cover_url} alt="" class="size-20 flex-none rounded object-cover" />
+          <img loading="lazy" decoding="async" src={preview.tracks[0].cover_url} alt="" class="size-20 flex-none rounded-lg object-cover" />
         {:else}
-          <div class="grid size-20 flex-none place-items-center rounded bg-slate-800 text-slate-600">
+          <div class="grid size-20 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle">
             <Music2 size={28} />
           </div>
         {/if}
         <div class="min-w-0 flex-1">
           <div class="mb-1 flex items-center gap-2">
-            <span class="rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider {srcInfo.color}">
+            <span class="rounded-lg border px-1.5 py-0.5 text-xs uppercase tracking-wider {srcInfo.color}">
               {srcInfo.name}
             </span>
-            <span class="text-xs text-slate-500">{kindLabel(preview.kind)}</span>
+            <span class="text-xs text-fg-subtle">{kindLabel(preview.kind)}</span>
           </div>
           <h2 class="text-lg font-semibold leading-tight">{preview.name}</h2>
-          <p class="mt-1 text-xs text-slate-400">
+          <p class="mt-1 text-xs text-fg-muted">
             {preview.total_tracks} {preview.total_tracks === 1 ? 'pista' : 'pistas'}
             {#if preview.tracks[0]?.artists.length}
               · {preview.tracks[0].artists.join(', ')}
@@ -371,34 +373,34 @@
       </div>
 
       <!-- Destino de la importación -->
-      <div class="border-t border-slate-800 bg-slate-950 p-4">
-          <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">
+      <div class="border-t border-line bg-bg p-4">
+          <p class="mb-3 text-xs uppercase tracking-wider text-fg-subtle">
             ¿Dónde van estas canciones?
           </p>
           <div class="mb-3 grid grid-cols-3 gap-2 text-xs">
-            <label class="flex cursor-pointer items-center justify-center gap-1.5 rounded border px-2 py-1.5 text-center"
-              class:border-cyan-500={ovMode === 'auto'}
-              class:border-slate-800={ovMode !== 'auto'}
-              class:bg-cyan-500={ovMode === 'auto'}
-              class:text-slate-950={ovMode === 'auto'}
+            <label class="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-center"
+              class:border-accent={ovMode === 'auto'}
+              class:border-line={ovMode !== 'auto'}
+              class:bg-accent={ovMode === 'auto'}
+              class:text-accent-fg={ovMode === 'auto'}
               class:font-semibold={ovMode === 'auto'}>
               <input type="radio" bind:group={ovMode} value="auto" class="sr-only" />
               {autoLabel}
             </label>
-            <label class="flex cursor-pointer items-center justify-center gap-1.5 rounded border px-2 py-1.5 text-center"
-              class:border-cyan-500={ovMode === 'new'}
-              class:border-slate-800={ovMode !== 'new'}
-              class:bg-cyan-500={ovMode === 'new'}
-              class:text-slate-950={ovMode === 'new'}
+            <label class="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-center"
+              class:border-accent={ovMode === 'new'}
+              class:border-line={ovMode !== 'new'}
+              class:bg-accent={ovMode === 'new'}
+              class:text-accent-fg={ovMode === 'new'}
               class:font-semibold={ovMode === 'new'}>
               <input type="radio" bind:group={ovMode} value="new" class="sr-only" />
               Álbum/playlist nuevo
             </label>
-            <label class="flex cursor-pointer items-center justify-center gap-1.5 rounded border px-2 py-1.5 text-center"
-              class:border-cyan-500={ovMode === 'existing'}
-              class:border-slate-800={ovMode !== 'existing'}
-              class:bg-cyan-500={ovMode === 'existing'}
-              class:text-slate-950={ovMode === 'existing'}
+            <label class="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-center"
+              class:border-accent={ovMode === 'existing'}
+              class:border-line={ovMode !== 'existing'}
+              class:bg-accent={ovMode === 'existing'}
+              class:text-accent-fg={ovMode === 'existing'}
               class:font-semibold={ovMode === 'existing'}>
               <input type="radio" bind:group={ovMode} value="existing" class="sr-only" />
               Añadir a uno tuyo
@@ -406,7 +408,7 @@
           </div>
 
           {#if ovMode === 'auto'}
-            <p class="rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-400">
+            <p class="rounded-lg border border-line bg-surface p-3 text-xs text-fg-muted">
               {#if preview.kind === 'album'}
                 Se guardan como su álbum original.
               {:else if preview.kind === 'playlist'}
@@ -418,49 +420,49 @@
           {:else if ovMode === 'new'}
             <div class="space-y-2 text-sm">
               <label class="block">
-                <span class="text-xs text-slate-400">Álbum</span>
+                <span class="text-xs text-fg-muted">Álbum</span>
                 <input
                   type="text"
                   bind:value={ovAlbum}
                   placeholder="Nombre del álbum (vacío → Singles)"
-                  class="mt-1 w-full rounded border border-slate-800 bg-slate-900 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
+                  class="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
                 />
               </label>
               <label class="block">
-                <span class="text-xs text-slate-400">
+                <span class="text-xs text-fg-muted">
                   {preview.kind === 'playlist' ? 'Artista de la playlist' : 'Artista'}
                 </span>
                 <input
                   type="text"
                   bind:value={ovArtist}
                   placeholder="Nombre del artista"
-                  class="mt-1 w-full rounded border border-slate-800 bg-slate-900 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
+                  class="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
                 />
               </label>
               <label class="block">
-                <span class="text-xs text-slate-400">Año <span class="text-slate-600">(opcional)</span></span>
+                <span class="text-xs text-fg-muted">Año <span class="text-fg-subtle">(opcional)</span></span>
                 <input
                   type="number"
                   bind:value={ovYear}
                   placeholder="2024"
                   min="1900"
                   max="2100"
-                  class="mt-1 w-full rounded border border-slate-800 bg-slate-900 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
+                  class="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
                 />
               </label>
             </div>
           {:else}
             <div class="text-sm">
               {#if albums.length === 0}
-                <p class="rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-500">
+                <p class="rounded-lg border border-line bg-surface p-3 text-xs text-fg-subtle">
                   No tienes álbumes todavía. Crea uno nuevo primero.
                 </p>
               {:else}
                 <label class="block">
-                  <span class="text-xs text-slate-400">Álbum existente</span>
+                  <span class="text-xs text-fg-muted">Álbum existente</span>
                   <select
                     bind:value={ovTargetAlbumId}
-                    class="mt-1 w-full rounded border border-slate-800 bg-slate-900 px-2 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
+                    class="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
                   >
                     <option value={null}>— seleccionar —</option>
                     {#each albums as a}
@@ -475,39 +477,39 @@
           {/if}
         </div>
 
-      <div class="border-t border-slate-800 bg-slate-900 p-3">
+      <div class="border-t border-line bg-surface p-3">
         <button
           onclick={onImport}
           disabled={busy || selectedCount === 0 || (ovMode === 'existing' && !ovTargetAlbumId)}
-          class="w-full rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+          class="w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg hover:bg-accent-hover disabled:opacity-50 min-h-11 sm:min-h-10"
         >
           {busy ? 'Encolando…' : `Importar ${selectedCount} ${selectedCount === 1 ? 'pista' : 'pistas'}`}
         </button>
       </div>
 
       {#if preview.tracks.length > 1}
-        <div class="border-t border-slate-800">
+        <div class="border-t border-line">
           <div class="flex items-center justify-between px-4 py-2 text-xs">
-            <span class="text-slate-400">{selectedCount} de {preview.tracks.length} seleccionadas</span>
+            <span class="text-fg-muted">{selectedCount} de {preview.tracks.length} seleccionadas</span>
             <button
               type="button"
               onclick={() => toggleAll(!allSelected)}
-              class="font-medium text-cyan-400 hover:underline"
+              class="font-medium text-accent hover:underline"
             >{allSelected ? 'Quitar todas' : 'Marcar todas'}</button>
           </div>
-          <ul class="max-h-72 divide-y divide-slate-800 overflow-y-auto text-sm">
+          <ul class="max-h-72 divide-y divide-line overflow-y-auto text-sm">
             {#each preview.tracks as t (t.spotify_id)}
               <li>
-                <label class="flex cursor-pointer items-center gap-3 px-4 py-1.5 hover:bg-slate-950">
+                <label class="flex cursor-pointer items-center gap-3 px-4 py-1.5 hover:bg-bg">
                   <input
                     type="checkbox"
                     bind:checked={selected[t.spotify_id]}
-                    class="size-4 flex-none accent-cyan-500"
+                    class="size-4 flex-none accent-accent"
                   />
-                  <span class="min-w-0 flex-1 truncate" class:text-slate-600={!selected[t.spotify_id]}>
+                  <span class="min-w-0 flex-1 truncate" class:text-fg-subtle={!selected[t.spotify_id]}>
                     {t.title}
                   </span>
-                  <span class="flex-none font-mono text-xs text-slate-500">{formatDuration(t.duration_ms)}</span>
+                  <span class="flex-none tabular-nums text-xs text-fg-subtle">{formatDuration(t.duration_ms)}</span>
                 </label>
               </li>
             {/each}
@@ -522,57 +524,57 @@
   {/if}
 
   <!-- Cola -->
-  <section class="mt-10">
+  <section class="mt-12">
     <header class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-      <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">
+      <h2 class="section-title">
         Cola de descarga
       </h2>
       <div class="flex flex-wrap gap-1.5 text-xs">
         {#if jobs.stats.failed > 0}
           <button
             onclick={retryAllFailed}
-            class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1 transition hover:bg-slate-800"
+            class="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-2 transition hover:bg-surface-2 min-h-11 sm:min-h-10"
           ><RefreshCw size={12} /> reintentar {jobs.stats.failed} fallidos</button>
           <button
             onclick={clearFailed}
-            class="inline-flex items-center gap-1 rounded border border-slate-800 px-2 py-1 transition hover:bg-slate-800"
+            class="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-2 transition hover:bg-surface-2 min-h-11 sm:min-h-10"
           ><Trash2 size={12} /> borrar fallidos</button>
         {/if}
         {#if jobs.stats.done > 0}
           <button
             onclick={clearDone}
-            class="rounded border border-slate-800 px-2 py-1 text-slate-500 hover:bg-slate-800"
+            class="rounded-lg border border-line px-2 py-2 text-fg-subtle hover:bg-surface-2 min-h-11 sm:min-h-10"
           >limpiar historial</button>
         {/if}
       </div>
     </header>
 
-    <div class="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-xs">
-      <span class="text-slate-400">Total: <b class="text-slate-200">{jobs.stats.total}</b></span>
+    <div class="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 text-xs min-h-11 sm:min-h-10">
+      <span class="text-fg-muted">Total: <b class="text-fg">{jobs.stats.total}</b></span>
       {#if jobs.stats.pending > 0}
-        <span class="inline-flex items-center gap-1 text-slate-400"><Clock size={11} /> {jobs.stats.pending}</span>
+        <span class="inline-flex items-center gap-1 text-fg-muted"><Clock size={11} /> {jobs.stats.pending}</span>
       {/if}
       {#if jobs.stats.running > 0}
-        <span class="inline-flex items-center gap-1 text-sky-400"><Loader2 size={11} class="animate-spin" /> {jobs.stats.running}</span>
+        <span class="inline-flex items-center gap-1 text-accent"><Loader2 size={11} class="animate-spin" /> {jobs.stats.running}</span>
       {/if}
       {#if jobs.stats.done > 0}
-        <span class="inline-flex items-center gap-1 text-cyan-400"><Check size={11} /> {jobs.stats.done}</span>
+        <span class="inline-flex items-center gap-1 text-accent"><Check size={11} /> {jobs.stats.done}</span>
       {/if}
       {#if jobs.stats.failed > 0}
-        <span class="inline-flex items-center gap-1 text-red-400"><X size={11} /> {jobs.stats.failed}</span>
+        <span class="inline-flex items-center gap-1 text-danger"><X size={11} /> {jobs.stats.failed}</span>
       {/if}
       {#if jobs.active > 0}
-        <span class="ml-auto inline-flex items-center gap-1 text-sky-400">
-          <span class="size-1.5 animate-pulse rounded-full bg-sky-400"></span>
+        <span class="ml-auto inline-flex items-center gap-1 text-accent">
+          <span class="size-1.5 animate-pulse rounded-full bg-accent"></span>
           descargando…
         </span>
       {/if}
     </div>
 
     {#if groups.length === 0}
-      <div class="rounded-md border border-dashed border-slate-800 p-8 text-center">
-        <p class="text-sm text-slate-400">Sin importaciones todavía.</p>
-        <p class="mt-2 text-xs text-slate-600">
+      <div class="rounded-lg border border-dashed border-line p-8 text-center">
+        <p class="text-sm text-fg-muted">Sin importaciones todavía.</p>
+        <p class="mt-2 text-xs text-fg-subtle">
           Prueba pegando una URL: <br />
           spotify.com · youtube.com · soundcloud.com
         </p>
@@ -582,16 +584,16 @@
         {#each groups as g (g.key)}
           {@const total = g.items.length}
           {@const isOpen = expanded[g.key] ?? false}
-          <li class="overflow-hidden rounded-md border border-slate-800 bg-slate-900">
+          <li class="overflow-hidden rounded-lg border border-line bg-surface">
             <button
               type="button"
               onclick={() => (expanded[g.key] = !isOpen)}
-              class="flex w-full items-center gap-3 p-3 text-left hover:bg-slate-800/50"
+              class="flex w-full items-center gap-3 p-3 text-left hover:bg-surface-2/50"
             >
               {#if g.cover_url}
-                <img loading="lazy" decoding="async" src={g.cover_url} alt="" class="size-12 flex-none rounded object-cover" />
+                <img loading="lazy" decoding="async" src={g.cover_url} alt="" class="size-12 flex-none rounded-lg object-cover" />
               {:else}
-                <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-slate-500">
+                <div class="grid size-12 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle">
                   {#if g.kind === 'album'}
                     <Disc3 size={20} />
                   {:else if g.kind === 'playlist'}
@@ -603,36 +605,36 @@
               {/if}
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline gap-2">
-                  <span class="text-xs uppercase text-slate-500">{kindLabel(g.kind)}</span>
+                  <span class="text-xs uppercase text-fg-subtle">{kindLabel(g.kind)}</span>
                   <span class="truncate text-sm font-medium">{g.name}</span>
                 </div>
                 <div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                  <span class="block h-1 w-20 overflow-hidden rounded-full bg-slate-800">
+                  <span class="block h-1 w-20 overflow-hidden rounded-full bg-surface-2">
                     <span
-                      class="block h-full bg-cyan-400"
+                      class="block h-full bg-accent"
                       style:width="{total > 0 ? Math.round((g.counts.done / total) * 100) : 0}%"
                     ></span>
                   </span>
-                  <span class="text-slate-500">{g.counts.done}/{total}</span>
+                  <span class="text-fg-subtle">{g.counts.done}/{total}</span>
                   {#if g.counts.running > 0}
-                    <span class="inline-flex items-center gap-0.5 text-sky-400">
+                    <span class="inline-flex items-center gap-0.5 text-accent">
                       <Loader2 size={10} class="animate-spin" /> {g.counts.running}
                     </span>
                   {/if}
                   {#if g.counts.failed > 0}
-                    <span class="inline-flex items-center gap-0.5 text-red-400">
+                    <span class="inline-flex items-center gap-0.5 text-danger">
                       <X size={10} /> {g.counts.failed}
                     </span>
                   {/if}
                 </div>
               </div>
-              <span class="text-slate-500">
+              <span class="text-fg-subtle">
                 {#if isOpen}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
               </span>
             </button>
 
             {#if isOpen}
-              <ul class="divide-y divide-slate-800 border-t border-slate-800 bg-slate-950">
+              <ul class="divide-y divide-line border-t border-line bg-bg">
                 {#each g.items as job (job.id)}
                   {@const StatusIcon = STATUS_ICON[job.status]}
                   <li class="px-3 py-2">
@@ -642,48 +644,48 @@
                       </span>
                       <div class="min-w-0 flex-1">
                         <div class="truncate text-sm">{job.title}</div>
-                        <div class="truncate text-xs text-slate-500">
+                        <div class="truncate text-xs text-fg-subtle">
                           {job.artist}
                           {#if job.album} · {job.album}{/if}
                           {#if job.backend_used} · {job.backend_used}{/if}
                           {#if job.duration_ms} · {formatDuration(job.duration_ms)}{/if}
                         </div>
                         {#if job.error}
-                          <div class="mt-0.5 truncate text-xs text-red-400/80" title={job.error}>{job.error}</div>
+                          <div class="mt-0.5 truncate text-xs text-danger/80" title={job.error}>{job.error}</div>
                         {/if}
                       </div>
                       <div class="flex flex-none gap-1">
                         {#if job.status === 'failed'}
                           <button
                             onclick={() => retry(job.id)}
-                            class="grid size-7 place-items-center rounded border border-slate-800 transition hover:bg-slate-800"
+                            class="grid size-10 place-items-center rounded-lg border border-line transition hover:bg-surface-2"
                             title="Reintentar"
                           ><RefreshCw size={12} /></button>
                         {/if}
                         {#if job.status !== 'running'}
                           <button
                             onclick={() => remove(job.id)}
-                            class="grid size-7 place-items-center rounded border border-slate-800 text-slate-500 transition hover:bg-slate-800 hover:text-red-400"
+                            class="grid size-10 place-items-center rounded-lg border border-line text-fg-subtle transition hover:bg-surface-2 hover:text-danger"
                             title="Eliminar"
                           ><X size={12} /></button>
                         {/if}
                       </div>
                     </div>
                     {#if job.status === 'running'}
-                      <div class="mt-1.5 ml-8 flex items-center gap-2 text-[10px] text-sky-300">
-                        <span class="relative block h-1 flex-1 overflow-hidden rounded-full bg-slate-800">
+                      <div class="mt-1.5 ml-8 flex items-center gap-2 text-xs text-accent">
+                        <span class="relative block h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
                           <span
-                            class="block h-full bg-sky-400 transition-all duration-500"
+                            class="block h-full bg-accent transition-all duration-500"
                             style:width="{Math.max(2, job.progress)}%"
                           ></span>
                           <!-- Stripe indeterminado encima cuando estamos atascados en 95% (convirtiendo) -->
                           {#if job.progress >= 90 && job.progress < 100}
-                            <span class="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-sky-300/20 to-transparent"></span>
+                            <span class="absolute inset-0 animate-pulse bg-accent-hover/30"></span>
                           {/if}
                         </span>
-                        <span class="w-9 text-right font-mono">{job.progress}%</span>
+                        <span class="w-9 text-right tabular-nums">{job.progress}%</span>
                         {#if job.stage}
-                          <span class="text-slate-500">· {job.stage}</span>
+                          <span class="text-fg-subtle">· {job.stage}</span>
                         {/if}
                       </div>
                     {/if}

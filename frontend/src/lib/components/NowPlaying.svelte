@@ -19,22 +19,8 @@
   } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { api, formatDuration } from '$lib/api';
-  import { dominantColor } from '$lib/visual';
 
   let { onclose, onqueue }: { onclose: () => void; onqueue: () => void } = $props();
-
-  // Color ambiente extraído de la portada
-  let accent = $state<[number, number, number]>([34, 45, 70]);
-  $effect(() => {
-    const url = player.current?.cover_url;
-    if (!url) {
-      accent = [34, 45, 70];
-      return;
-    }
-    dominantColor(url)
-      .then((c) => (accent = c))
-      .catch(() => {});
-  });
 
   let plain = $state<string | null>(null);
   let synced = $state<{ time: number; text: string }[] | null>(null);
@@ -141,47 +127,41 @@
 
 {#if player.current}
   <div
-    class="fixed inset-0 z-50 flex flex-col bg-black"
+    class="fixed inset-0 z-50 flex flex-col bg-bg"
     style:transform="translateY({touchDelta > 0 ? touchDelta : 0}px)"
     style:transition={touchDelta === 0 ? 'transform 0.2s' : 'none'}
     ontouchstart={onTouchStart}
     ontouchmove={onTouchMove}
     ontouchend={onTouchEnd}
   >
-    <!-- Fondo ambiente del color de la portada -->
-    <div
-      class="pointer-events-none absolute inset-0 -z-10"
-      style:background="radial-gradient(ellipse 95% 55% at 50% 0%, rgba({accent[0]},{accent[1]},{accent[2]},0.6), transparent 72%), linear-gradient(180deg, rgb(2 6 23), #000 75%)"
-      style:transition="background 700ms ease"
-    ></div>
     <!-- Header -->
-    <header class="grid flex-none grid-cols-[5rem_minmax(0,1fr)_5rem] items-center p-4">
-      <div class="flex w-20 justify-start">
+    <header class="grid flex-none grid-cols-[6rem_minmax(0,1fr)_6rem] items-center px-3 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
+      <div class="flex w-24 justify-start">
         <button
           onclick={onclose}
-          class="grid size-10 place-items-center rounded-full text-slate-300 hover:bg-slate-800"
+          class="grid size-10 place-items-center rounded-full text-fg-muted hover:bg-surface-2"
           aria-label="Cerrar"
         >
           <ChevronDown size={24} />
         </button>
       </div>
       <div class="min-w-0 text-center">
-        <div class="text-xs uppercase tracking-widest text-slate-500">Reproduciendo</div>
+        <div class="text-xs uppercase tracking-widest text-fg-subtle">Reproduciendo</div>
         <div class="truncate text-sm font-medium">
           {player.current.album_title || 'Sin álbum'}
         </div>
       </div>
-      <div class="flex w-20 items-center justify-end gap-1">
+      <div class="flex w-24 items-center justify-end">
         <button
           onclick={() => player.toggleLikeCurrent()}
-          class="grid size-10 place-items-center rounded-full transition hover:bg-slate-800"
-          class:text-cyan-400={player.current.liked}
-          class:text-slate-300={!player.current.liked}
+          class="grid size-10 place-items-center rounded-full transition hover:bg-surface-2"
+          class:text-accent={player.current.liked}
+          class:text-fg-muted={!player.current.liked}
           aria-label={player.current.liked ? 'Quitar de me gusta' : 'Me gusta'}
         ><Heart size={20} fill={player.current.liked ? 'currentColor' : 'none'} /></button>
         <button
           onclick={onqueue}
-          class="grid size-10 place-items-center rounded-full text-slate-300 transition hover:bg-slate-800"
+          class="grid size-10 place-items-center rounded-full text-fg-muted transition hover:bg-surface-2"
           aria-label="Ver cola"
         ><ListMusic size={20} /></button>
       </div>
@@ -191,15 +171,19 @@
     <div class="flex flex-none justify-center gap-1 px-4">
       <button
         onclick={() => (activeTab = 'cover')}
-        class="px-4 py-1.5 text-xs uppercase tracking-wider"
-        class:text-cyan-400={activeTab === 'cover'}
-        class:text-slate-500={activeTab !== 'cover'}
+        class="min-h-10 border-b-2 px-4 text-xs font-semibold uppercase tracking-wider"
+        class:text-accent={activeTab === 'cover'}
+        class:border-accent={activeTab === 'cover'}
+        class:border-transparent={activeTab !== 'cover'}
+        class:text-fg-subtle={activeTab !== 'cover'}
       >Portada</button>
       <button
         onclick={() => (activeTab = 'lyrics')}
-        class="flex items-center gap-1 px-4 py-1.5 text-xs uppercase tracking-wider"
-        class:text-cyan-400={activeTab === 'lyrics'}
-        class:text-slate-500={activeTab !== 'lyrics'}
+        class="flex min-h-10 items-center gap-1.5 border-b-2 px-4 text-xs font-semibold uppercase tracking-wider"
+        class:text-accent={activeTab === 'lyrics'}
+        class:border-accent={activeTab === 'lyrics'}
+        class:border-transparent={activeTab !== 'lyrics'}
+        class:text-fg-subtle={activeTab !== 'lyrics'}
       >
         <Mic2 size={12} />
         Letras
@@ -222,12 +206,10 @@
             <img loading="lazy" decoding="async"
               src={player.current.cover_url}
               alt=""
-              class="size-full rounded-lg object-cover"
-              style:box-shadow="0 25px 70px -15px rgba({accent[0]},{accent[1]},{accent[2]},0.6)"
-              style:transition="box-shadow 700ms ease"
+              class="size-full rounded-xl object-cover"
             />
           {:else}
-            <div class="grid size-full place-items-center rounded bg-slate-800 text-slate-700">
+            <div class="grid size-full place-items-center rounded-xl bg-surface-2 text-fg-subtle">
               <Music2 size={96} />
             </div>
           {/if}
@@ -235,26 +217,26 @@
       {:else}
         <div bind:this={lyricsContainer} class="w-full max-w-md flex-1 overflow-y-auto py-6 text-center">
           {#if lyricsLoading}
-            <p class="text-sm text-slate-500">Cargando letras…</p>
+            <p class="text-sm text-fg-subtle">Cargando letras…</p>
           {:else if synced}
             <div class="space-y-3 py-12">
               {#each synced as line, i}
                 <p
                   data-idx={i}
                   class="text-lg leading-snug transition-all duration-300"
-                  class:text-cyan-400={i === currentLineIdx}
+                  class:text-accent={i === currentLineIdx}
                   class:scale-105={i === currentLineIdx}
                   class:font-bold={i === currentLineIdx}
-                  class:text-slate-500={i !== currentLineIdx && Math.abs(i - currentLineIdx) > 2}
-                  class:text-slate-300={i !== currentLineIdx && Math.abs(i - currentLineIdx) <= 2}
+                  class:text-fg-subtle={i !== currentLineIdx && Math.abs(i - currentLineIdx) > 2}
+                  class:text-fg-muted={i !== currentLineIdx && Math.abs(i - currentLineIdx) <= 2}
                 >{line.text || '...'}</p>
               {/each}
             </div>
           {:else if plain}
-            <pre class="whitespace-pre-wrap text-left text-sm leading-relaxed text-slate-300">{plain}</pre>
+            <pre class="whitespace-pre-wrap text-left text-sm leading-relaxed text-fg-muted">{plain}</pre>
           {:else}
-            <p class="text-sm text-slate-500">No hay letras disponibles para esta pista.</p>
-            <p class="mt-2 text-xs text-slate-600">LRCLIB no la tiene catalogada todavía.</p>
+            <p class="text-sm text-fg-subtle">No hay letras disponibles para esta pista.</p>
+            <p class="mt-2 text-xs text-fg-subtle">LRCLIB no la tiene catalogada todavía.</p>
           {/if}
         </div>
       {/if}
@@ -263,45 +245,37 @@
     <!-- Info + controles -->
     <div class="flex-none px-6 pb-8">
       <div class="mb-4 text-center">
-        <h2 class="truncate text-2xl font-bold">{player.current.title}</h2>
-        <p class="truncate text-base text-slate-400">{player.current.artist_name}</p>
+        <h2 class="truncate text-2xl font-bold tracking-tight">{player.current.title}</h2>
+        <p class="truncate text-base text-fg-muted">{player.current.artist_name}</p>
       </div>
 
       <!-- Scrubber -->
       <div class="mb-4 flex items-center gap-3 text-xs">
-        <span class="w-10 text-right font-mono text-slate-400">
+        <span class="w-10 text-right tabular-nums text-fg-muted">
           {formatDuration(player.position * 1000)}
         </span>
-        <div class="relative h-5 flex-1">
-          <div class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-slate-800">
-            <div
-              class="h-full rounded-full bg-cyan-400 transition-[width] duration-100"
-              style:width="{player.duration ? Math.min(100, Math.max(0, (player.position / player.duration) * 100)) : 0}%"
-            ></div>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max={player.duration || 0}
-            step="0.1"
-            value={player.position}
-            oninput={onSeek}
-            class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            aria-label="Posición"
-          />
-        </div>
-        <span class="w-10 font-mono text-slate-400">
+        <input
+          type="range"
+          min="0"
+          max={player.duration || 0}
+          step="0.1"
+          value={player.position}
+          oninput={onSeek}
+          class="seek flex-1"
+          aria-label="Posición"
+        />
+        <span class="w-10 tabular-nums text-fg-muted">
           {formatDuration((player.duration || 0) * 1000)}
         </span>
       </div>
 
       <!-- Controles -->
-      <div class="flex items-center justify-center gap-6">
+      <div class="flex items-center justify-center gap-3">
         <button
           onclick={() => player.toggleShuffle()}
-          class="transition"
-          class:text-cyan-400={player.shuffle}
-          class:text-slate-400={!player.shuffle}
+          class="grid size-11 place-items-center rounded-full transition hover:bg-surface-2"
+          class:text-accent={player.shuffle}
+          class:text-fg-muted={!player.shuffle}
           aria-label="Aleatorio"
         >
           <Shuffle size={22} />
@@ -309,7 +283,7 @@
 
         <button
           onclick={() => player.prev()}
-          class="text-slate-200 hover:text-white"
+          class="grid size-12 place-items-center rounded-full text-fg hover:bg-surface-2"
           aria-label="Anterior"
         >
           <SkipBack size={32} fill="currentColor" />
@@ -317,7 +291,7 @@
 
         <button
           onclick={() => player.toggle()}
-          class="grid size-16 place-items-center rounded-full bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/40 transition hover:bg-cyan-300"
+          class="grid size-16 place-items-center rounded-full bg-accent text-accent-fg transition hover:bg-accent-hover"
           aria-label={player.isPlaying ? 'Pausar' : 'Reproducir'}
         >
           {#if player.isPlaying}
@@ -329,7 +303,7 @@
 
         <button
           onclick={() => player.next()}
-          class="text-slate-200 hover:text-white"
+          class="grid size-12 place-items-center rounded-full text-fg hover:bg-surface-2"
           aria-label="Siguiente"
         >
           <SkipForward size={32} fill="currentColor" />
@@ -337,9 +311,9 @@
 
         <button
           onclick={() => player.cycleRepeat()}
-          class="transition"
-          class:text-cyan-400={player.repeat !== 'off'}
-          class:text-slate-400={player.repeat === 'off'}
+          class="grid size-11 place-items-center rounded-full transition hover:bg-surface-2"
+          class:text-accent={player.repeat !== 'off'}
+          class:text-fg-muted={player.repeat === 'off'}
           aria-label="Repetir"
         >
           {#if player.repeat === 'one'}
@@ -354,7 +328,7 @@
       <div class="mx-auto mt-6 flex w-full max-w-sm items-center gap-3">
         <button
           onclick={() => player.toggleMute()}
-          class="grid size-8 flex-none place-items-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+          class="grid size-10 flex-none place-items-center rounded-full text-fg-muted transition hover:bg-surface-2 hover:text-fg"
           aria-label={player.muted ? 'Quitar silencio' : 'Silenciar'}
         >
           {#if player.muted || player.volume === 0}
@@ -365,22 +339,17 @@
             <Volume2 size={18} />
           {/if}
         </button>
-        <div class="relative h-5 flex-1">
-          <div class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-slate-800">
-            <div class="h-full rounded-full bg-slate-400" style:width="{volumePct}%"></div>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={player.muted ? 0 : player.volume}
-            oninput={onVolume}
-            class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            aria-label="Volumen"
-          />
-        </div>
-        <span class="w-8 flex-none text-right font-mono text-xs text-slate-500">{volumePct}</span>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={player.muted ? 0 : player.volume}
+          oninput={onVolume}
+          class="seek flex-1"
+          aria-label="Volumen"
+        />
+        <span class="w-8 flex-none text-right tabular-nums text-xs text-fg-subtle">{volumePct}</span>
       </div>
     </div>
   </div>

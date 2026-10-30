@@ -1,5 +1,7 @@
 import { api, type Track } from './api';
 import { offline } from './offline.svelte';
+import { net, onNetChange, probe } from './net.svelte';
+import { toast, UNAVAILABLE_MSG } from './toast.svelte';
 import { media } from './media';
 import { advance, breakContinuity, newListen, type ListenState } from './listen';
 
@@ -8,6 +10,17 @@ const MUTED_KEY = "bbeat:muted";
 const SHUFFLE_KEY = "bbeat:shuffle";
 const REPEAT_KEY = "bbeat:repeat";
 const PAUSE_SETTLE_MS = 750;
+/** Sin red, tiempo máximo que aguantamos un stream parado antes de saltarlo. */
+const STALL_MS = 8000;
+
+/** Compara URLs ya resueltas: el.src es absoluta y stream_url puede ser relativa (web). */
+function sameUrl(a: string, b: string): boolean {
+  try {
+    return new URL(a, location.href).href === new URL(b, location.href).href;
+  } catch {
+    return a === b;
+  }
+}
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -97,6 +110,10 @@ class PlayerState {
   private explicitPauseElement: HTMLAudioElement | null = null;
   /** Heartbeat de 'sonando ahora' mientras hay reproducción. */
   private nowPlayingTimer: ReturnType<typeof setInterval> | null = null;
+  /** Vigilante de stream parado (sin red). */
+  private stallTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Fallos seguidos al cargar pistas; corta el bucle si todas fallan. */
+  private failStreak = 0;
 
   private cancelPendingPause() {
     if (this.pendingPauseTimer !== null) {
@@ -140,6 +157,16 @@ class PlayerState {
         this.explicitPauseElement = null;
         this.next(true);
       });
+      // Vigilancia del streaming: si se para y no hay red, no nos quedamos girando.
+      el.addEventListener('waiting', () => el === this.el && this.armStall());
+      el.addEventListener('stalled', () => el === this.el && this.armStall());
+      el.addEventListener('playing', () => {
+        if (el !== this.el) return;
+        this.clearStall();
+        this.failStreak = 0;
+      });
+      el.addEventListener('canplay', () => el === this.el && this.clearStall());
+      el.addEventListener('error', () => el === this.el && this.onAudioError());
       el.addEventListener('play', () => {
         if (el !== this.el) return;
         this.cancelPendingPause();
@@ -180,6 +207,15 @@ class PlayerState {
       });
     }
 
+    // Cambios de red: reajusta la precarga y vigila el stream actual si cae.
+    onNetChange((online) => {
+      this.preloadNext();
+      const cur = this.current;
+      if (!online && cur && this.isPlaying && !offline.has(cur.id) && (this.el?.readyState ?? 4) < 3) {
+        this.armStall();
+      }
+    });
+
     // Nota: NO reanudamos automáticamente al volver a primer plano. Si el
     // usuario (o el SO) paró la reproducción, se queda parada hasta que se
     // pulse play de nuevo. Antes había un "safety net" en visibilitychange que
@@ -189,6 +225,96 @@ class PlayerState {
   /** URL de reproducción de una pista: blob/fichero local si está descargada, si no el stream. */
   private srcFor(t: Track): string {
     return offline.audioUrl(t.id) ?? t.stream_url;
+  }
+
+  /** ¿Se puede reproducir ahora? Con red todo; sin red, solo lo descargado. */
+  private playable(t: Track | undefined): boolean {
+    return !!t && (net.online || offline.has(t.id));
+  }
+
+  private clearStall() {
+    if (this.stallTimer !== null) {
+      clearTimeout(this.stallTimer);
+      this.stallTimer = null;
+    }
+  }
+
+  /** Arranca el cronómetro de stream parado (una sola vez) y comprueba la red. */
+  private armStall() {
+    if (this.stallTimer !== null) return;
+    probe(); // si no hay red, net.online pasa a false antes de que venza
+    this.stallTimer = setTimeout(() => {
+      this.stallTimer = null;
+      if (!net.online) this.recoverFromDeadStream();
+    }, STALL_MS);
+  }
+
+  /** Error del <audio>: sin red recupera; con red, comportamiento de siempre. */
+  private async onAudioError() {
+    const cur = this.current;
+    if (!cur) return;
+    // Fichero local roto: no depende de la red; salta a la siguiente reproducible.
+    if (this.el?.src === offline.audioUrl(cur.id)) {
+      this.skipBroken();
+      return;
+    }
+    await probe();
+    if (!net.online && this.current?.id === cur.id) this.recoverFromDeadStream();
+  }
+
+  /** Pista que no carga: pasa a la siguiente reproducible, sin entrar en bucle. */
+  private skipBroken() {
+    this.clearStall();
+    const ni = ++this.failStreak > this.queue.length ? null : this.autoNextIndex();
+    if (ni === null) return this.stopDead();
+    this.index = ni;
+    this.loadCurrent(true);
+  }
+
+  /** El stream murió por falta de red: usa el fichero local o salta a una descarga. */
+  private recoverFromDeadStream() {
+    this.clearStall();
+    const el = this.el;
+    const cur = this.current;
+    if (!el || !cur) return;
+    // Descargada mientras sonaba en streaming: sigue desde el mismo punto en local.
+    const local = offline.audioUrl(cur.id);
+    if (local && el.src !== local) {
+      const pos = el.currentTime;
+      const resume = this.isPlaying;
+      this.switching = true;
+      el.src = local;
+      el.addEventListener(
+        'loadedmetadata',
+        () => {
+          try { el.currentTime = pos; } catch { /* ignore */ }
+        },
+        { once: true }
+      );
+      el.load();
+      const done = () => {
+        this.switching = false;
+        this.preloadNext();
+      };
+      if (resume) el.play().then(done, done);
+      else done();
+      return;
+    }
+    this.skipBroken();
+    if (this.isPlaying) toast.show('Sin conexión: pasando a tus descargas');
+  }
+
+  /** Nada más reproducible en la cola: para y avisa. */
+  private stopDead() {
+    this.failStreak = 0;
+    const el = this.el;
+    this.cancelPendingPause();
+    this.explicitPauseElement = null;
+    if (el) {
+      el.pause();
+      this.publishPaused(el);
+    }
+    toast.show('No hay más pistas descargadas en la cola', 3500);
   }
 
   pauseExplicit() {
@@ -257,6 +383,21 @@ class PlayerState {
   }
 
   playTracks(tracks: Track[], startIndex = 0) {
+    // Sin red, arranca en la primera descargada desde el punto pedido (la cola se conserva entera).
+    if (!net.online && tracks.length) {
+      const from = Math.max(0, Math.min(startIndex, tracks.length - 1));
+      let ok = -1;
+      for (let k = 0; k < tracks.length; k++) {
+        const i = (from + k) % tracks.length;
+        if (offline.has(tracks[i].id)) {
+          ok = i;
+          break;
+        }
+      }
+      if (ok < 0) return void toast.show(UNAVAILABLE_MSG);
+      if (ok !== from) toast.show('Saltando a tus descargas');
+      startIndex = ok;
+    }
     this.baseQueue = tracks;
     const start = Math.max(0, Math.min(startIndex, tracks.length - 1));
     if (this.shuffle && tracks.length > 1) {
@@ -315,6 +456,7 @@ class PlayerState {
   private loadCurrent(autoplay: boolean) {
     const el = this.el;
     if (!el || !this.current) return;
+    this.clearStall();
     this.cancelPendingPause();
     this.explicitPauseElement = null;
     // Marca que estamos cambiando para suprimir el pause espurio del <audio>.
@@ -349,8 +491,15 @@ class PlayerState {
 
   /** Índice al que saltaría el auto-avance (o null si no hay siguiente). */
   private autoNextIndex(): number | null {
-    if (this.index < this.queue.length - 1) return this.index + 1;
-    if (this.repeat === 'all' && this.queue.length) return 0;
+    // Sin red se saltan las no descargadas (con red, playable() es siempre true).
+    for (let i = this.index + 1; i < this.queue.length; i++) {
+      if (this.playable(this.queue[i])) return i;
+    }
+    if (this.repeat === 'all') {
+      for (let i = 0; i <= this.index && i < this.queue.length; i++) {
+        if (this.playable(this.queue[i])) return i;
+      }
+    }
     return null;
   }
 
@@ -403,7 +552,7 @@ class PlayerState {
     // Auto-avance con la siguiente ya precargada y lista → intercambia y
     // reproduce el elemento en espera. play() sobre algo bufferizado NO se
     // estrangula con la pantalla bloqueada (a diferencia de un load() en frío).
-    if (auto && sb && this.preloadedId === target?.id && sb.readyState >= 2) {
+    if (auto && sb && target && this.preloadedId === target.id && sb.readyState >= 2 && sameUrl(sb.src, this.srcFor(target))) {
       this.advanceBySwap(ni);
     } else {
       this.index = ni;
@@ -492,6 +641,10 @@ class PlayerState {
 
   /** Salta a una posición concreta de la cola. */
   jumpTo(i: number) {
+    if (i >= 0 && i < this.queue.length && !this.playable(this.queue[i])) {
+      toast.show(UNAVAILABLE_MSG);
+      return;
+    }
     if (i >= 0 && i < this.queue.length) {
       this.index = i;
       this.loadCurrent(true);
@@ -532,9 +685,11 @@ class PlayerState {
       el.currentTime = 0;
       return;
     }
-    if (this.index > 0) {
-      this.index -= 1;
+    for (let i = this.index - 1; i >= 0; i--) {
+      if (!this.playable(this.queue[i])) continue;
+      this.index = i;
       this.loadCurrent(true);
+      return;
     }
   }
 

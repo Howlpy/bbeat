@@ -175,25 +175,30 @@
   }
 </script>
 
-<ul class="divide-y divide-slate-900">
+<ul class="divide-y divide-line">
   {#each tracks as t, i (t.id)}
     {@const isCurrent = player.current?.id === t.id}
     <li>
       <div
-        class="flex w-full items-center gap-3 px-2 py-2 text-left hover:bg-slate-900"
-        class:bg-slate-900={isCurrent}
+        class="flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-surface"
+        class:bg-surface={isCurrent}
       >
-        <button onclick={() => player.playTracks(tracks, i)} class="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <button
+          onclick={() => player.playTracks(tracks, i)}
+          class="flex min-w-0 flex-1 items-center gap-3 py-1 text-left"
+          class:opacity-40={!offline.canPlay(t.id)}
+          aria-disabled={!offline.canPlay(t.id)}
+        >
           <span class="relative size-10 flex-none">
             {#if t.cover_url}
-              <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 rounded object-cover" />
+              <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 rounded-lg object-cover" />
             {:else}
-              <div class="grid size-10 place-items-center rounded bg-slate-800 text-slate-600">
-                <Music2 size={14} />
+              <div class="grid size-10 place-items-center rounded-lg bg-surface-2 text-fg-subtle">
+                <Music2 size={16} />
               </div>
             {/if}
             {#if isCurrent && player.isPlaying}
-              <span class="absolute inset-0 grid place-items-center rounded bg-black/45">
+              <span class="absolute inset-0 grid place-items-center rounded-lg bg-black/45">
                 <span class="flex h-3.5 items-end gap-[2px]">
                   <span class="eq-bar"></span>
                   <span class="eq-bar" style="animation-delay:.25s"></span>
@@ -203,34 +208,34 @@
             {/if}
           </span>
           <div class="min-w-0 flex-1">
-            <div class="truncate text-sm" class:text-cyan-400={isCurrent}>{t.title}</div>
-            <div class="truncate text-xs text-slate-500">
+            <div class="truncate text-sm" class:text-accent={isCurrent}>{t.title}</div>
+            <div class="truncate text-xs text-fg-subtle">
               {t.artist_name}{#if showAlbum && t.album_title} · {t.album_title}{/if}{#if showGenre} · {genreLabel(t.genre)}{/if}
             </div>
           </div>
-          <span class="flex-none font-mono text-xs text-slate-500">
+          <span class="flex-none text-xs tabular-nums text-fg-subtle">
             {formatDuration(t.duration_ms)}
           </span>
         </button>
         {#if offline.downloading.has(t.id)}
-          <span class="flex-none text-cyan-400" title="Descargando…"><Loader2 size={14} class="animate-spin" /></span>
+          <span class="flex-none text-accent" title="Descargando…"><Loader2 size={14} class="animate-spin" /></span>
         {:else if offline.has(t.id)}
-          <span class="flex-none text-cyan-500" title="Descargada"><CircleCheck size={14} /></span>
+          <span class="flex-none text-accent" title="Descargada"><CircleCheck size={14} /></span>
         {:else if offline.failed.has(t.id)}
-          <button onclick={(e) => { e.stopPropagation(); offline.download(t); }} class="flex-none text-red-400" title="Falló — reintentar"><AlertCircle size={14} /></button>
+          <button onclick={(e) => { e.stopPropagation(); offline.download(t); }} class="flex-none text-danger" title="Falló — reintentar"><AlertCircle size={14} /></button>
         {/if}
         <button
           onclick={(e) => toggleLike(e, t)}
-          class="grid size-8 flex-none place-items-center rounded transition hover:bg-slate-800"
-          class:text-cyan-400={t.liked}
-          class:text-slate-600={!t.liked}
+          class="grid size-10 flex-none place-items-center rounded-full transition hover:bg-surface-2"
+          class:text-accent={t.liked}
+          class:text-fg-subtle={!t.liked}
           class:heart-pop={poppedId === t.id}
           aria-label={t.liked ? 'Quitar de me gusta' : 'Me gusta'}
           title={t.liked ? 'Quitar de me gusta' : 'Me gusta'}
         ><Heart size={16} fill={t.liked ? 'currentColor' : 'none'} /></button>
         <button
           onclick={(e) => openSheet(e, t, i)}
-          class="grid size-8 flex-none place-items-center rounded text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+          class="grid size-10 flex-none place-items-center rounded-full text-fg-subtle hover:bg-surface-2 hover:text-fg"
           aria-label="Más opciones"
         ><MoreVertical size={16} /></button>
       </div>
@@ -241,72 +246,72 @@
 {#if sheetTrack}
   {@const t = sheetTrack}
   <button
-    class="fixed inset-0 z-[60] cursor-default bg-black/60 backdrop-blur-sm"
+    class="fixed inset-0 z-[60] cursor-default bg-black/60"
     onclick={closeSheet}
     aria-label="Cerrar"
     transition:fade={{ duration: 150 }}
   ></button>
   <div
-    class="fixed inset-x-0 bottom-0 z-[61] mx-auto max-w-2xl rounded-t-2xl border border-b-0 border-slate-700/60 bg-slate-900/95 pb-[env(safe-area-inset-bottom)] shadow-2xl shadow-black/50 backdrop-blur-xl"
+    class="fixed inset-x-0 bottom-0 z-[61] mx-auto max-w-2xl rounded-t-xl border border-b-0 border-line bg-surface pb-[env(safe-area-inset-bottom)] shadow-2xl shadow-black/50"
     transition:fly={{ y: 420, duration: 280 }}
   >
-    <div class="flex justify-center pt-2.5"><span class="h-1 w-10 rounded-full bg-slate-600"></span></div>
+    <div class="flex justify-center pt-2.5"><span class="h-1 w-10 rounded-full bg-line-strong"></span></div>
     <div class="flex items-center gap-3 px-4 py-3">
       {#if sheetView === 'playlist'}
         <button
           onclick={() => (sheetView = 'menu')}
-          class="grid size-8 flex-none place-items-center rounded-full text-slate-400 hover:bg-slate-800"
+          class="grid size-10 flex-none place-items-center rounded-full text-fg-muted hover:bg-surface-2"
           aria-label="Volver"
         ><ChevronLeft size={18} /></button>
       {:else if t.cover_url}
-        <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-12 flex-none rounded object-cover" />
+        <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-12 flex-none rounded-lg object-cover" />
       {:else}
-        <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-slate-600"><Music2 size={18} /></div>
+        <div class="grid size-12 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle"><Music2 size={18} /></div>
       {/if}
       <div class="min-w-0 flex-1">
         <div class="truncate text-sm font-medium">{t.title}</div>
-        <div class="truncate text-xs text-slate-500">{t.artist_name}</div>
+        <div class="truncate text-xs text-fg-subtle">{t.artist_name}</div>
       </div>
-      <button onclick={closeSheet} class="grid size-8 flex-none place-items-center rounded-full text-slate-400 hover:bg-slate-800" aria-label="Cerrar"><X size={18} /></button>
+      <button onclick={closeSheet} class="grid size-10 flex-none place-items-center rounded-full text-fg-muted hover:bg-surface-2" aria-label="Cerrar"><X size={18} /></button>
     </div>
     {#if sheetView === 'menu'}
-    <div class="border-t border-slate-800/70 py-1 text-sm">
-      <button onclick={playFromSheet} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><Play size={17} /> Reproducir</button>
-      <button onclick={() => addToQueue(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><ListPlus size={17} /> Añadir a la cola</button>
-      <button onclick={() => playNext(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><CornerDownRight size={17} /> Reproducir a continuación</button>
-      <button onclick={() => (sheetView = 'playlist')} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><ListMusic size={17} /> Añadir a una playlist</button>
-      <button onclick={(e) => { toggleLike(e, t); closeSheet(); }} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800">
-        <Heart size={17} class={t.liked ? 'text-cyan-400' : ''} fill={t.liked ? 'currentColor' : 'none'} /> {t.liked ? 'Quitar de me gusta' : 'Me gusta'}
+    <div class="border-t border-line py-1 text-sm">
+      <button onclick={playFromSheet} class="flex min-h-12 w-full items-center gap-3 px-4 text-left hover:bg-surface-2"><Play size={17} /> Reproducir</button>
+      <button onclick={() => addToQueue(t)} class="flex min-h-12 w-full items-center gap-3 px-4 text-left hover:bg-surface-2"><ListPlus size={17} /> Añadir a la cola</button>
+      <button onclick={() => playNext(t)} class="flex min-h-12 w-full items-center gap-3 px-4 text-left hover:bg-surface-2"><CornerDownRight size={17} /> Reproducir a continuación</button>
+      <button onclick={() => (sheetView = 'playlist')} class="flex min-h-12 w-full items-center gap-3 px-4 text-left hover:bg-surface-2"><ListMusic size={17} /> Añadir a una playlist</button>
+      <button onclick={(e) => { toggleLike(e, t); closeSheet(); }} class="flex min-h-12 w-full items-center gap-3 px-4 text-left hover:bg-surface-2">
+        <Heart size={17} class={t.liked ? 'text-accent' : ''} fill={t.liked ? 'currentColor' : 'none'} /> {t.liked ? 'Quitar de me gusta' : 'Me gusta'}
       </button>
-      <button onclick={() => toggleDownload(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800">
+      <button onclick={() => toggleDownload(t)} class="flex min-h-12 w-full items-center gap-3 px-4 text-left hover:bg-surface-2">
         {#if offline.downloading.has(t.id)}
           <Loader2 size={17} class="animate-spin" /> Descargando…
         {:else if offline.has(t.id)}
-          <CircleCheck size={17} class="text-cyan-400" /> Quitar descarga
+          <CircleCheck size={17} class="text-accent" /> Quitar descarga
         {:else if offline.failed.has(t.id)}
-          <AlertCircle size={17} class="text-red-400" /> Reintentar descarga
+          <AlertCircle size={17} class="text-danger" /> Reintentar descarga
         {:else}
           <Download size={17} /> Descargar
         {/if}
       </button>
       {#if offline.failed.has(t.id) && offline.lastError}
-        <p class="px-4 pb-2 text-xs text-red-400/80">Error: {offline.lastError}</p>
+        <p class="px-4 pb-2 text-xs text-danger/80">Error: {offline.lastError}</p>
       {/if}
-      <div class="my-1 border-t border-slate-800/70"></div>
-      <button onclick={() => openEdit(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800"><Pencil size={17} /> Editar</button>
-      <button onclick={() => deleteTrack(t)} class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-red-400 hover:bg-slate-800"><Trash2 size={17} /> Borrar</button>
+      <div class="my-1 border-t border-line"></div>
+      <button onclick={() => openEdit(t)} class="flex min-h-12 w-full items-center gap-3 px-4 text-left hover:bg-surface-2"><Pencil size={17} /> Editar</button>
+      <button onclick={() => deleteTrack(t)} class="flex min-h-12 w-full items-center gap-3 px-4 text-left text-danger hover:bg-surface-2"><Trash2 size={17} /> Borrar</button>
     </div>
     {:else}
-    <div class="border-t border-slate-800/70 text-sm">
-      <p class="px-4 pt-3 text-xs uppercase tracking-wider text-slate-500">Añadir a</p>
+    <div class="border-t border-line text-sm">
+      <p class="px-4 pt-3 text-xs uppercase tracking-wider text-fg-subtle">Añadir a</p>
       <div class="max-h-64 overflow-y-auto py-1">
         {#each playlists as pl (pl.id)}
           <button
             onclick={() => addToPlaylist(pl, t)}
             disabled={addingTo !== null}
-            class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800 disabled:opacity-50"
+            class="flex min-h-12 w-full items-center gap-3 px-4 text-left hover:bg-surface-2 disabled:opacity-50"
           >
-            <span class="grid size-9 flex-none place-items-center overflow-hidden rounded bg-slate-800 text-slate-500">
+            <span class="grid size-9 flex-none place-items-center overflow-hidden rounded-lg bg-surface-2 text-fg-subtle">
               {#if pl.cover_url}
                 <img loading="lazy" decoding="async" src={pl.cover_url} alt="" class="size-9 object-cover" />
               {:else}
@@ -315,34 +320,34 @@
             </span>
             <span class="min-w-0 flex-1">
               <span class="block truncate">{pl.title}</span>
-              <span class="block text-xs text-slate-500">{pl.track_count} pistas</span>
+              <span class="block text-xs text-fg-subtle">{pl.track_count} pistas</span>
             </span>
             {#if addingTo === pl.id}
-              <Loader2 size={16} class="flex-none animate-spin text-cyan-400" />
+              <Loader2 size={16} class="flex-none animate-spin text-accent" />
             {:else}
-              <Check size={16} class="flex-none text-slate-700" />
+              <Check size={16} class="flex-none text-fg-subtle" />
             {/if}
           </button>
         {:else}
-          <p class="px-4 py-3 text-xs text-slate-500">Todavía no tienes ninguna playlist.</p>
+          <p class="px-4 py-3 text-xs text-fg-subtle">Todavía no tienes ninguna playlist.</p>
         {/each}
       </div>
-      <div class="flex items-center gap-2 border-t border-slate-800/70 px-4 py-3">
-        <Plus size={16} class="flex-none text-slate-500" />
+      <div class="flex items-center gap-2 border-t border-line px-4 py-3">
+        <Plus size={16} class="flex-none text-fg-subtle" />
         <input
           bind:value={newPlaylistName}
           onkeydown={(e) => e.key === 'Enter' && createPlaylistWith(t)}
           placeholder="Crear playlist nueva…"
-          class="min-w-0 flex-1 rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-sm placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
+          class="min-w-0 flex-1 rounded-lg border border-line bg-bg px-3 py-2 text-sm placeholder:text-fg-subtle focus:border-accent focus:outline-none"
         />
         <button
           onclick={() => createPlaylistWith(t)}
           disabled={!newPlaylistName.trim() || addingTo !== null}
-          class="flex-none rounded bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 disabled:opacity-40"
+          class="flex-none rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg disabled:opacity-40 min-h-11 sm:min-h-10"
         >Crear</button>
       </div>
       {#if addError}
-        <p class="px-4 pb-3 text-xs text-red-400">{addError}</p>
+        <p class="px-4 pb-3 text-xs text-danger">{addError}</p>
       {/if}
     </div>
     {/if}
@@ -351,7 +356,7 @@
 
 {#if toast}
   <div
-    class="fixed inset-x-0 bottom-24 z-[70] mx-auto w-fit max-w-[90vw] rounded-full border border-slate-700 bg-slate-900/95 px-4 py-2 text-sm text-slate-200 shadow-xl backdrop-blur"
+    class="fixed inset-x-0 bottom-24 z-[70] mx-auto w-fit max-w-[90vw] rounded-full border border-line-strong bg-surface-2 px-4 py-2.5 text-sm text-fg shadow-xl"
     transition:fade={{ duration: 150 }}
   >{toast}</div>
 {/if}

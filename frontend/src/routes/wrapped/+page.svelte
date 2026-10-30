@@ -16,6 +16,10 @@
   import { api, type MyStats } from '$lib/api';
   import { player } from '$lib/player.svelte';
   import { auth } from '$lib/auth.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import ErrorState from '$lib/components/ErrorState.svelte';
   import WrappedCard from '$lib/components/WrappedCard.svelte';
 
   const RANGES = [
@@ -97,92 +101,91 @@
   }
 </script>
 
-<div class="mx-auto max-w-3xl px-4 pt-6 pb-8">
-  <header class="mb-5 flex items-center gap-3">
-    <span class="grid size-12 flex-none place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-sky-700 text-slate-950">
+<div class="page-narrow">
+  <header class="mb-6 flex items-center gap-4">
+    <span class="grid size-12 flex-none place-items-center rounded-xl bg-accent-soft text-accent">
       <Flame size={24} />
     </span>
     <div>
-      <h1 class="text-2xl font-bold">Tu Wrapped</h1>
-      <p class="text-xs text-slate-500">tus números en bbeat</p>
+      <h1 class="page-title">Tu Wrapped</h1>
+      <p class="text-sm text-fg-muted">tus números en bbeat</p>
     </div>
   </header>
 
   <!-- Selector de rango -->
-  <div class="mb-6 inline-flex rounded-lg border border-slate-800 bg-slate-900/60 p-1">
+  <div class="mb-8 inline-flex rounded-lg bg-surface p-1">
     {#each RANGES as r, i}
       <button
         type="button"
         onclick={() => setRange(i)}
-        class="rounded-md px-3 py-1.5 text-xs font-medium transition"
-        class:bg-cyan-500={i === rangeIdx}
-        class:text-slate-950={i === rangeIdx}
-        class:text-slate-400={i !== rangeIdx}
+        class="min-h-10 rounded-md px-4 text-sm font-medium transition sm:min-h-9"
+        class:bg-accent={i === rangeIdx}
+        class:text-accent-fg={i === rangeIdx}
+        class:text-fg-muted={i !== rangeIdx}
       >{r.label}</button>
     {/each}
   </div>
 
   {#if error}
-    <p class="text-red-400">{error}</p>
+    <ErrorState {error} />
   {:else if loading}
-    <p class="text-slate-500">Cargando…</p>
+    <div class="grid grid-cols-3 gap-3"><Skeleton class="h-28" /><Skeleton class="h-28" /><Skeleton class="h-28" /></div>
+    <Skeleton class="mt-6 h-32 w-full" />
   {:else if stats && stats.total_plays === 0}
-    <div class="rounded-md border border-dashed border-slate-800 p-8 text-center text-sm text-slate-400">
-      No hay reproducciones en este periodo. Prueba otro rango o dale al play 😎
-    </div>
+    <EmptyState icon={Flame} title="Sin reproducciones en este periodo" text="Prueba otro rango o dale al play." />
   {:else if stats}
     {@const dPlays = stats.prev ? pct(stats.total_plays, stats.prev.plays) : null}
     {@const dMin = stats.prev ? pct(stats.total_minutes, stats.prev.minutes) : null}
 
     <!-- Hero -->
-    <section class="mb-6 grid grid-cols-3 gap-3">
-      <div class="rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-4 text-center">
-        <Flame size={18} class="mx-auto mb-1 text-cyan-400" />
-        <div class="text-2xl font-bold text-cyan-400">{stats.total_plays}</div>
-        <div class="text-[10px] uppercase tracking-wider text-slate-500">plays</div>
+    <section class="mb-4 grid grid-cols-3 gap-3">
+      <div class="rounded-xl border border-accent/40 bg-accent-soft p-4 text-center">
+        <Flame size={18} class="mx-auto mb-1 text-accent" />
+        <div class="text-2xl font-bold tabular-nums text-accent">{stats.total_plays}</div>
+        <div class="text-xs uppercase tracking-wider text-fg-subtle">plays</div>
         {#if dPlays !== null}
-          <div class="mt-1 flex items-center justify-center gap-0.5 text-[10px]" class:text-emerald-400={dPlays >= 0} class:text-red-400={dPlays < 0}>
+          <div class="mt-1 flex items-center justify-center gap-0.5 text-xs" class:text-success={dPlays >= 0} class:text-danger={dPlays < 0}>
             {#if dPlays >= 0}<TrendingUp size={11} />{:else}<TrendingDown size={11} />{/if}
             {Math.abs(dPlays)}%
           </div>
         {/if}
       </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-4 text-center">
-        <Clock size={18} class="mx-auto mb-1 text-slate-400" />
-        <div class="text-2xl font-bold">{stats.total_minutes}</div>
-        <div class="text-[10px] uppercase tracking-wider text-slate-500">minutos</div>
+      <div class="rounded-xl border border-line bg-surface p-4 text-center">
+        <Clock size={18} class="mx-auto mb-1 text-fg-muted" />
+        <div class="text-2xl font-bold tabular-nums">{stats.total_minutes}</div>
+        <div class="text-xs uppercase tracking-wider text-fg-subtle">minutos</div>
         {#if dMin !== null}
-          <div class="mt-1 flex items-center justify-center gap-0.5 text-[10px]" class:text-emerald-400={dMin >= 0} class:text-red-400={dMin < 0}>
+          <div class="mt-1 flex items-center justify-center gap-0.5 text-xs" class:text-success={dMin >= 0} class:text-danger={dMin < 0}>
             {#if dMin >= 0}<TrendingUp size={11} />{:else}<TrendingDown size={11} />{/if}
             {Math.abs(dMin)}%
           </div>
         {/if}
       </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-4 text-center">
-        <Music2 size={18} class="mx-auto mb-1 text-slate-400" />
-        <div class="text-2xl font-bold">{stats.unique_tracks}</div>
-        <div class="text-[10px] uppercase tracking-wider text-slate-500">pistas</div>
+      <div class="rounded-xl border border-line bg-surface p-4 text-center">
+        <Music2 size={18} class="mx-auto mb-1 text-fg-muted" />
+        <div class="text-2xl font-bold tabular-nums">{stats.unique_tracks}</div>
+        <div class="text-xs uppercase tracking-wider text-fg-subtle">pistas</div>
       </div>
     </section>
 
     <!-- Racha + primer/último play -->
-    <section class="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <div class="rounded-xl border border-orange-900/40 bg-orange-950/10 p-4">
-        <div class="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wider text-slate-500">
-          <Flame size={13} class="text-orange-400" /> Racha
+    <section class="mb-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div class="rounded-xl border border-warning/40 bg-warning/10 p-4">
+        <div class="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wider text-fg-subtle">
+          <Flame size={13} class="text-warning" /> Racha
         </div>
-        <div class="text-xl font-bold text-orange-300">
+        <div class="text-xl font-bold text-warning">
           {stats.streak_days} {stats.streak_days === 1 ? 'día' : 'días'}
         </div>
       </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
-        <div class="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wider text-slate-500">
+      <div class="rounded-xl border border-line bg-surface p-4">
+        <div class="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wider text-fg-subtle">
           <CalendarClock size={13} /> Primer play
         </div>
         <div class="text-sm font-semibold">{fmtDate(stats.first_play)}</div>
       </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
-        <div class="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wider text-slate-500">
+      <div class="rounded-xl border border-line bg-surface p-4">
+        <div class="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wider text-fg-subtle">
           <CalendarClock size={13} /> Último play
         </div>
         <div class="text-sm font-semibold">{fmtDate(stats.last_play)}</div>
@@ -190,22 +193,22 @@
     </section>
 
     <!-- Reloj de escucha -->
-    <section class="mb-8">
-      <h2 class="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
-        <Clock size={14} class="text-cyan-400" /> Reloj de escucha
+    <section class="mb-10">
+      <h2 class="section-title mb-3">
+        <Clock size={14} class="text-accent" /> Reloj de escucha
       </h2>
-      <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div class="rounded-xl border border-line bg-surface p-4">
         <div class="flex h-24 items-end gap-[3px]">
           {#each stats.clock as c, h}
             <div class="group relative flex-1" title="{h}:00 · {c} plays">
               <div
-                class="w-full rounded-t bg-cyan-500/70 transition-all group-hover:bg-cyan-400"
+                class="w-full rounded-t bg-accent transition-all group-hover:bg-accent-hover"
                 style:height="{Math.max(2, (c / clockMax) * 88)}px"
               ></div>
             </div>
           {/each}
         </div>
-        <div class="mt-1.5 flex justify-between text-[9px] text-slate-600">
+        <div class="mt-1.5 flex justify-between text-xs text-fg-subtle">
           <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span>
         </div>
       </div>
@@ -213,28 +216,28 @@
 
     <!-- Tus top tracks -->
     {#if stats.top_tracks.length > 0}
-      <section class="mb-8">
-        <h2 class="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
-          <Trophy size={14} class="text-cyan-400" /> Tus más escuchadas
+      <section class="mb-10">
+        <h2 class="section-title mb-3">
+          <Trophy size={14} class="text-accent" /> Tus más escuchadas
         </h2>
-        <ul class="divide-y divide-slate-800 rounded border border-slate-800 bg-slate-900/40">
+        <ul class="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
           {#each stats.top_tracks as t, i (t.id)}
             <li>
               <button
                 onclick={() => stats && player.playTracks(stats.top_tracks, i)}
-                class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-slate-800/60"
+                class="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2"
               >
-                <span class="w-5 flex-none text-center font-mono text-xs text-slate-600">{i + 1}</span>
+                <span class="w-5 flex-none text-center text-xs tabular-nums text-fg-subtle">{i + 1}</span>
                 {#if t.cover_url}
-                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
+                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded-lg object-cover" />
                 {:else}
-                  <div class="grid size-10 flex-none place-items-center rounded bg-slate-800 text-slate-600"><Music2 size={14} /></div>
+                  <div class="grid size-10 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle"><Music2 size={14} /></div>
                 {/if}
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-sm">{t.title}</div>
-                  <div class="truncate text-xs text-slate-500">{t.artist_name}</div>
+                  <div class="truncate text-xs text-fg-subtle">{t.artist_name}</div>
                 </div>
-                <span class="flex-none text-xs text-slate-500">{t.plays}×</span>
+                <span class="flex-none text-xs text-fg-subtle">{t.plays}×</span>
               </button>
             </li>
           {/each}
@@ -244,19 +247,19 @@
 
     <!-- Tus top artistas -->
     {#if stats.top_artists.length > 0}
-      <section class="mb-8">
-        <h2 class="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
-          <Users size={14} class="text-cyan-400" /> Tus artistas top
+      <section class="mb-10">
+        <h2 class="section-title mb-3">
+          <Users size={14} class="text-accent" /> Tus artistas top
         </h2>
         <div class="flex flex-wrap gap-2">
           {#each stats.top_artists as a, i (a.id)}
             <a
               href="/artists/{a.id}"
-              class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-3 py-1.5 text-sm transition hover:border-cyan-700/50"
+              class="inline-flex min-h-10 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm transition hover:bg-surface-2"
             >
-              <span class="font-mono text-xs text-slate-600">{i + 1}</span>
+              <span class="text-xs tabular-nums text-fg-subtle">{i + 1}</span>
               {a.name}
-              <span class="text-xs text-cyan-400">{a.plays}×</span>
+              <span class="text-xs text-accent">{a.plays}×</span>
             </a>
           {/each}
         </div>
@@ -265,21 +268,16 @@
 
     <!-- Tarjeta compartible -->
     <section>
-      <h2 class="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
-        <Share2 size={14} class="text-cyan-400" /> Comparte tu wrapped
+      <h2 class="section-title mb-3">
+        <Share2 size={14} class="text-accent" /> Comparte tu wrapped
       </h2>
       <div class="flex flex-col items-center gap-4">
         <div bind:this={cardEl}>
           <WrappedCard {stats} username={auth.user?.username ?? 'bbeat'} {rangeLabel} />
         </div>
-        <button
-          type="button"
-          onclick={share}
-          disabled={sharing}
-          class="inline-flex items-center gap-2 rounded-full bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50"
-        >
+        <Button variant="primary" onclick={share} disabled={sharing}>
           <Share2 size={16} /> {sharing ? 'Generando…' : 'Compartir imagen'}
-        </button>
+        </Button>
       </div>
     </section>
   {/if}

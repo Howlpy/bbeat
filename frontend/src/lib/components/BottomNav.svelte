@@ -47,21 +47,22 @@
      debajo de los diálogos y overlays (z-50+), que sí deben cubrirlo todo. -->
 <nav
   bind:clientHeight={height}
-  class="fixed inset-x-0 bottom-0 z-[45] border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+  class="fixed inset-x-0 bottom-0 z-[45] border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
 >
   <div class="mx-auto flex max-w-5xl">
     {#each items as item}
       {@const active = isActive(item.href)}
       <a
         href={item.href}
-        class="relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] transition-colors"
-        class:text-cyan-400={active}
-        class:text-slate-500={!active}
+        class="relative flex min-h-14 flex-1 flex-col items-center justify-center gap-1 pb-1.5 pt-2.5 text-xs font-medium transition-colors"
+        class:text-accent={active}
+        class:text-fg-muted={!active}
       >
-        <item.Icon size={20} strokeWidth={active ? 2.5 : 2} />
+        {#if active}<span class="absolute inset-x-[30%] top-0 h-0.5 rounded-full bg-accent"></span>{/if}
+        <item.Icon size={22} strokeWidth={active ? 2.25 : 1.75} />
         <span>{item.label}</span>
         {#if item.badge > 0}
-          <span class="absolute right-[20%] top-1 min-w-[1.1rem] rounded-full bg-cyan-500 px-1 text-center text-[10px] font-semibold text-slate-950">
+          <span class="absolute right-[18%] top-1.5 min-w-[1.1rem] rounded-full bg-accent px-1 text-center text-xs font-semibold leading-[1.1rem] text-accent-fg">
             {item.badge > 99 ? '99+' : item.badge}
           </span>
         {/if}
@@ -72,47 +73,47 @@
       <div class="relative flex flex-1" bind:this={menuEl}>
         <button
           onclick={() => (menuOpen = !menuOpen)}
-          class="flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px]"
-          class:text-cyan-400={menuOpen}
-          class:text-slate-500={!menuOpen}
+          class="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 pb-1.5 pt-2.5 text-xs font-medium"
+          class:text-accent={menuOpen}
+          class:text-fg-muted={!menuOpen}
         >
-          <span class="grid size-5 place-items-center rounded-full bg-slate-800 text-[10px] font-bold text-cyan-400">
+          <span class="grid size-[22px] place-items-center rounded-full bg-surface-3 text-xs font-bold text-accent">
             {auth.user.username[0]?.toUpperCase()}
           </span>
           <span class="max-w-[60px] truncate">{auth.user.username}</span>
         </button>
         {#if menuOpen}
-          <div class="absolute bottom-full right-2 mb-2 w-48 overflow-hidden rounded border border-slate-800 bg-slate-900 shadow-xl">
-            <div class="border-b border-slate-800 px-3 py-2 text-xs">
-              <div class="truncate text-slate-300">{auth.user.username}</div>
-              <div class="truncate text-slate-500">{auth.user.email}</div>
+          <div class="absolute bottom-full right-2 mb-2 w-56 overflow-hidden rounded-xl border border-line bg-surface-2 shadow-xl">
+            <div class="border-b border-line px-4 py-3 text-xs">
+              <div class="truncate text-sm font-semibold text-fg">{auth.user.username}</div>
+              <div class="truncate text-fg-subtle">{auth.user.email}</div>
               {#if auth.user.is_admin}
-                <div class="mt-0.5 text-cyan-400">administrador</div>
+                <div class="mt-0.5 text-accent">administrador</div>
               {/if}
             </div>
             <a
               href="/live"
               onclick={() => (menuOpen = false)}
-              class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              class="flex min-h-11 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
             ><Radio size={16} /> Sonando ahora</a>
             <a
               href="/wrapped"
               onclick={() => (menuOpen = false)}
-              class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              class="flex min-h-11 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
             ><Flame size={16} /> Tu Wrapped</a>
             <a
               href="/downloads"
               onclick={() => (menuOpen = false)}
-              class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              class="flex min-h-11 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
             ><HardDriveDownload size={16} /> Descargas</a>
             <a
               href="/settings"
               onclick={() => (menuOpen = false)}
-              class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              class="flex min-h-11 items-center gap-3 px-4 text-sm text-fg hover:bg-surface-3"
             ><Settings size={16} /> Ajustes</a>
             <button
               onclick={logout}
-              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-400 hover:bg-slate-800"
+              class="flex min-h-11 w-full items-center gap-3 px-4 text-left text-sm text-danger hover:bg-surface-3"
             ><LogOut size={16} /> Salir</button>
           </div>
         {/if}

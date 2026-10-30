@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { onReconnect } from '$lib/net.svelte';
+  import ErrorState from '$lib/components/ErrorState.svelte';
   import { page } from '$app/state';
   import { api, type Track, type Artist } from '$lib/api';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -8,7 +9,9 @@
   import { sortTracks, type TrackSort } from '$lib/sort';
   import { player } from '$lib/player.svelte';
   import { Play, Shuffle } from 'lucide-svelte';
-  import { avatarGradient, initials, hueFor } from '$lib/visual';
+  import { initials } from '$lib/visual';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
 
   const artistId = $derived(Number(page.params.id));
 
@@ -40,31 +43,20 @@
   });
 </script>
 
-<div class="mx-auto max-w-3xl px-4 pt-6">
+<div class="page-narrow">
   {#if error}
-    <p class="text-red-400">{error}</p>
+    <ErrorState {error} />
   {:else if artist}
-    <div
-      class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-72"
-      style:background="radial-gradient(ellipse 90% 60% at 50% 0%, hsl({hueFor(artist.name)} 55% 38% / 0.5), transparent 70%)"
-    ></div>
-    <header class="mb-5 flex items-center gap-4">
+    <header class="mb-8 flex items-center gap-4">
       <span
-        class="grid size-20 flex-none place-items-center rounded-2xl text-2xl font-bold text-white/90 shadow-lg"
-        style:background={avatarGradient(artist.name)}
+        class="grid size-20 flex-none place-items-center rounded-xl bg-surface-2 text-2xl font-bold text-fg-muted"
       >{initials(artist.name)}</span>
       <div class="min-w-0">
-        <h1 class="truncate text-2xl font-bold">{artist.name}</h1>
-        <p class="text-xs text-slate-500">{artist.album_count} álbumes · {artist.track_count} pistas</p>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <button
-            onclick={() => tracks.length && player.playTracks(tracks, 0)}
-            class="inline-flex items-center gap-1.5 rounded-full bg-cyan-500 px-4 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-          ><Play size={15} fill="currentColor" /> Reproducir</button>
-          <button
-            onclick={() => tracks.length && player.playShuffled(tracks)}
-            class="inline-flex items-center gap-1.5 rounded-full border border-slate-700 px-4 py-1.5 text-sm transition hover:bg-slate-800"
-          ><Shuffle size={15} /> Aleatorio</button>
+        <h1 class="page-title truncate">{artist.name}</h1>
+        <p class="text-sm text-fg-muted">{artist.album_count} álbumes · {artist.track_count} pistas</p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <Button variant="primary" onclick={() => tracks.length && player.playTracks(tracks, 0)}><Play size={16} fill="currentColor" /> Reproducir</Button>
+          <Button onclick={() => tracks.length && player.playShuffled(tracks)}><Shuffle size={16} /> Aleatorio</Button>
         </div>
       </div>
     </header>
@@ -75,6 +67,11 @@
     {/if}
     <TrackList tracks={visibleTracks} showGenre={sort === 'genre'} />
   {:else}
-    <p class="text-slate-500">Cargando…</p>
+    <div class="flex items-center gap-4">
+      <Skeleton class="size-20 flex-none" /><Skeleton class="h-8 w-1/2" />
+    </div>
+    <div class="mt-8 space-y-2">
+      {#each Array(6) as _}<Skeleton class="h-14 w-full" />{/each}
+    </div>
   {/if}
 </div>

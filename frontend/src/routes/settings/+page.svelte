@@ -103,54 +103,54 @@
   onMount(loadAll);
 </script>
 
-<div class="mx-auto max-w-2xl px-4 pt-6">
-  <h1 class="mb-4 text-2xl font-bold">Ajustes</h1>
+<div class="page-narrow">
+  <h1 class="page-title mb-6">Ajustes</h1>
 
-  <section class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">Setup base</h2>
+  <section class="rounded-xl border border-line bg-surface p-5">
+    <h2 class="section-title mb-3">Setup base</h2>
     {#if setupComplete === null}
-      <p class="text-slate-500">Comprobando…</p>
+      <p class="text-fg-subtle">Comprobando…</p>
     {:else if setupComplete}
-      <p class="inline-flex items-center gap-2 text-cyan-400">
+      <p class="inline-flex items-center gap-2 text-accent">
         <CheckCircle2 size={16} /> Configuración base completa.
       </p>
     {:else}
-      <p class="inline-flex items-center gap-2 text-amber-400">
+      <p class="inline-flex items-center gap-2 text-warning">
         <AlertTriangle size={16} /> Falta crear directorios de datos.
       </p>
     {/if}
   </section>
 
   {#if updates.available}
-    <section class="mt-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <h2 class="mb-2 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+    <section class="mt-6 rounded-xl border border-line bg-surface p-5">
+      <h2 class="section-title mb-3">
         <Download size={14} /> Actualizaciones de la app
       </h2>
-      <p class="mb-3 text-xs text-slate-400">
+      <p class="mb-3 text-sm text-fg-muted">
         Comprueba GitHub Releases y actualiza BBeat directamente desde el APK oficial.
       </p>
 
       {#if updateInfo}
-        <div class="mb-3 rounded border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm">
+        <div class="mb-3 rounded-lg border border-line bg-bg/60 px-3 py-2 text-sm min-h-11 sm:min-h-10">
           <div class="flex justify-between gap-3">
-            <span class="text-slate-500">Versión instalada</span>
-            <span class="font-mono text-slate-200">{updateInfo.currentVersion}</span>
+            <span class="text-fg-subtle">Versión instalada</span>
+            <span class="tabular-nums text-fg">{updateInfo.currentVersion}</span>
           </div>
           <div class="mt-1 flex justify-between gap-3">
-            <span class="text-slate-500">Última versión</span>
-            <span class="font-mono text-slate-200">{updateInfo.latestVersion}</span>
+            <span class="text-fg-subtle">Última versión</span>
+            <span class="tabular-nums text-fg">{updateInfo.latestVersion}</span>
           </div>
         </div>
       {/if}
 
       {#if updateError}
-        <p class="mb-3 text-xs text-red-400">{updateError}</p>
+        <p class="mb-3 text-xs text-danger">{updateError}</p>
       {:else if updateInfo && !updateInfo.updateAvailable}
-        <p class="mb-3 inline-flex items-center gap-2 text-sm text-cyan-400">
+        <p class="mb-3 inline-flex items-center gap-2 text-sm text-accent">
           <CheckCircle2 size={15} /> Ya tienes la última versión.
         </p>
       {:else if updateInfo?.updateAvailable}
-        <p class="mb-3 text-sm text-amber-300">
+        <p class="mb-3 text-sm text-warning">
           BBeat {updateInfo.latestVersion} está disponible.
         </p>
       {/if}
@@ -160,7 +160,7 @@
           type="button"
           onclick={checkUpdate}
           disabled={updateBusy}
-          class="inline-flex items-center gap-2 rounded border border-slate-700 px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-800 disabled:opacity-50"
+          class="inline-flex items-center gap-2 rounded-lg border border-line-strong px-3 py-2 text-sm text-fg transition hover:bg-surface-2 disabled:opacity-50 min-h-11 sm:min-h-10"
         >
           <RefreshCw size={14} class={updateBusy && !updateInfo?.updateAvailable ? 'animate-spin' : ''} />
           {updateBusy && !updateInfo?.updateAvailable ? 'Comprobando…' : 'Buscar actualizaciones'}
@@ -170,7 +170,7 @@
             type="button"
             onclick={installUpdate}
             disabled={updateBusy}
-            class="inline-flex items-center gap-2 rounded border border-cyan-700/50 bg-cyan-950/30 px-3 py-2 text-sm text-cyan-200 transition hover:bg-cyan-950/50 disabled:opacity-50"
+            class="inline-flex items-center gap-2 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-sm text-accent transition  disabled:opacity-50 min-h-11 sm:min-h-10"
           >
             <Download size={14} /> {updateBusy ? 'Descargando…' : 'Descargar e instalar'}
           </button>
@@ -180,17 +180,17 @@
   {/if}
 
 
-  <p class="mt-6 text-xs text-slate-600">
+  <p class="mt-6 text-xs text-fg-subtle">
     Más opciones (formato de audio, calidad, plantilla de nombrado, host bind…)
     se podrán editar desde aquí en una fase próxima. Por ahora viven en
-    <code class="bg-slate-900 px-1">backend/.env</code>.
+    <code class="bg-surface px-1">backend/.env</code>.
   </p>
 
-  <section class="mt-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
-    <h2 class="mb-2 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+  <section class="mt-6 rounded-xl border border-line bg-surface p-5">
+    <h2 class="section-title mb-3">
       <Smartphone size={14} /> Acceso Subsonic (iPhone y otros clientes)
     </h2>
-    <p class="mb-3 text-xs text-slate-400">
+    <p class="mb-3 text-sm text-fg-muted">
       Bbeat habla el protocolo <strong>Subsonic</strong>, así que puedes escuchar tu
       música desde apps de terceros —ideal si tienes iPhone. Genera un token y úsalo
       como contraseña en el cliente (tu contraseña normal no sirve ahí).
@@ -204,17 +204,17 @@
           { label: 'Contraseña (token)', value: subToken, key: 'token' as const }
         ] as row}
           <div class="flex items-center gap-2">
-            <span class="w-36 shrink-0 text-xs text-slate-500">{row.label}</span>
+            <span class="w-36 shrink-0 text-xs text-fg-subtle">{row.label}</span>
             <input
               type="text"
               readonly
               value={row.value}
-              class="min-w-0 flex-1 rounded border border-slate-800 bg-slate-950 px-2 py-1.5 font-mono text-xs text-slate-200 outline-none"
+              class="min-w-0 flex-1 rounded-lg border border-line bg-bg px-3 py-2.5 tabular-nums text-xs text-fg outline-none min-h-11 sm:min-h-10"
             />
             <button
               type="button"
               onclick={() => copy(row.value, row.key)}
-              class="inline-flex shrink-0 items-center gap-1 rounded border border-slate-800 px-2 py-1.5 text-xs text-slate-400 transition hover:bg-slate-800"
+              class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-line px-3 py-2.5 text-xs text-fg-muted transition hover:bg-surface-2 min-h-11 sm:min-h-10"
               title="Copiar"
             >
               <Copy size={13} /> {subCopied === row.key ? '¡Copiado!' : 'Copiar'}
@@ -228,7 +228,7 @@
           type="button"
           onclick={genToken}
           disabled={subBusy}
-          class="inline-flex items-center gap-2 rounded border border-slate-800 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 disabled:opacity-50"
+          class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-fg-muted transition hover:bg-surface-2 disabled:opacity-50 min-h-11 sm:min-h-10"
         >
           <RefreshCw size={14} /> Regenerar
         </button>
@@ -236,7 +236,7 @@
           type="button"
           onclick={revokeToken}
           disabled={subBusy}
-          class="inline-flex items-center gap-2 rounded border border-slate-800 px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-red-400 disabled:opacity-50"
+          class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-fg-muted transition hover:bg-surface-2 hover:text-danger disabled:opacity-50 min-h-11 sm:min-h-10"
         >
           <Trash2 size={14} /> Revocar
         </button>
@@ -245,13 +245,13 @@
       <button
         onclick={genToken}
         disabled={subBusy}
-        class="inline-flex items-center gap-2 rounded border border-cyan-700/50 bg-cyan-950/30 px-3 py-2 text-sm text-cyan-200 transition hover:bg-cyan-950/50 disabled:opacity-50"
+        class="inline-flex items-center gap-2 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-sm text-accent transition  disabled:opacity-50 min-h-11 sm:min-h-10"
       >
         <KeyRound size={14} /> {subBusy ? 'Generando…' : 'Generar token de acceso'}
       </button>
     {/if}
 
-    <details class="mt-4 text-xs text-slate-500">
+    <details class="mt-4 text-xs text-fg-subtle">
       <summary class="cursor-pointer">¿Qué app uso?</summary>
       <ul class="mt-2 list-disc space-y-1 pl-5">
         <li><strong>iPhone/iPad:</strong> Amperfy (gratis), play:Sub o substreamer.</li>
@@ -265,11 +265,11 @@
     </details>
   </section>
 
-  <section class="mt-8 rounded-lg border border-slate-800 bg-slate-900 p-4">
-    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+  <section class="mt-6 rounded-xl border border-line bg-surface p-5">
+    <h2 class="section-title mb-3">
       Mantenimiento
     </h2>
-    <p class="mb-3 text-xs text-slate-400">
+    <p class="mb-3 text-sm text-fg-muted">
       Si Bbeat empieza a fallar de manera rara (cache zombi del service worker,
       versión vieja del frontend…), borra el caché y refresca:
     </p>
@@ -288,7 +288,7 @@
           location.reload();
         }
       }}
-      class="inline-flex items-center gap-2 rounded border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-sm text-amber-200 transition hover:bg-amber-950/50"
+      class="inline-flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning transition hover:bg-warning/20 min-h-11 sm:min-h-10"
     >
       <Brush size={14} /> Limpiar caché y recargar
     </button>

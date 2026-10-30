@@ -111,47 +111,47 @@
 </script>
 
 <div
-  class="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center"
+  class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
   onclick={onclose}
 >
   <div
-    class="flex h-[90vh] w-full max-w-2xl flex-col rounded-t-lg border border-slate-800 bg-slate-900 shadow-xl sm:h-[80vh] sm:rounded"
+    class="flex h-[90vh] w-full max-w-2xl flex-col rounded-t-xl border border-line bg-surface shadow-xl sm:h-[80vh] sm:rounded-xl"
     onclick={(e) => e.stopPropagation()}
     role="dialog"
   >
-    <header class="flex flex-none items-center justify-between border-b border-slate-800 p-4">
+    <header class="flex flex-none items-center justify-between border-b border-line p-4">
       <div>
         <h2 class="text-lg font-semibold">Añadir pistas existentes</h2>
-        <p class="text-xs text-slate-500">
+        <p class="text-xs text-fg-subtle">
           Selecciona pistas de tu biblioteca para añadirlas a este álbum.
         </p>
       </div>
       <button
         onclick={onclose}
-        class="grid size-8 place-items-center rounded text-slate-500 hover:bg-slate-800"
+        class="grid size-10 place-items-center rounded-lg text-fg-subtle hover:bg-surface-2"
         aria-label="Cerrar"
       ><X size={18} /></button>
     </header>
 
     <!-- Buscador -->
-    <div class="flex-none border-b border-slate-800 p-3">
+    <div class="flex-none border-b border-line p-3">
       <div class="relative">
-        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
         <input
           type="search"
           bind:value={query}
           oninput={onQuery}
           placeholder="Buscar título, artista, álbum… (vacío = todas)"
           autofocus
-          class="w-full rounded border border-slate-800 bg-slate-950 px-9 py-2 text-sm placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
+          class="w-full rounded-lg border border-line bg-bg px-9 py-2 text-sm placeholder:text-fg-subtle focus:border-accent focus:outline-none"
         />
         {#if loading}
-          <Loader2 size={14} class="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-sky-400" />
+          <Loader2 size={14} class="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-accent" />
         {:else if query}
           <button
             type="button"
             onclick={() => { query = ''; searchResults = []; }}
-            class="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded text-slate-500 hover:bg-slate-800"
+            class="absolute right-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-fg-subtle hover:bg-surface-2"
             aria-label="Limpiar"
           ><X size={12} /></button>
         {/if}
@@ -160,11 +160,11 @@
 
     {#if resultMsg}
       <div
-        class="flex-none border-b border-slate-800 p-3 text-xs"
-        class:bg-cyan-950={resultMsg.added > 0}
-        class:text-cyan-300={resultMsg.added > 0}
-        class:bg-amber-950={resultMsg.added === 0 && resultMsg.already > 0}
-        class:text-amber-300={resultMsg.added === 0 && resultMsg.already > 0}
+        class="flex-none border-b border-line p-3 text-xs"
+        class:bg-accent-soft={resultMsg.added > 0}
+        class:text-accent={resultMsg.added > 0}
+        class:bg-warning-soft={resultMsg.added === 0 && resultMsg.already > 0}
+        class:text-warning={resultMsg.added === 0 && resultMsg.already > 0}
       >
         {#if resultMsg.added > 0}
           Añadidas {resultMsg.added}{resultMsg.already > 0 ? ` · ${resultMsg.already} ya estaban` : ''}{resultMsg.denied > 0 ? ` · ${resultMsg.denied} sin acceso` : ''}.
@@ -178,17 +178,17 @@
 
     <!-- Acción masiva -->
     {#if results.length > 0}
-      <div class="flex flex-none items-center justify-between gap-2 border-b border-slate-800 bg-slate-950/50 px-3 py-2 text-xs">
-        <label class="flex cursor-pointer items-center gap-2 text-slate-400">
+      <div class="flex flex-none items-center justify-between gap-2 border-b border-line bg-bg/50 px-3 py-2 text-xs">
+        <label class="flex cursor-pointer items-center gap-2 text-fg-muted">
           <input
             type="checkbox"
             checked={allSelected}
             onchange={toggleAll}
-            class="accent-cyan-400"
+            class="accent-accent"
           />
           Seleccionar todas ({results.length})
         </label>
-        <span class="text-slate-500">
+        <span class="text-fg-subtle">
           {selected.size} seleccionadas
         </span>
       </div>
@@ -197,15 +197,15 @@
     <!-- Resultados -->
     <div class="flex-1 overflow-y-auto">
       {#if !initialLoaded}
-        <p class="p-8 text-center text-sm text-slate-500">Cargando biblioteca…</p>
+        <p class="p-8 text-center text-sm text-fg-subtle">Cargando biblioteca…</p>
       {:else if results.length === 0}
-        <p class="p-8 text-center text-sm text-slate-500">
+        <p class="p-8 text-center text-sm text-fg-subtle">
           {query.trim()
             ? `Sin resultados para "${query}".`
             : 'Tu biblioteca está vacía o todas las pistas ya están en este álbum.'}
         </p>
       {:else}
-        <ul class="divide-y divide-slate-900">
+        <ul class="divide-y divide-line-strong">
           {#each results as t (t.id)}
             {@const isSelected = selected.has(t.id)}
             <li>
@@ -213,33 +213,33 @@
                 type="button"
                 onclick={() => toggleSelect(t.id)}
                 class="flex w-full items-center gap-3 px-3 py-2 text-left transition"
-                class:bg-cyan-950={isSelected}
-                class:hover:bg-slate-800={!isSelected}
+                class:bg-accent-soft={isSelected}
+                class:hover:bg-surface-2={!isSelected}
               >
                 <span
-                  class="grid size-5 flex-none place-items-center rounded border"
-                  class:border-cyan-400={isSelected}
-                  class:bg-cyan-400={isSelected}
-                  class:border-slate-700={!isSelected}
+                  class="grid size-5 flex-none place-items-center rounded-lg border"
+                  class:border-accent={isSelected}
+                  class:bg-accent={isSelected}
+                  class:border-line-strong={!isSelected}
                 >
                   {#if isSelected}
-                    <Check size={12} class="text-slate-950" />
+                    <Check size={12} class="text-accent-fg" />
                   {/if}
                 </span>
                 {#if t.cover_url}
-                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded object-cover" />
+                  <img loading="lazy" decoding="async" src={t.cover_url} alt="" class="size-10 flex-none rounded-lg object-cover" />
                 {:else}
-                  <div class="grid size-10 flex-none place-items-center rounded bg-slate-800 text-slate-600">
+                  <div class="grid size-10 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle">
                     <Music2 size={14} />
                   </div>
                 {/if}
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-sm">{t.title}</div>
-                  <div class="truncate text-xs text-slate-500">
+                  <div class="truncate text-xs text-fg-subtle">
                     {t.artist_name}{#if t.album_title} · {t.album_title}{/if}
                   </div>
                 </div>
-                <span class="flex-none font-mono text-xs text-slate-500">
+                <span class="flex-none tabular-nums text-xs text-fg-subtle">
                   {formatDuration(t.duration_ms)}
                 </span>
               </button>
@@ -250,17 +250,17 @@
     </div>
 
     <!-- Footer -->
-    <footer class="flex flex-none items-center gap-2 border-t border-slate-800 p-3">
+    <footer class="flex flex-none items-center gap-2 border-t border-line p-3">
       <button
         type="button"
         onclick={onclose}
-        class="rounded border border-slate-800 px-4 py-2 text-sm transition hover:bg-slate-800"
+        class="rounded-lg border border-line px-4 py-2 text-sm transition hover:bg-surface-2 min-h-11 sm:min-h-10"
       >Cerrar</button>
       <button
         type="button"
         onclick={submit}
         disabled={saving || selected.size === 0}
-        class="flex-1 rounded bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+        class="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50 min-h-11 sm:min-h-10"
       >
         {saving ? 'Añadiendo…' : `Añadir ${selected.size} ${selected.size === 1 ? 'pista' : 'pistas'}`}
       </button>

@@ -38,13 +38,13 @@
   }
 </script>
 
-<label class="flex items-center gap-1.5 text-xs text-slate-400">
-  <ArrowUpDown size={14} class="flex-none text-slate-500" />
+<label class="flex items-center gap-1.5 text-sm text-fg-muted">
+  <ArrowUpDown size={14} class="flex-none text-fg-subtle" />
   <span class="sr-only">Ordenar por</span>
   <select
     value={value}
     onchange={onChange}
-    class="rounded-md border border-slate-800 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 focus:border-cyan-500 focus:outline-none"
+    class="min-h-11 rounded-lg border border-line bg-surface px-3 text-sm text-fg focus:border-accent focus:outline-none sm:min-h-10"
   >
     {#each shown as opt (opt.value)}
       <option value={opt.value}>{opt.label}</option>

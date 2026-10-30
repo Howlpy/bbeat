@@ -1,4 +1,4 @@
-// Utilidades visuales: color dominante de una imagen + avatares de degradado.
+// Utilidades visuales: color dominante de una imagen + hash determinista de texto.
 
 /** Color medio (dominante aproximado) de una imagen same-origin, vía canvas. */
 export function dominantColor(url: string): Promise<[number, number, number]> {
@@ -42,13 +42,6 @@ function hash(s: string): number {
 /** Tono (0-360) determinista a partir de un texto. */
 export function hueFor(seed: string): number {
   return hash(seed) % 360;
-}
-
-/** Degradado determinista para avatares de artista. */
-export function avatarGradient(seed: string): string {
-  const h1 = hueFor(seed);
-  const h2 = (h1 + 45) % 360;
-  return `linear-gradient(135deg, hsl(${h1} 58% 48%), hsl(${h2} 62% 30%))`;
 }
 
 /** Iniciales (1-2 letras) de un nombre. */

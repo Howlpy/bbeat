@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { onReconnect } from '$lib/net.svelte';
+  import ErrorState from '$lib/components/ErrorState.svelte';
   import { X, Shuffle, Heart, ChevronLeft, Music2, Tag } from 'lucide-svelte';
   import { api, type Track } from '$lib/api';
   import { player } from '$lib/player.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
   import SortSelect from '$lib/components/SortSelect.svelte';
   import { sortTracks, type TrackSort } from '$lib/sort';
   import { genreLabel, SIN_GENERO } from '$lib/genres';
@@ -120,24 +122,24 @@
   });
 </script>
 
-<div class="mx-auto max-w-3xl px-4 pt-6">
-  <header class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
+<div class="page-narrow">
+  <header class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
     <div class="flex min-w-0 items-center gap-2">
       {#if selected !== null}
         <button
           onclick={volver}
-          class="-ml-1 grid size-8 flex-none place-items-center rounded-full text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+          class="-ml-1 grid size-10 flex-none place-items-center rounded-full text-fg-muted transition hover:bg-surface-2 hover:text-fg"
           aria-label="Volver a los géneros"
         ><ChevronLeft size={20} /></button>
       {/if}
-      <h1 class="truncate text-2xl font-bold">{nombreVista}</h1>
+      <h1 class="page-title truncate">{nombreVista}</h1>
     </div>
     <div class="flex items-center gap-3">
       <a
         href="/liked"
-        class="inline-flex items-center gap-1.5 text-xs text-slate-400 transition hover:text-cyan-400"
+        class="inline-flex min-h-10 items-center gap-1.5 text-sm text-fg-muted transition hover:text-accent"
       ><Heart size={14} /> Favoritos</a>
-      <span class="text-xs text-slate-500">
+      <span class="text-sm tabular-nums text-fg-subtle">
         {#if selected === null}
           {libraryTotal} en biblioteca
         {:else}
@@ -151,35 +153,35 @@
     <!-- Portada de la sección: por dónde entrar a las canciones -->
     <button
       onclick={() => abrir('__all__')}
-      class="mb-3 flex w-full items-center gap-4 rounded-xl border border-cyan-500/40 bg-gradient-to-r from-cyan-500/15 to-slate-900/40 px-4 py-4 text-left transition hover:border-cyan-400 hover:from-cyan-500/25"
+      class="mb-3 flex w-full items-center gap-4 rounded-xl border border-accent/40 bg-accent-soft px-4 py-4 text-left transition hover:border-accent"
     >
-      <span class="grid size-11 flex-none place-items-center rounded-lg bg-cyan-500 text-slate-950">
+      <span class="grid size-11 flex-none place-items-center rounded-lg bg-accent text-accent-fg">
         <Music2 size={22} />
       </span>
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">Todas las canciones</span>
-        <span class="block text-xs text-slate-400">{libraryTotal} pistas en la biblioteca</span>
+        <span class="block text-sm text-fg-muted">{libraryTotal} pistas en la biblioteca</span>
       </span>
     </button>
 
     {#if genres.length > 0}
-      <h2 class="mb-2 mt-5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+      <h2 class="section-title mb-3 mt-8">
         <Tag size={13} /> Por género
       </h2>
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {#each genres as g (g.genre)}
           <button
             onclick={() => abrir(g.genre)}
-            class="group rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-left transition hover:border-cyan-500/60 hover:bg-slate-900"
+            class="group rounded-xl border border-line bg-surface p-4 text-left transition hover:border-line-strong hover:bg-surface-2"
           >
-            <span class="block truncate font-medium transition group-hover:text-cyan-400">
+            <span class="block truncate font-medium transition group-hover:text-accent">
               {genreLabel(g.genre)}
             </span>
-            <span class="mt-0.5 block font-mono text-xs text-slate-500">{g.count}</span>
+            <span class="mt-0.5 block text-sm tabular-nums text-fg-subtle">{g.count}</span>
             <!-- Barra proporcional: de un vistazo se ve qué pesa en tu biblioteca -->
-            <span class="mt-2 block h-1 overflow-hidden rounded-full bg-slate-800">
+            <span class="mt-3 block h-1 overflow-hidden rounded-full bg-surface-3">
               <span
-                class="block h-full rounded-full bg-cyan-500/70 transition-all group-hover:bg-cyan-400"
+                class="block h-full rounded-full bg-accent transition-all"
                 style:width="{Math.max(4, (g.count / genres[0].count) * 100)}%"
               ></span>
             </span>
@@ -191,30 +193,25 @@
              desde la lista se les pone género a mano con ⋮ → Editar. -->
         <button
           onclick={() => abrir(SIN_GENERO)}
-          class="mt-2 flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-3 py-2.5 text-left transition hover:border-cyan-500/60 hover:bg-slate-900"
+          class="mt-3 flex min-h-14 w-full items-center gap-3 rounded-xl border border-dashed border-line-strong px-4 py-2.5 text-left transition hover:bg-surface"
         >
           <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-medium text-slate-300">Sin género</span>
-            <span class="block text-xs text-slate-500">
+            <span class="block truncate text-sm font-medium text-fg-muted">Sin género</span>
+            <span class="block text-xs text-fg-subtle">
               {withoutGenre} {withoutGenre === 1 ? 'canción por clasificar' : 'canciones por clasificar'} · ponles género con ⋮ → Editar
             </span>
           </span>
-          <span class="flex-none font-mono text-xs text-slate-500">{withoutGenre}</span>
+          <span class="flex-none text-sm tabular-nums text-fg-subtle">{withoutGenre}</span>
         </button>
       {/if}
     {:else}
-      <p class="mt-4 rounded-md border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">
+      <p class="mt-4 rounded-xl border border-line bg-surface p-4 text-sm text-fg-muted">
         Todavía no hay géneros en la biblioteca.
       </p>
     {/if}
   {:else}
     {#if tracks.length > 0}
-      <button
-        onclick={shuffleAll}
-        class="mb-4 inline-flex items-center gap-2 rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-      >
-        <Shuffle size={16} /> Reproducir aleatorio
-      </button>
+      <Button variant="primary" onclick={shuffleAll} class="mb-4"><Shuffle size={16} /> Reproducir aleatorio</Button>
     {/if}
 
     <div class="mb-4 flex items-center gap-2">
@@ -224,14 +221,14 @@
           bind:value={query}
           oninput={onQueryChange}
           placeholder={selected === '__all__' ? 'Buscar título, artista, álbum…' : `Buscar en ${etiqueta(selected)}…`}
-          class="w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2 pr-9 text-sm placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
+          class="min-h-11 w-full rounded-lg border border-line bg-surface px-3 pr-11 text-sm placeholder:text-fg-subtle focus:border-accent focus:outline-none"
         />
         {#if searching}
-          <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-sky-400">…</span>
+          <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-accent">…</span>
         {:else if query}
           <button
             onclick={() => { query = ''; doSearch(''); }}
-            class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:bg-slate-800"
+            class="absolute right-0 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-fg-subtle hover:text-fg"
             aria-label="Limpiar"
           ><X size={14} /></button>
         {/if}
@@ -244,21 +241,21 @@
     </div>
 
     {#if error}
-      <p class="text-red-400">{error}</p>
+      <ErrorState {error} />
     {:else if loading && tracks.length === 0}
-      <ul class="divide-y divide-slate-900">
+      <ul class="divide-y divide-line">
         {#each Array(8) as _, i (i)}
           <li class="flex items-center gap-3 px-2 py-2">
-            <div class="size-10 flex-none animate-pulse rounded bg-slate-800"></div>
+            <div class="size-10 flex-none animate-pulse rounded-lg bg-surface-2"></div>
             <div class="flex-1 space-y-2">
-              <div class="h-3 w-1/2 animate-pulse rounded bg-slate-800"></div>
-              <div class="h-2.5 w-1/3 animate-pulse rounded bg-slate-800"></div>
+              <div class="h-3 w-1/2 animate-pulse rounded-lg bg-surface-2"></div>
+              <div class="h-2.5 w-1/3 animate-pulse rounded-lg bg-surface-2"></div>
             </div>
           </li>
         {/each}
       </ul>
     {:else if tracks.length === 0}
-      <p class="rounded-md border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">
+      <p class="rounded-xl border border-line bg-surface p-4 text-sm text-fg-muted">
         {query ? 'Sin resultados.' : 'Aquí no hay ninguna canción todavía.'}
       </p>
     {:else}

@@ -58,48 +58,48 @@
   }
 </script>
 
-<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onclick={onclose}>
+<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" onclick={onclose}>
   <div
-    class="w-full max-w-md rounded-t-xl border border-slate-800 bg-slate-900 p-5 shadow-xl sm:rounded-xl"
+    class="w-full max-w-md rounded-t-xl border border-line bg-surface p-5 shadow-xl sm:rounded-xl"
     onclick={(e) => e.stopPropagation()}
     role="dialog"
   >
     <header class="mb-4 flex items-baseline justify-between">
       <h2 class="text-lg font-semibold">Editar pista</h2>
-      <button onclick={onclose} class="grid size-8 place-items-center rounded text-slate-500 hover:bg-slate-800" aria-label="Cerrar"><X size={16} /></button>
+      <button onclick={onclose} class="grid size-10 place-items-center rounded-lg text-fg-subtle hover:bg-surface-2" aria-label="Cerrar"><X size={16} /></button>
     </header>
 
     <div class="mb-3 flex gap-2 text-xs">
       <button
         onclick={() => (mode = 'edit')}
-        class="flex-1 rounded border px-3 py-1.5"
-        class:border-cyan-500={mode === 'edit'}
-        class:bg-cyan-500={mode === 'edit'}
-        class:text-slate-950={mode === 'edit'}
-        class:border-slate-800={mode !== 'edit'}
+        class="flex-1 rounded-lg border px-3 py-1.5"
+        class:border-accent={mode === 'edit'}
+        class:bg-accent={mode === 'edit'}
+        class:text-accent-fg={mode === 'edit'}
+        class:border-line={mode !== 'edit'}
       >Editar metadata</button>
       <button
         onclick={() => (mode = 'move')}
-        class="flex-1 rounded border px-3 py-1.5"
-        class:border-cyan-500={mode === 'move'}
-        class:bg-cyan-500={mode === 'move'}
-        class:text-slate-950={mode === 'move'}
-        class:border-slate-800={mode !== 'move'}
+        class="flex-1 rounded-lg border px-3 py-1.5"
+        class:border-accent={mode === 'move'}
+        class:bg-accent={mode === 'move'}
+        class:text-accent-fg={mode === 'move'}
+        class:border-line={mode !== 'move'}
         disabled={albums.length === 0}
       >Mover de álbum</button>
     </div>
 
     {#if track.source_url}
-      <div class="mb-3 rounded border border-slate-800 bg-slate-950 px-3 py-2 text-xs">
-        <div class="text-slate-500">Fuente</div>
+      <div class="mb-3 rounded-lg border border-line bg-bg px-3 py-2 text-xs min-h-11 sm:min-h-10">
+        <div class="text-fg-subtle">Fuente</div>
         <a
           href={track.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          class="block truncate text-cyan-400 hover:underline"
+          class="block truncate text-accent hover:underline"
           title={track.source_url}
         >{track.source_url}</a>
-        <p class="mt-1 text-[10px] text-slate-600">
+        <p class="mt-1 text-xs text-fg-subtle">
           ¿No es la pista correcta? Bórrala y vuelve a importarla.
         </p>
       </div>
@@ -108,35 +108,35 @@
     {#if mode === 'edit'}
       <div class="space-y-2 text-sm">
         <label class="block">
-          <span class="text-xs text-slate-400">Título</span>
+          <span class="text-xs text-fg-muted">Título</span>
           <input
             bind:value={title}
-            class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
+            class="mt-1 w-full rounded-lg border border-line bg-bg px-2 py-1.5 focus:border-accent focus:outline-none"
           />
         </label>
         <label class="block">
-          <span class="text-xs text-slate-400">Artista</span>
+          <span class="text-xs text-fg-muted">Artista</span>
           <input
             bind:value={artist}
-            class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
+            class="mt-1 w-full rounded-lg border border-line bg-bg px-2 py-1.5 focus:border-accent focus:outline-none"
           />
         </label>
         <label class="block">
-          <span class="text-xs text-slate-400">Álbum</span>
+          <span class="text-xs text-fg-muted">Álbum</span>
           <input
             bind:value={album}
-            class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
+            class="mt-1 w-full rounded-lg border border-line bg-bg px-2 py-1.5 focus:border-accent focus:outline-none"
           />
         </label>
         <label class="block">
-          <span class="text-xs text-slate-400">Género</span>
+          <span class="text-xs text-fg-muted">Género</span>
           <!-- El datalist sugiere el vocabulario canónico (en minúsculas, que
                es como se guarda), pero sigue siendo texto libre a propósito. -->
           <input
             bind:value={genre}
             placeholder="Sin género"
             list="bbeat-genres"
-            class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
+            class="mt-1 w-full rounded-lg border border-line bg-bg px-2 py-1.5 focus:border-accent focus:outline-none"
           />
           <datalist id="bbeat-genres">
             {#each GENRE_SLUGS as slug (slug)}
@@ -146,32 +146,32 @@
         </label>
         <div class="flex gap-2">
           <label class="block flex-1">
-            <span class="text-xs text-slate-400">Año</span>
+            <span class="text-xs text-fg-muted">Año</span>
             <input
               type="number"
               bind:value={year}
               min="1900"
               max="2100"
-              class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
+              class="mt-1 w-full rounded-lg border border-line bg-bg px-2 py-1.5 focus:border-accent focus:outline-none"
             />
           </label>
           <label class="block flex-1">
-            <span class="text-xs text-slate-400">Nº pista</span>
+            <span class="text-xs text-fg-muted">Nº pista</span>
             <input
               type="number"
               bind:value={trackNumber}
               min="1"
-              class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
+              class="mt-1 w-full rounded-lg border border-line bg-bg px-2 py-1.5 focus:border-accent focus:outline-none"
             />
           </label>
         </div>
       </div>
     {:else}
       <label class="block text-sm">
-        <span class="text-xs text-slate-400">Mover a álbum existente</span>
+        <span class="text-xs text-fg-muted">Mover a álbum existente</span>
         <select
           bind:value={targetAlbumId}
-          class="mt-1 w-full rounded border border-slate-800 bg-slate-950 px-2 py-1.5 focus:border-cyan-500 focus:outline-none"
+          class="mt-1 w-full rounded-lg border border-line bg-bg px-2 py-1.5 focus:border-accent focus:outline-none"
         >
           <option value={null}>— selecciona —</option>
           {#each albums as a}
@@ -182,17 +182,17 @@
     {/if}
 
     {#if error}
-      <p class="mt-3 inline-flex items-center gap-2 rounded border border-red-900/50 bg-red-950/30 p-2 text-xs text-red-300"><AlertTriangle size={14} /> {error}</p>
+      <p class="mt-3 inline-flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 p-2 text-xs text-danger"><AlertTriangle size={14} /> {error}</p>
     {/if}
 
     <div class="mt-5 flex gap-2">
-      <button onclick={onclose} class="flex-1 rounded border border-slate-800 px-4 py-2 text-sm hover:bg-slate-800">
+      <button onclick={onclose} class="flex-1 rounded-lg border border-line px-4 py-2 text-sm hover:bg-surface-2 min-h-11 sm:min-h-10">
         Cancelar
       </button>
       <button
         onclick={save}
         disabled={saving || (mode === 'move' && !targetAlbumId)}
-        class="flex-1 rounded bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+        class="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg hover:bg-accent-hover disabled:opacity-50 min-h-11 sm:min-h-10"
       >
         {saving ? 'Guardando…' : 'Guardar'}
       </button>

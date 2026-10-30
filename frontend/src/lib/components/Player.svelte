@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronUp, Music2, ListMusic } from 'lucide-svelte';
+  import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music2, ListMusic } from 'lucide-svelte';
   import { player } from '$lib/player.svelte';
   import { formatDuration } from '$lib/api';
   import NowPlaying from './NowPlaying.svelte';
@@ -58,19 +58,19 @@
   <!-- Mini player apoyado justo encima de la navbar -->
   <div
     bind:clientHeight={height}
-    class="fixed inset-x-0 z-40 border-t border-slate-800 bg-slate-950/95 backdrop-blur"
+    class="fixed inset-x-0 z-40 border-t border-line bg-surface"
     style:bottom="{bottom}px"
   >
-    <!-- Barra de progreso fina arriba del player -->
-    <div class="relative h-0.5 bg-slate-800">
+    <!-- Barra de progreso -->
+    <div class="relative h-[3px] bg-surface-3">
       <div
-        class="absolute inset-y-0 left-0 bg-cyan-400 transition-all duration-300"
+        class="absolute inset-y-0 left-0 bg-accent transition-all duration-300"
         style:width="{player.duration ? (player.position / player.duration) * 100 : 0}%"
       ></div>
     </div>
 
-    <div class="mx-auto flex max-w-5xl items-center gap-3 px-3 py-2 sm:gap-4 sm:px-4">
-      <!-- Cover + título + artista (clickable) → abre NowPlaying -->
+    <div class="mx-auto flex max-w-5xl items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
+      <!-- Cover + título + artista: abre NowPlaying -->
       <button
         onclick={openExpanded}
         class="flex min-w-0 flex-1 items-center gap-3 text-left"
@@ -80,31 +80,31 @@
           <img loading="lazy" decoding="async"
             src={player.current.cover_url}
             alt=""
-            class="size-12 flex-none rounded object-cover sm:size-14"
+            class="size-12 flex-none rounded-lg object-cover"
           />
         {:else}
-          <div class="grid size-12 flex-none place-items-center rounded bg-slate-800 text-slate-600 sm:size-14">
+          <div class="grid size-12 flex-none place-items-center rounded-lg bg-surface-2 text-fg-subtle">
             <Music2 size={18} />
           </div>
         {/if}
         <div class="min-w-0 flex-1">
-          <div class="truncate text-sm font-medium">{player.current.title}</div>
-          <div class="truncate text-xs text-slate-400">{player.current.artist_name}</div>
+          <div class="truncate text-sm font-semibold">{player.current.title}</div>
+          <div class="truncate text-xs text-fg-muted">{player.current.artist_name}</div>
         </div>
       </button>
 
       <!-- Controles -->
-      <div class="flex flex-none items-center gap-1">
+      <div class="flex flex-none items-center">
         <button
           aria-label="Anterior"
           onclick={() => player.prev()}
-          class="hidden size-9 place-items-center rounded text-slate-300 hover:bg-slate-800 sm:grid"
+          class="grid size-10 place-items-center rounded-full text-fg-muted hover:bg-surface-2 hover:text-fg"
         ><SkipBack size={18} fill="currentColor" /></button>
 
         <button
           aria-label={player.isPlaying ? 'Pausar' : 'Reproducir'}
           onclick={() => player.toggle()}
-          class="grid size-10 place-items-center rounded-full bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+          class="mx-0.5 grid size-11 place-items-center rounded-full bg-accent text-accent-fg hover:bg-accent-hover"
         >
           {#if player.isPlaying}
             <Pause size={18} fill="currentColor" />
@@ -116,15 +116,15 @@
         <button
           aria-label="Siguiente"
           onclick={() => player.next()}
-          class="grid size-9 place-items-center rounded text-slate-300 hover:bg-slate-800"
+          class="grid size-10 place-items-center rounded-full text-fg-muted hover:bg-surface-2 hover:text-fg"
         ><SkipForward size={18} fill="currentColor" /></button>
 
-        <!-- Volumen (oculto en móvil para no apretar) -->
+        <!-- Volumen (oculto en móvil: se usan los botones del dispositivo) -->
         <div class="relative hidden sm:block" bind:this={volumePanel}>
           <button
             aria-label="Volumen"
             onclick={(e) => { e.stopPropagation(); volumeOpen = !volumeOpen; }}
-            class="grid size-9 place-items-center rounded text-slate-300 hover:bg-slate-800"
+            class="grid size-10 place-items-center rounded-full text-fg-muted hover:bg-surface-2 hover:text-fg"
           >
             {#if player.muted || player.volume === 0}
               <VolumeX size={18} />
@@ -134,22 +134,23 @@
           </button>
           {#if volumeOpen}
             <div
-              class="absolute bottom-full right-0 mb-2 flex items-center gap-2 rounded border border-slate-800 bg-slate-900 px-3 py-2 shadow-lg"
+              class="absolute bottom-full right-0 mb-2 flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2 shadow-lg"
               role="dialog"
             >
               <button
                 onclick={() => player.toggleMute()}
-                class="grid size-7 flex-none place-items-center rounded hover:bg-slate-800"
+                class="grid size-10 flex-none place-items-center rounded-full hover:bg-surface-3"
+                aria-label="Silenciar"
               >
-                {#if player.muted}<VolumeX size={14} />{:else}<Volume2 size={14} />{/if}
+                {#if player.muted}<VolumeX size={16} />{:else}<Volume2 size={16} />{/if}
               </button>
               <input
                 type="range" min="0" max="1" step="0.01"
                 value={player.volume}
                 oninput={onVolume}
-                class="h-1 w-32 cursor-pointer appearance-none rounded bg-slate-800 accent-cyan-400"
+                class="seek w-32"
               />
-              <span class="w-9 text-right font-mono text-xs text-slate-400">
+              <span class="w-9 text-right text-xs tabular-nums text-fg-muted">
                 {Math.round(player.volume * 100)}
               </span>
             </div>
@@ -159,14 +160,8 @@
         <button
           aria-label="Cola"
           onclick={() => (queueOpen = true)}
-          class="grid size-9 place-items-center rounded text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+          class="grid size-10 place-items-center rounded-full text-fg-muted hover:bg-surface-2 hover:text-fg"
         ><ListMusic size={18} /></button>
-
-        <button
-          aria-label="Expandir"
-          onclick={openExpanded}
-          class="grid size-9 place-items-center rounded text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-        ><ChevronUp size={18} /></button>
       </div>
     </div>
   </div>

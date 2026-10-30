@@ -2,6 +2,8 @@
   import { HardDriveDownload, Trash2, Play, Shuffle, WifiOff } from 'lucide-svelte';
   import { offline } from '$lib/offline.svelte';
   import { player } from '$lib/player.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
   import type { Track } from '$lib/api';
 
@@ -24,14 +26,14 @@
   }
 </script>
 
-<div class="mx-auto max-w-3xl px-4 pt-6">
-  <header class="mb-4 flex items-center gap-3">
-    <span class="grid size-14 flex-none place-items-center rounded bg-gradient-to-br from-cyan-400 to-sky-700 text-slate-950">
+<div class="page-narrow">
+  <header class="mb-6 flex items-center gap-4">
+    <span class="grid size-14 flex-none place-items-center rounded-xl bg-accent-soft text-accent">
       <HardDriveDownload size={26} />
     </span>
     <div>
-      <h1 class="text-2xl font-bold">Descargas</h1>
-      <p class="text-xs text-slate-500">
+      <h1 class="page-title">Descargas</h1>
+      <p class="text-sm text-fg-muted">
         {tracks.length} {tracks.length === 1 ? 'pista' : 'pistas'} · disponibles sin conexión
       </p>
     </div>
@@ -39,30 +41,12 @@
 
   {#if tracks.length > 0}
     <div class="mb-4 flex flex-wrap items-center gap-2">
-      <button
-        onclick={playAll}
-        class="inline-flex items-center gap-2 rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-      >
-        <Play size={16} fill="currentColor" /> Reproducir
-      </button>
-      <button
-        onclick={shuffleAll}
-        class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-sm transition hover:bg-slate-800"
-      >
-        <Shuffle size={16} /> Aleatorio
-      </button>
-      <button
-        onclick={clearAll}
-        class="ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs text-slate-500 transition hover:bg-slate-800 hover:text-red-400"
-      >
-        <Trash2 size={14} /> Vaciar
-      </button>
+      <Button variant="primary" onclick={playAll}><Play size={16} fill="currentColor" /> Reproducir</Button>
+      <Button onclick={shuffleAll}><Shuffle size={16} /> Aleatorio</Button>
+      <Button variant="ghost" onclick={clearAll} class="ml-auto hover:!text-danger"><Trash2 size={16} /> Vaciar</Button>
     </div>
     <TrackList bind:tracks />
   {:else}
-    <div class="rounded-md border border-dashed border-slate-800 p-8 text-center text-sm text-slate-400">
-      <WifiOff class="mx-auto mb-2 text-slate-600" size={28} />
-      Aún no has descargado nada. Pulsa <b>⋮ → Descargar</b> en cualquier canción para escucharla sin internet.
-    </div>
+    <EmptyState icon={WifiOff} title="Aún no has guardado nada offline" text="Pulsa ⋮ → Descargar en cualquier canción para escucharla sin internet." />
   {/if}
 </div>
