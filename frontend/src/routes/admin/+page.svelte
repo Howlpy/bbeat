@@ -2,6 +2,7 @@
   import BackButton from '$lib/components/ui/BackButton.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import AiGenresAdmin from '$lib/components/AiGenresAdmin.svelte';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { AlertTriangle, ArrowDown, ArrowUp, Ban, CheckCircle2, Clock, Check, Trash2, RefreshCw } from 'lucide-svelte';
@@ -120,6 +121,8 @@
     </Button>
     {#if scanMsg}<p class="mt-2 text-sm text-fg-muted">{scanMsg}</p>{/if}
   </section>
+
+  <AiGenresAdmin />
 
   <h2 class="section-title mb-3">Usuarios</h2>
 

@@ -790,7 +790,28 @@ def resolve(
 
 def resolve_meta(meta) -> Optional[str]:
     """Como resolve(), pero tomando los datos de un TrackMeta."""
-    return resolve(meta.primary_artist, meta.title, album=meta.album or None)
+    genre = resolve(meta.primary_artist, meta.title, album=meta.album or None)
+    # Coherencia con el resto de pistas del artista (funciona sin IA) y, si hay
+    # IA, cola de revisión para lo desconocido o discutido. Nunca bloquea.
+    conflict = False
+    try:
+        from app.db import session_scope
+        from app.services import genre_store
+
+        with session_scope() as s:
+            genre, conflict = genre_store.apply_artist_consistency(
+                s, meta.primary_artist, genre, meta.album or None
+            )
+    except Exception:
+        log.exception("coherencia por artista falló")
+    if genre is None or conflict:
+        try:
+            from app.services.ai import genre_ai
+
+            genre_ai.enqueue_artist(meta.primary_artist)
+        except Exception:
+            log.exception("no se pudo encolar para IA")
+    return genre
 
 
 def reset_cache() -> None:

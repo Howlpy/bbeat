@@ -74,6 +74,10 @@ class Track(SQLModel, table=True):
     disc_number: Optional[int] = Field(default=None)
     duration_ms: Optional[int] = Field(default=None)
     genre: Optional[str] = Field(default=None)
+    # Origen del género: 'sources' (cascada), 'ai', 'manual' o None (desconocido).
+    genre_source: Optional[str] = Field(default=None)
+    # True = ningún proceso automático (IA, backfill) puede cambiar el género.
+    genre_locked: bool = Field(default=False)
     # Identificador externo del provider para dedup (spotify_id raw, yt:..., sc:...)
     external_id: Optional[str] = Field(default=None, index=True)
     # URL exacta del vídeo/track del que se descargó (para verificar match)
@@ -93,6 +97,28 @@ class Track(SQLModel, table=True):
 
     artist: Optional[Artist] = Relationship(back_populates="tracks")
     album: Optional[Album] = Relationship(back_populates="tracks")
+
+
+class GenreSuggestion(SQLModel, table=True):
+    """Resultado de la clasificación de géneros con IA (cola de revisión).
+
+    Una fila por artista (track_id NULL) y una por excepción de pista. Sirve
+    también de registro: un artista con filas ya está clasificado y no se
+    vuelve a consultar salvo --force, lo que hace las pasadas reanudables.
+    status: pending | applied | rejected | skipped (el modelo dijo 'unknown').
+    """
+    __tablename__ = "genre_suggestions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    artist_id: int = Field(foreign_key="artists.id", index=True)
+    track_id: Optional[int] = Field(default=None, foreign_key="tracks.id", index=True)
+    genre: Optional[str] = Field(default=None)
+    # Género dominante del artista (o el de la pista) cuando se sugirió.
+    previous_genre: Optional[str] = Field(default=None)
+    confidence: float = Field(default=0.0)
+    reason: Optional[str] = Field(default=None)
+    status: str = Field(default="pending", index=True)
+    created_at: datetime = Field(default_factory=_now)
 
 
 class AlbumTrack(SQLModel, table=True):

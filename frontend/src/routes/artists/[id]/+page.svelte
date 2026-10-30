@@ -13,6 +13,9 @@
   import { initials } from '$lib/visual';
   import Button from '$lib/components/ui/Button.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import { auth } from '$lib/auth.svelte';
+  import { GENRE_SLUGS, genreLabel } from '$lib/genres';
+  import { toast } from '$lib/toast.svelte';
 
   const artistId = $derived(Number(page.params.id));
 
@@ -21,6 +24,31 @@
   const visibleTracks = $derived(sortTracks(tracks, sort));
   let artist = $state<Artist | null>(null);
   let error = $state<string | null>(null);
+
+  // Género del artista (solo admin): el más común entre sus pistas.
+  const mainGenre = $derived.by(() => {
+    const c = new Map<string, number>();
+    for (const t of tracks) if (t.genre) c.set(t.genre.toLowerCase(), (c.get(t.genre.toLowerCase()) ?? 0) + 1);
+    return [...c.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+  });
+  let pickedGenre = $state<string | null>(null);
+  const selectedGenre = $derived(pickedGenre ?? mainGenre);
+  let applyingGenre = $state(false);
+
+  async function applyGenre() {
+    if (!selectedGenre) return;
+    applyingGenre = true;
+    try {
+      await api.setArtistGenre(artistId, selectedGenre);
+      pickedGenre = null;
+      await load();
+      toast.show('Género aplicado a todas sus canciones');
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : String(e));
+    } finally {
+      applyingGenre = false;
+    }
+  }
 
   async function load() {
     try {
@@ -62,6 +90,25 @@
         </div>
       </div>
     </header>
+    {#if auth.user?.is_admin && tracks.length > 0}
+      <div class="mb-6 flex flex-wrap items-end gap-2 rounded-xl border border-line bg-surface p-3">
+        <label class="text-sm">
+          <span class="block text-xs text-fg-muted">Género del artista</span>
+          <select
+            value={selectedGenre}
+            onchange={(e) => (pickedGenre = e.currentTarget.value)}
+            class="mt-1 min-h-11 rounded-lg border border-line bg-bg px-3 text-sm focus:border-accent focus:outline-none sm:min-h-10"
+          >
+            {#if !selectedGenre}<option value="">— sin género —</option>{/if}
+            {#if selectedGenre && !GENRE_SLUGS.includes(selectedGenre)}<option value={selectedGenre}>{genreLabel(selectedGenre)}</option>{/if}
+            {#each GENRE_SLUGS as g}<option value={g}>{genreLabel(g)}</option>{/each}
+          </select>
+        </label>
+        <Button onclick={applyGenre} disabled={applyingGenre || !selectedGenre}>
+          {applyingGenre ? 'Aplicando…' : 'Aplicar a todas sus canciones'}
+        </Button>
+      </div>
+    {/if}
     {#if tracks.length > 0}
       <div class="mb-2 flex justify-end px-2">
         <SortSelect prefKey="sort:artist:{artistId}" bind:value={sort} originalLabel="Por álbum" />

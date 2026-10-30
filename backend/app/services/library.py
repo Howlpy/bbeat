@@ -350,6 +350,10 @@ def edit_track(
         t.track_number = new_track_no
         t.disc_number = new_disc_no
         t.genre = new_genre or None
+        # Editar el género a mano lo fija: la IA y los backfills no lo pisan.
+        if genre is not None:
+            t.genre_source = "manual" if t.genre else None
+            t.genre_locked = bool(t.genre)
         t.file_path = str(new_path.relative_to(settings.music_dir))
         s.add(t)
         s.flush()

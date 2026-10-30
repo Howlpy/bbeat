@@ -67,6 +67,8 @@ def _migrate_schema() -> None:
         ("tracks", "source_url", "TEXT"),
         ("tracks", "has_cover", "INTEGER DEFAULT 0"),
         ("tracks", "genre", "TEXT"),
+        ("tracks", "genre_source", "TEXT"),
+        ("tracks", "genre_locked", "INTEGER NOT NULL DEFAULT 0"),
         # Aprobación de cuentas: los usuarios que ya existían se aprueban
         # (DEFAULT 1); los nuevos los inserta el ORM con 0 (pendientes).
         ("users", "is_approved", "INTEGER NOT NULL DEFAULT 1"),

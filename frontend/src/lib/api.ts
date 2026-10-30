@@ -422,6 +422,35 @@ export const api = {
   ),
   scanStatus: () => json<ScanState>('/api/library/scan/status'),
 
+  // ── Géneros con IA (admin) ──
+  aiGenresStatus: () => json<import('./aiGenres').AiGenresStatus>('/api/admin/ai-genres/status'),
+  aiGenresRun: (limit: number, onlyMissing = false) =>
+    json<{ started: boolean; run: import('./aiGenres').AiRunState }>('/api/admin/ai-genres/run', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ limit, only_missing: onlyMissing })
+    }),
+  aiGenresStop: () => json<{ ok: boolean }>('/api/admin/ai-genres/stop', { method: 'POST' }),
+  aiSuggestions: () =>
+    json<{ items: import('./aiGenres').AiSuggestion[] }>('/api/admin/ai-genres/suggestions'),
+  aiAccept: (id: number, genre?: string) =>
+    json<{ ok: boolean; changed: number }>(`/api/admin/ai-genres/suggestions/${id}/accept`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ genre: genre ?? null })
+    }),
+  aiReject: (id: number) =>
+    json<{ ok: boolean }>(`/api/admin/ai-genres/suggestions/${id}/reject`, { method: 'POST' }),
+  setArtistGenre: (artistId: number, genre: string) =>
+    json<{ genre: string; tracks: number; changed: number; failed: number }>(
+      `/api/admin/artists/${artistId}/genre`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ genre })
+      }
+    ),
+
   // ── Ingesta (Spotify / YouTube / SoundCloud) ──
   previewIngest: (url: string) =>
     json<IngestPreview>('/api/ingest/preview', {

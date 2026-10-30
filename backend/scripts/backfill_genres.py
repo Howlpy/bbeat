@@ -107,10 +107,16 @@ def main() -> int:
             select(Track, Artist, Album.title)
             .join(Artist, Artist.id == Track.artist_id)
             .outerjoin(Album, Album.id == Track.album_id)
+            .where(Track.genre_locked.is_(False))  # lo puesto a mano no se toca
             .order_by(Track.id)
         )
         if not args.reprocesar:
             stmt = stmt.where(Track.genre.is_(None))
+        else:
+            # Tampoco se revierten las correcciones de la IA.
+            stmt = stmt.where(
+                (Track.genre_source.is_(None)) | (Track.genre_source != "ai")
+            )
         rows = session.exec(stmt).all()
         herencia = _album_majorities(session)
 
@@ -179,8 +185,9 @@ def main() -> int:
             # dice, y el siguiente escaneo lo revertiría en silencio.
             with Session(engine) as session:
                 fresh = session.get(Track, track.id)
-                if fresh is not None:
+                if fresh is not None and not fresh.genre_locked:
                     fresh.genre = genre
+                    fresh.genre_source = "sources"
                     session.add(fresh)
                     session.commit()
 

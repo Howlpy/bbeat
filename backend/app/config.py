@@ -45,6 +45,25 @@ class Settings(BaseSettings):
     # la resolución de género simplemente se salta esa fuente.
     lastfm_api_key: str = Field("", alias="BBEAT_LASTFM_API_KEY")
 
+    # Clasificación de géneros con IA (todo opcional; desactivada por defecto).
+    # Cualquier proveedor: openai | gemini | anthropic | ollama | none. Ver README.
+    ai_provider: str = Field("none", alias="BBEAT_AI_PROVIDER")
+    ai_base_url: str = Field("", alias="BBEAT_AI_BASE_URL")
+    ai_api_key: str = Field("", alias="BBEAT_AI_API_KEY")
+    ai_model: str = Field("", alias="BBEAT_AI_MODEL")
+    # Peticiones por minuto al proveedor (conservador: cuotas gratuitas bajas).
+    ai_rpm: float = Field(10, alias="BBEAT_AI_RPM")
+    ai_timeout: float = Field(60, alias="BBEAT_AI_TIMEOUT")
+    # Por debajo de esta confianza la sugerencia va a revisión, no se aplica.
+    ai_min_confidence: float = Field(0.75, alias="BBEAT_AI_MIN_CONFIDENCE")
+    # Artistas pequeños que se agrupan en una sola petición (ahorra cuota).
+    ai_batch_artists: int = Field(5, alias="BBEAT_AI_BATCH_ARTISTS")
+    # Búsqueda web como evidencia: searxng | none.
+    search_provider: str = Field("none", alias="BBEAT_SEARCH_PROVIDER")
+    searxng_url: str = Field("", alias="BBEAT_SEARXNG_URL")
+    # Coherencia por artista al importar (funciona sin IA).
+    artist_consistency: bool = Field(True, alias="BBEAT_ARTIST_CONSISTENCY")
+
     @property
     def cors_origin_list(self) -> list[str]:
         configured = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
