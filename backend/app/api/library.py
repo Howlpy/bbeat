@@ -941,6 +941,19 @@ async def upload_track(
                 if dest_album.year:
                     meta.year = dest_album.year
 
+    # Mismo género que una importación por URL: fuentes + coherencia por artista
+    # (+ cola de IA si está activa). El tag del fichero es texto libre y solo
+    # queda de respaldo si no se resuelve nada. En un hilo: hace peticiones de red.
+    try:
+        resolved = await asyncio.to_thread(genres_svc.resolve_meta, meta)
+    except Exception:
+        import logging
+
+        logging.getLogger("bbeat.library").exception("resolviendo género de la subida")
+        resolved = None
+    if resolved:
+        meta.genre = resolved
+
     final_path = organizer.organize(tmp_path, meta)
     track_id = scanner.index_file(final_path)
     # Asignar el álbum recién creado al uploader si no tiene owner
