@@ -11,6 +11,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
@@ -366,9 +367,9 @@ def download_album_zip(
         tmp_path = Path(tmp.name)
 
     try:
-        # compresslevel 1: el audio no comprime, así que el zip sale a la velocidad
-        # del disco en vez de comerse la CPU comprimiendo en balde.
-        zf = zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True, compresslevel=1)
+        # ZIP_STORED: el audio no comprime, así que el zip sale a la velocidad del
+        # disco (sin CPU en balde ni timeouts de proxy mientras se construye).
+        zf = zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_STORED, allowZip64=True)
         with zf:
             used: set[str] = set()
             for path, name in entries:
@@ -385,7 +386,9 @@ def download_album_zip(
         raise
 
     download_name = _zip_entry_name(album.title, "lista") + ".zip"
-    ascii_name = download_name.encode("ascii", "ignore").decode() or "lista.zip"
+    ascii_name = download_name.encode("ascii", "ignore").decode()
+    if ascii_name.strip(" .").lower() in ("", "zip"):
+        ascii_name = "lista.zip"
 
     def _stream() -> Iterator[bytes]:
         try:
@@ -398,6 +401,9 @@ def download_album_zip(
     return StreamingResponse(
         _stream(),
         media_type="application/zip",
+        # Red de seguridad: si el cliente corta antes de empezar a leer, el
+        # generador no corre y su finally no borraría el temporal.
+        background=BackgroundTask(tmp_path.unlink, missing_ok=True),
         headers={
             "Content-Disposition": (
                 f'attachment; filename="{ascii_name}"; '

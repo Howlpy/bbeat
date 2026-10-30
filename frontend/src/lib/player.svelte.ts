@@ -114,6 +114,8 @@ class PlayerState {
   private stallTimer: ReturnType<typeof setTimeout> | null = null;
   /** Fallos seguidos al cargar pistas; corta el bucle si todas fallan. */
   private failStreak = 0;
+  /** Pista ya pasada de streaming a local por recoverFromDeadStream (evita doble disparo). */
+  private recoveredId: number | null = null;
 
   private cancelPendingPause() {
     if (this.pendingPauseTimer !== null) {
@@ -243,9 +245,12 @@ class PlayerState {
   private armStall() {
     if (this.stallTimer !== null) return;
     probe(); // si no hay red, net.online pasa a false antes de que venza
+    const t0 = this.el?.currentTime ?? 0;
     this.stallTimer = setTimeout(() => {
       this.stallTimer = null;
-      if (!net.online) this.recoverFromDeadStream();
+      // Solo si de verdad no hay red Y la pista no ha avanzado (con red nunca se salta).
+      const progressed = (this.el?.currentTime ?? 0) - t0 > 0.5;
+      if (!net.online && !progressed) this.recoverFromDeadStream();
     }, STALL_MS);
   }
 
@@ -254,7 +259,8 @@ class PlayerState {
     const cur = this.current;
     if (!cur) return;
     // Fichero local roto: no depende de la red; salta a la siguiente reproducible.
-    if (this.el?.src === offline.audioUrl(cur.id)) {
+    const localUrl = offline.audioUrl(cur.id);
+    if (localUrl && this.el && sameUrl(this.el.src, localUrl)) {
       this.skipBroken();
       return;
     }
@@ -279,7 +285,10 @@ class PlayerState {
     if (!el || !cur) return;
     // Descargada mientras sonaba en streaming: sigue desde el mismo punto en local.
     const local = offline.audioUrl(cur.id);
-    if (local && el.src !== local) {
+    // Ya cambiada a local para esta pista (2º disparo: error tras el cronómetro o al revés): no hagas nada.
+    if (local && this.recoveredId === cur.id && sameUrl(el.src, local)) return;
+    if (local && !sameUrl(el.src, local)) {
+      this.recoveredId = cur.id;
       const pos = el.currentTime;
       const resume = this.isPlaying;
       this.switching = true;
@@ -287,6 +296,8 @@ class PlayerState {
       el.addEventListener(
         'loadedmetadata',
         () => {
+          // Si el usuario saltó de pista entretanto, no muevas la nueva.
+          if (this.current?.id !== cur.id) return;
           try { el.currentTime = pos; } catch { /* ignore */ }
         },
         { once: true }
@@ -461,6 +472,7 @@ class PlayerState {
     this.explicitPauseElement = null;
     // Marca que estamos cambiando para suprimir el pause espurio del <audio>.
     this.switching = true;
+    this.recoveredId = null;
     // Mantén playbackState='playing' en MediaSession durante la transición
     // para que Android NO descarte la notificación.
     this.setPlaybackState('playing');
@@ -575,6 +587,7 @@ class PlayerState {
     this.setPlaybackState('playing');
     this.index = ni;
     this.activeIdx = 1 - this.activeIdx; // a partir de aquí this.el === nw
+    this.recoveredId = null;
     this.preloadedId = null;
     this.updateMediaSession();
 

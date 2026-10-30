@@ -49,7 +49,7 @@
 </script>
 
 {#if href}
-  <a {href} class={cls}>{@render children?.()}</a>
+  <a {href} class={cls} {...rest as Record<string, unknown>}>{@render children?.()}</a>
 {:else}
   <button type="button" class={cls} {...rest}>{@render children?.()}</button>
 {/if}

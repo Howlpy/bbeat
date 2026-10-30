@@ -12,6 +12,7 @@ export const net = new NetState();
 
 const PROBE_EVERY_MS = 10_000;
 const PROBE_TIMEOUT_MS = 4_000;
+const RELOAD_AFTER_HIDDEN_MS = 60_000;
 
 const listeners = new Set<() => void>(); // reconexión (recargar datos)
 const statusListeners = new Set<(online: boolean) => void>(); // cualquier cambio
@@ -61,18 +62,23 @@ export function probe(): Promise<boolean> {
   if (typeof window === 'undefined') return Promise.resolve(true);
   if (probing) return probing;
   probing = (async () => {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
-    try {
-      const res = await fetch(apiUrl('/api/health'), { cache: 'no-store', signal: ctrl.signal });
-      if (res.ok) {
+    // Online: exige 2 sondeos fallidos seguidos antes de dar la red por caída
+    // (un timeout suelto en una red lenta no significa "sin internet").
+    const attempts = net.online ? 2 : 1;
+    for (let i = 0; i < attempts; i++) {
+      if (i > 0) await new Promise((r) => setTimeout(r, 1_000));
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+      try {
+        // Cualquier respuesta HTTP (incluso 5xx) = hay red; un error del servidor no es "sin internet".
+        await fetch(apiUrl('/api/health'), { cache: 'no-store', signal: ctrl.signal });
         markOnline();
         return true;
+      } catch {
+        // sin red / timeout
+      } finally {
+        clearTimeout(timer);
       }
-    } catch {
-      // sin red / timeout
-    } finally {
-      clearTimeout(timer);
     }
     markOffline();
     return false;
@@ -119,11 +125,17 @@ export async function initNet() {
   if (started || typeof window === 'undefined') return;
   started = true;
 
+  let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      if (!net.online) startProbing();
-      triggerReconnect();
+      const wasOffline = !net.online;
+      const longAway = hiddenAt > 0 && Date.now() - hiddenAt > RELOAD_AFTER_HIDDEN_MS;
+      hiddenAt = 0;
+      if (wasOffline) startProbing();
+      // Recarga solo si estábamos offline o llevaba mucho en segundo plano (evita parpadeos).
+      if (wasOffline || longAway) triggerReconnect();
     } else {
+      hiddenAt = Date.now();
       stopProbing();
     }
   });

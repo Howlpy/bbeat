@@ -91,7 +91,7 @@ export type ScanState = {
 import { auth } from './auth.svelte';
 import { goto } from '$app/navigation';
 import { apiUrl } from './config';
-import { markOffline, markOnline, OfflineError } from './net.svelte';
+import { markOffline, markOnline, net, OfflineError, probe } from './net.svelte';
 import { cacheGet, cachePut } from './apicache';
 
 /** Añade ?token=XXX a URLs internas /api/library/cover|stream para que <img> y <audio>
@@ -120,7 +120,8 @@ async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; s
   const isGet = !fetchInit.method || fetchInit.method.toUpperCase() === 'GET';
   // GET idempotente: hasta 2 reintentos si falla la red o se agota el tiempo,
   // con un timeout por intento más corto para que el total siga siendo razonable.
-  const retries = isGet ? 2 : 0;
+  // Si ya sabemos que no hay red, no esperamos reintentos: directo a la caché.
+  const retries = isGet && net.online ? 2 : 0;
   const attemptMs = isGet ? Math.min(timeoutMs, 15_000) : timeoutMs;
   // Inyecta Authorization si tenemos token y no es un endpoint público
   const headers = new Headers(fetchInit.headers as HeadersInit);
@@ -143,6 +144,15 @@ async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number; s
     }
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
+      // Timeout en GET: en redes "conectadas sin internet" las peticiones se cuelgan.
+      // Si hay caché la usamos y comprobamos la red en segundo plano.
+      if (isGet) {
+        const cached = await cacheGet(url);
+        if (cached !== undefined) {
+          probe();
+          return tokenizeUrls(cached) as T;
+        }
+      }
       throw new Error(`Tiempo agotado (${Math.round(attemptMs / 1000)}s) — ${url}`);
     }
     // fetch lanza TypeError cuando no se pudo establecer la conexión (sin red,

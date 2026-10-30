@@ -97,7 +97,7 @@
 {:else}
   {#if !net.online}
     <div
-      class="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-warning px-3 py-1 text-xs font-semibold leading-5 text-accent-fg"
+      class="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-warning px-3 py-1 pt-[calc(0.25rem+env(safe-area-inset-top))] text-xs font-semibold leading-5 text-accent-fg"
     >
       <button type="button" class="flex items-center gap-1.5" onclick={triggerReconnect}>
         <WifiOff size={11} /> Sin conexión · reintentar

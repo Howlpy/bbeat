@@ -1,4 +1,5 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -23,10 +24,22 @@ logging.basicConfig(
 log = logging.getLogger("bbeat")
 
 
+def _sweep_stale_zips(max_age_s: int = 3600) -> None:
+    """Borra zips de descarga huérfanos (p. ej. tras un reinicio a mitad de envío)."""
+    limit = time.time() - max_age_s
+    for f in settings.data_dir.glob("bbeat-download-*.zip"):
+        try:
+            if f.stat().st_mtime < limit:
+                f.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.ensure_dirs()
     init_db()
+    _sweep_stale_zips()
     log.info("Bbeat %s arrancando en %s:%s", __version__, settings.host, settings.port)
     log.info("Setup wizard %s", "PENDIENTE" if not settings.setup_complete else "COMPLETO")
     log.info("Música en %s", settings.music_dir)
