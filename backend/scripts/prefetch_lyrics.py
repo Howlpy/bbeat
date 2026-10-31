@@ -47,10 +47,14 @@ def main() -> None:
                 if album and (album.kind or "album") == "album" and album.artist_id == t.artist_id
                 else None
             )
-            res = L.lookup(
-                s, t.id, artist.name if artist else "", t.title, real_album,
-                (t.duration_ms or 0) // 1000,
-            )
+            try:
+                res = L.lookup(
+                    s, t.id, artist.name if artist else "", t.title, real_album,
+                    (t.duration_ms or 0) // 1000,
+                )
+            except Exception as e:  # una canción rota no corta la precarga
+                s.rollback()
+                res = {"error": f"{type(e).__name__}: {e}"[:200]}
             done += 1
             if res.get("error"):
                 errors += 1

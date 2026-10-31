@@ -188,3 +188,22 @@ def test_refresh_ignora_cache_e_invalidate(session, monkeypatch):
     assert len(calls) == 2
     L.invalidate(session, 1)
     assert session.get(LyricsCache, 1) is None
+
+
+def test_insercion_concurrente_no_falla(tmp_path, monkeypatch):
+    # La app y la precarga piden la misma canción a la vez: la otra petición
+    # inserta la fila mientras esta consulta LRCLIB. Debe actualizarla, no romper.
+    eng = create_engine(f"sqlite:///{tmp_path / 'l.db'}")
+    SQLModel.metadata.create_all(eng)
+
+    def fetch(*a, **k):
+        with Session(eng) as other:
+            other.add(LyricsCache(track_id=1, found=False, fetched_at=datetime.utcnow()))
+            other.commit()
+        return FOUND
+
+    monkeypatch.setattr(L, "fetch_lyrics", fetch)
+    with Session(eng) as s:
+        assert L.lookup(s, 1, "A", "S", None, 100)["found"] is True
+    with Session(eng) as s:
+        assert s.get(LyricsCache, 1).found is True

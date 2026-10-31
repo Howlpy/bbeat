@@ -297,6 +297,34 @@ def _row_to_dict(row) -> dict:
     }
 
 
+def _store(session, model, row, track_id: int, res: dict) -> None:
+    """Guarda en caché. Si otra petición insertó la fila a la vez (la app y la
+    precarga, o dos clientes), se reintenta como actualización en vez de fallar."""
+    from sqlalchemy.exc import IntegrityError
+
+    for attempt in range(2):
+        if row is None:
+            row = model(track_id=track_id)
+        row.found = bool(res["found"])
+        row.plain = res.get("plain")
+        row.synced = res.get("synced")
+        row.source = res.get("source")
+        row.track_name = res.get("track_name")
+        row.artist_name = res.get("artist_name")
+        row.approx = bool(res.get("approx"))
+        row.instrumental = bool(res.get("instrumental"))
+        row.fetched_at = datetime.utcnow()
+        session.add(row)
+        try:
+            session.commit()
+            return
+        except IntegrityError:
+            session.rollback()
+            if attempt:
+                raise
+            row = session.get(model, track_id, populate_existing=True)
+
+
 def lookup(
     session,
     track_id: int,
@@ -316,19 +344,7 @@ def lookup(
     res = fetch_lyrics(artist, title, album, duration_seconds)
     if res.get("error"):
         return {**res, "cached": False}
-    if row is None:
-        row = LyricsCache(track_id=track_id)
-    row.found = bool(res["found"])
-    row.plain = res.get("plain")
-    row.synced = res.get("synced")
-    row.source = res.get("source")
-    row.track_name = res.get("track_name")
-    row.artist_name = res.get("artist_name")
-    row.approx = bool(res.get("approx"))
-    row.instrumental = bool(res.get("instrumental"))
-    row.fetched_at = datetime.utcnow()
-    session.add(row)
-    session.commit()
+    _store(session, LyricsCache, row, track_id, res)
     return {**res, "cached": False}
 
 
