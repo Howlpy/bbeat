@@ -26,6 +26,8 @@
   let plain = $state<string | null>(null);
   let synced = $state<{ time: number; text: string }[] | null>(null);
   let lyricsLoading = $state(true);
+  let lyricsError = $state(false);
+  let lyricsInstrumental = $state(false);
   let lyricsTrackId = $state<number | null>(null);
   let activeTab = $state<'cover' | 'lyrics'>('cover');
   let lyricsContainer = $state<HTMLDivElement | null>(null);
@@ -40,25 +42,42 @@
     return out;
   }
 
+  function loadLyrics(id: number, refresh = false) {
+    lyricsLoading = true;
+    lyricsError = false;
+    lyricsInstrumental = false;
+    plain = null;
+    synced = null;
+    api
+      .lyrics(id, refresh)
+      .then((r) => {
+        if (id !== lyricsTrackId) return; // cambió de pista mientras cargaba
+        if (r.found) {
+          plain = r.plain ?? null;
+          if (r.synced) synced = parseSyncedLyrics(r.synced);
+        } else if (r.error) {
+          lyricsError = true;
+        } else if (r.instrumental) {
+          lyricsInstrumental = true;
+        }
+      })
+      .catch(() => {
+        if (id === lyricsTrackId) lyricsError = true;
+      })
+      .finally(() => {
+        if (id === lyricsTrackId) lyricsLoading = false;
+      });
+  }
+
   $effect(() => {
     const id = player.current?.id ?? null;
     if (id !== lyricsTrackId) {
       lyricsTrackId = id;
       plain = null;
       synced = null;
-      if (id !== null) {
-        lyricsLoading = true;
-        api
-          .lyrics(id)
-          .then((r) => {
-            if (r.found) {
-              plain = r.plain ?? null;
-              if (r.synced) synced = parseSyncedLyrics(r.synced);
-            }
-          })
-          .catch(() => {})
-          .finally(() => (lyricsLoading = false));
-      }
+      lyricsError = false;
+      lyricsInstrumental = false;
+      if (id !== null) loadLyrics(id);
     }
   });
 
@@ -238,8 +257,18 @@
             </div>
           {:else if plain}
             <pre class="whitespace-pre-wrap text-left text-sm leading-relaxed text-fg-muted">{plain}</pre>
+          {:else if lyricsError}
+            <p class="text-sm text-fg-subtle">
+              No se pudieron cargar las letras ·
+              <button
+                class="text-accent hover:underline"
+                onclick={() => lyricsTrackId !== null && loadLyrics(lyricsTrackId, true)}
+              >Reintentar</button>
+            </p>
+          {:else if lyricsInstrumental}
+            <p class="text-sm text-fg-subtle">Instrumental</p>
           {:else}
-            <p class="text-sm text-fg-subtle">No hay letras disponibles para esta pista.</p>
+            <p class="text-sm text-fg-subtle">Sin letra</p>
             <p class="mt-2 text-xs text-fg-subtle">LRCLIB no la tiene catalogada todavía.</p>
           {/if}
         </div>

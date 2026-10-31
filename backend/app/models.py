@@ -185,6 +185,22 @@ class UserPref(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_now)
 
 
+class LyricsCache(SQLModel, table=True):
+    """Caché de letras (LRCLIB) por pista. Sin FK a propósito: es solo caché."""
+    __tablename__ = "lyrics_cache"
+
+    track_id: int = Field(primary_key=True)
+    found: bool = Field(default=False)
+    plain: Optional[str] = Field(default=None)
+    synced: Optional[str] = Field(default=None)
+    source: Optional[str] = Field(default=None)
+    track_name: Optional[str] = Field(default=None)
+    artist_name: Optional[str] = Field(default=None)
+    approx: bool = Field(default=False)
+    instrumental: bool = Field(default=False)
+    fetched_at: datetime = Field(default_factory=_now)
+
+
 class Setting(SQLModel, table=True):
     """Pares clave/valor editables desde la UI (override del .env)."""
     __tablename__ = "settings"

@@ -530,15 +530,20 @@ export const api = {
     ),
 
   // ── Letras ──
-  lyrics: (trackId: number) =>
+  lyrics: (trackId: number, refresh = false) =>
     json<{
       found: boolean;
+      instrumental?: boolean;
+      cached?: boolean;
+      error?: string;
       plain: string | null;
       synced: string | null;
       source: string;
       track_name?: string;
       artist_name?: string;
-    }>(`/api/library/tracks/${trackId}/lyrics`, { timeoutMs: 15_000 }),
+    }>(`/api/library/tracks/${trackId}/lyrics${refresh ? '?refresh=1' : ''}`, {
+      timeoutMs: 25_000
+    }),
 
   // ── Me gusta / historial ──
   likeTrack: (id: number) =>

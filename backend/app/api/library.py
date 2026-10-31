@@ -741,6 +741,8 @@ def edit_track(
     res = library_svc.edit_track(track_id, **body.model_dump(exclude_none=True))
     if not res.get("ok"):
         raise HTTPException(400, res.get("reason", "error"))
+    # Título/artista pueden haber cambiado: la letra cacheada ya no vale.
+    lyrics_svc.invalidate(session, track_id)
     return res
 
 
@@ -829,6 +831,7 @@ def get_lyrics(
     track_id: int,
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
+    refresh: int = Query(0),
 ) -> dict:
     t = session.get(Track, track_id)
     if not t:
@@ -836,11 +839,21 @@ def get_lyrics(
     # Pool global: cualquier usuario autenticado puede pedir letras.
     album = session.get(Album, t.album_id) if t.album_id else None
     artist = session.get(Artist, t.artist_id)
-    return lyrics_svc.fetch_lyrics(
+    # El álbum solo ayuda a LRCLIB si es un álbum real del mismo artista;
+    # las playlists dan su nombre como "álbum" y rompen el match.
+    real_album = (
+        album.title
+        if album and (album.kind or "album") == "album" and album.artist_id == t.artist_id
+        else None
+    )
+    return lyrics_svc.lookup(
+        session,
+        track_id,
         artist=artist.name if artist else "",
         title=t.title,
-        album=album.title if album else None,
+        album=real_album,
         duration_seconds=(t.duration_ms or 0) // 1000,
+        refresh=bool(refresh),
     )
 
 
