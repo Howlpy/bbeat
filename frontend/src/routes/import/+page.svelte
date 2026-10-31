@@ -276,13 +276,13 @@
       class="min-h-10 flex-1 rounded-md px-3 text-fg-muted"
       class:bg-surface-3={tab === 'url'}
       class:text-fg={tab === 'url'}
-    >URL (Spotify · YouTube · SoundCloud)</button>
+    >Desde URL</button>
     <button
       onclick={() => (tab = 'file')}
       class="min-h-10 flex-1 rounded-md px-3 text-fg-muted"
       class:bg-surface-3={tab === 'file'}
       class:text-fg={tab === 'file'}
-    >Ficheros locales</button>
+    >Desde archivos</button>
   </div>
 
   {#if tab === 'url'}

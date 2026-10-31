@@ -31,7 +31,9 @@
   let debounce: ReturnType<typeof setTimeout> | undefined;
 
   async function load() {
-    loading = true;
+    // Esqueleto solo si no hay nada que enseñar: recargar (reconexión, búsqueda)
+    // no debe vaciar la rejilla y hacerla parpadear.
+    loading = albums.length === 0;
     try {
       const res = await api.albums(view === 'saved' ? 'saved' : 'all', { q: q.trim() || undefined });
       albums = res.items;

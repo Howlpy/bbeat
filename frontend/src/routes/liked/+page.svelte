@@ -22,7 +22,10 @@
   let loading = $state(true);
 
   async function load() {
-    loading = true;
+    // Esqueleto solo en la primera carga: las recargas (reconexión, cambios)
+    // mantienen la lista visible. Si no, la lista parpadeaba al reproducir
+    // cuando la red iba y venía.
+    loading = tracks.length === 0;
     try {
       const r = await api.likedTracks();
       tracks = r.items;
