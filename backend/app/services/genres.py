@@ -97,6 +97,7 @@ CANONICAL: dict[str, str] = {
     "Punk": "rock",
     "Metal extremo": "metal",
     "Bandas sonoras": "bso",
+    "Podcasts": "podcast",
 }
 
 
@@ -139,6 +140,7 @@ ITUNES_CANONICAL: dict[str, str] = {
     "Blues": "blues",
     "Classical": "clasica",
     "Soundtrack": "bso",
+    "Podcasts": "podcast",
     "Folk": "folk",
     "Singer/Songwriter": "folk",
     "World": "mundo",
@@ -156,6 +158,7 @@ ITUNES_CANONICAL: dict[str, str] = {
 # "latino"; es rap. "pop rap" es rap, no pop. Y "pop" va el último a propósito,
 # porque es la etiqueta que todo el mundo usa cuando no sabe qué poner.
 WIKIDATA_PATRONES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("podcast",), "podcast"),
     (("hip hop", "hip-hop", "rap", "trap", "drill", "grime"), "rap"),
     (("reggaeton", "reguet", "perreo", "dembow"), "reggaeton"),
     (("metal", "thrash", "grindcore"), "metal"),
@@ -842,6 +845,7 @@ GENRE_LABELS = {
     "bso": "Banda sonora",
     "mundo": "Músicas del mundo",
     "infantil": "Infantil",
+    "podcast": "Podcasts",
 }
 
 

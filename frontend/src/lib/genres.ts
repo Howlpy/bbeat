@@ -26,6 +26,7 @@ export const GENRE_LABELS: Record<string, string> = {
   bso: 'Banda sonora',
   mundo: 'Músicas del mundo',
   infantil: 'Infantil',
+  podcast: 'Podcasts',
   [SIN_GENERO]: 'Sin género'
 };
 

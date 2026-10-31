@@ -58,6 +58,7 @@ GENRE_DESCRIPTIONS = {
     "bso": "bandas sonoras y música de películas, series o videojuegos",
     "mundo": "músicas del mundo: africana, asiática, celta, flamenco, etc.",
     "infantil": "música infantil, nanas, canciones para niños",
+    "podcast": "podcasts, programas hablados, entrevistas, charlas (no música)",
 }
 
 SYSTEM_PROMPT = """Eres un experto en música que clasifica artistas en un género de una lista CERRADA.
