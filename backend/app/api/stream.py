@@ -32,12 +32,17 @@ CONTENT_TYPES = {
     "m4a": "audio/mp4",
     "aac": "audio/aac",
     "wav": "audio/wav",
+    "webm": "audio/webm",
 }
 
 # Formatos que Subsonic puede pedir vía parámetro `format`
 TRANSCODE_FORMATS = {
     "mp3": ("audio/mpeg", ["-f", "mp3", "-codec:a", "libmp3lame", "-q:a", "2"]),
     "aac": ("audio/aac", ["-f", "adts", "-codec:a", "aac", "-b:a", "192k"]),
+    # AAC en contenedor MP4: lo que Safari/iOS reproduce mejor. faststart pone el
+    # moov al principio para poder arrancar y hacer seek con Range.
+    "m4a": ("audio/mp4", ["-f", "mp4", "-vn", "-codec:a", "aac", "-b:a", "192k",
+                          "-movflags", "+faststart"]),
     "ogg": ("audio/ogg", ["-f", "ogg", "-codec:a", "libvorbis", "-q:a", "6"]),
 }
 
@@ -155,9 +160,15 @@ def stream_track(
     track_id: int,
     request: Request,
     range_header: str | None = Header(default=None, alias="Range"),
+    format: Optional[str] = Query(None),
     session: Session = Depends(get_session),
     user: User = Depends(auth_svc.get_current_user),
 ):
+    # `format` opcional (p. ej. Safari/iOS no decodifica Ogg Opus): se transcodifica.
+    fmt = format.lower() if format else None
+    if fmt is not None and fmt not in TRANSCODE_FORMATS:
+        raise HTTPException(400, "unsupported format")
+
     # Pool global: cualquier usuario autenticado puede reproducir cualquier pista.
     track = session.get(Track, track_id)
     if track is None:
@@ -173,8 +184,18 @@ def stream_track(
     except ValueError:
         raise HTTPException(400, "invalid path")
 
-    file_size = path.stat().st_size
     media_type = CONTENT_TYPES.get(track.file_format or "", "application/octet-stream")
+    if fmt is not None and (track.file_format or "").lower() != fmt:
+        # Handler síncrono: FastAPI ya lo ejecuta en el threadpool, ffmpeg no
+        # bloquea el event loop.
+        try:
+            path = get_transcoded(track.id, path, fmt)
+        except Exception:
+            log.exception("transcode falló track %d → %s", track.id, fmt)
+            raise HTTPException(500, "transcode failed")
+        media_type = TRANSCODE_FORMATS[fmt][0]
+
+    file_size = path.stat().st_size
 
     base_headers = {
         "Accept-Ranges": "bytes",

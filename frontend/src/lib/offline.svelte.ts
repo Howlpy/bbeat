@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import type { Track } from './api';
 import { net } from './net.svelte';
+import { canPlayOggOpus, streamUrlFor } from './audioSupport';
 
 // Descargas offline.
 //
@@ -73,6 +74,12 @@ function audioExt(t: Track): string {
   if (['ogg', 'mp3', 'm4a', 'opus', 'flac', 'aac', 'wav', 'webm'].includes(f)) return f;
   return 'mp3';
 }
+
+/** MIME por formato, por si el servidor no manda Content-Type. */
+const WEB_MIME: Record<string, string> = {
+  mp3: 'audio/mpeg', ogg: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac',
+  m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', webm: 'audio/webm'
+};
 
 /** Blob → base64 sin el prefijo `data:...;base64,` (lo que espera Filesystem.writeFile). */
 function blobToBase64(blob: Blob): Promise<string> {
@@ -152,14 +159,22 @@ class OfflineStore {
     navigator.storage?.persist?.().catch(() => {});
     const db = await openDB();
     const recs = await tx<Rec[]>(db, 'readonly', (s) => s.getAll());
-    for (const r of recs) {
+    const stale: number[] = [];
+    for (const r of recs.slice()) {
+      // Descargas viejas en Ogg/Opus que este navegador no decodifica: se descartan
+      // (la pista cae a streaming transcodificado y se puede volver a descargar).
+      if (!r.audio?.size || (!canPlayOggOpus() && /ogg|opus|webm/i.test(r.audio.type))) {
+        stale.push(r.id);
+        continue;
+      }
       this.audioUrls.set(r.id, URL.createObjectURL(r.audio));
       if (r.cover) this.coverUrls.set(r.id, URL.createObjectURL(r.cover));
       this.metas.set(r.id, r.track);
       this.byteMap.set(r.id, (r.audio?.size ?? 0) + (r.cover?.size ?? 0));
     }
-    this.ids = new Set(recs.map((r) => r.id));
+    this.ids = new Set(this.audioUrls.keys());
     this.recountBytes();
+    for (const id of stale) await tx(db, 'readwrite', (s) => s.delete(id)).catch(() => {});
   }
 
   private async initNative() {
@@ -230,9 +245,13 @@ class OfflineStore {
   }
 
   private async downloadWeb(t: Track) {
-    const res = await fetchStarted(t.stream_url);
+    const res = await fetchStarted(streamUrlFor(t));
     if (!res.ok) throw new Error('stream ' + res.status);
-    const audio = await res.blob();
+    const raw = await res.blob();
+    if (raw.size === 0) throw new Error('audio vacío');
+    // Tipo explícito: el del servidor, o el que corresponde al formato pedido.
+    const type = res.headers.get('content-type')?.split(';')[0].trim() || WEB_MIME[audioExt(t)] || 'audio/mpeg';
+    const audio = new Blob([raw], { type });
     let cover: Blob | null = null;
     if (t.cover_url) {
       cover = await fetch(t.cover_url, { signal: AbortSignal.timeout(20_000) }).then((r) => (r.ok ? r.blob() : null)).catch(() => null);

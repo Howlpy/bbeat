@@ -1,5 +1,6 @@
 import { api, type Track } from './api';
 import { offline } from './offline.svelte';
+import { streamUrlFor } from './audioSupport';
 import { net, onNetChange, probe } from './net.svelte';
 import { toast, UNAVAILABLE_MSG } from './toast.svelte';
 import { media } from './media';
@@ -226,7 +227,7 @@ class PlayerState {
 
   /** URL de reproducción de una pista: blob/fichero local si está descargada, si no el stream. */
   private srcFor(t: Track): string {
-    return offline.audioUrl(t.id) ?? t.stream_url;
+    return offline.audioUrl(t.id) ?? streamUrlFor(t);
   }
 
   /** ¿Se puede reproducir ahora? Con red todo; sin red, solo lo descargado. */
