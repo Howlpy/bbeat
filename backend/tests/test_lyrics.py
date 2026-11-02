@@ -78,6 +78,27 @@ def test_prefiere_artista_y_duracion_cercana():
     assert L.pick_candidate([a, b], ["Artist"], "Song", 200) is b
 
 
+def test_rechaza_mismo_titulo_de_otro_artista():
+    # Casos reales: 'Flow de Barrio' de Tiago PZK salía con la de Khriz y Angel.
+    cands = [_lrc("Flow De Barrio", "Khriz Y Angel", 171)]
+    assert L.pick_candidate(cands, ["Tiago PZK"], "Flow de Barrio", 171) is None
+
+
+def test_rechaza_titulo_que_solo_contiene():
+    cands = [_lrc("PINKY PROMISE", "La Pantera", 182)]
+    assert L.pick_candidate(cands, ["La Pantera"], "PINKY PROMISE 2", 182) is None
+
+
+def test_artista_por_palabras_no_subcadena():
+    assert not L._artist_match("Marcel", ["Arce"])
+    assert L._artist_match("Faenna, DELAOSSA & Sceno", ["Faenna"])
+
+
+def test_titulo_con_variantes_limpias():
+    assert L.title_match("Helios - Burn Me to the Sky", "Helios (Burn Me to the Sky)")
+    assert L.title_match("Riders on the Storm (feat. The Doors)", "Riders on the storm")
+
+
 # ─── Reintentos y cadena ─────────────────────────────────────
 
 def test_reintenta_503_y_acierta():

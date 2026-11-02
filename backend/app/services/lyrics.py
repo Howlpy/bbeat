@@ -160,41 +160,48 @@ def _format(data: dict, approx: bool = False) -> Optional[dict]:
 
 
 def _artist_match(cand_artist: Optional[str], parts: list[str]) -> bool:
+    """Coincide si alguna parte del artista aparece como palabras completas en el
+    de la candidata (o al revés). Por palabras, no por subcadena: 'Arce' no debe
+    casar con 'Marcel'."""
     ca = _norm(cand_artist)
     if not ca:
         return False
     for p in parts:
         pn = _norm(p)
-        if pn and (pn in ca or ca in pn):
+        if pn and (f" {pn} " in f" {ca} " or f" {ca} " in f" {pn} "):
             return True
     return False
+
+
+def title_match(ours: str, theirs: Optional[str]) -> bool:
+    """Mismo título, comparando también sus versiones limpias. Solo igualdad:
+    'PINKY PROMISE' y 'PINKY PROMISE 2' son canciones distintas."""
+    a = {_norm(ours), _norm(clean_title(ours))} - {""}
+    b = {_norm(theirs), _norm(clean_title(theirs or ""))} - {""}
+    return bool(a & b)
 
 
 def pick_candidate(
     cands: list, parts: list[str], clean: str, duration: Optional[int]
 ) -> Optional[dict]:
-    """Valida y ordena candidatas de búsqueda; devuelve la mejor o None."""
-    tn = _norm(clean)
+    """Valida y ordena candidatas de búsqueda; devuelve la mejor o None.
+
+    Exige artista y título coincidentes: aceptar otro artista con el mismo título
+    metía letras de canciones ajenas ('Flow de Barrio', '444'…)."""
     scored = []
     for d in cands if isinstance(cands, list) else []:
         if not isinstance(d, dict) or not _has_lyrics(d) or d.get("instrumental"):
             continue
-        a_ok = _artist_match(d.get("artistName"), parts)
-        ct = _norm(d.get("trackName"))
-        exact = bool(tn) and ct == tn
-        contains = bool(tn) and bool(ct) and (tn in ct or ct in tn)
+        if not _artist_match(d.get("artistName"), parts):
+            continue
+        if not title_match(clean, d.get("trackName")):
+            continue
         cd = d.get("duration")
         known = bool(duration and duration > 0 and cd)
         diff = abs(cd - duration) if known else 0
         if known and diff > DURATION_TOLERANCE:
             continue
-        if a_ok:
-            if not (exact or contains):
-                continue
-        elif not (exact and known):
-            # Sin artista coincidente solo vale título exacto con duración verificada.
-            continue
-        rank = (0 if a_ok else 1, 0 if exact else 1, diff, 0 if d.get("syncedLyrics") else 1)
+        rank = (diff, 0 if d.get("syncedLyrics") else 1)
         scored.append((rank, d))
     if not scored:
         return None
