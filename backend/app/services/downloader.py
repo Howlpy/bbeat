@@ -431,6 +431,18 @@ def download_with_ytdlp(
         # debe llevar el título.
         ("SoundCloud", "soundcloud", f"scsearch20:{meta.search_query}"),
     ]
+    # Con algunos titulos YouTube devuelve la pagina de resultados vacia para
+    # cualquier consulta que los contenga ("NO se XQ" de La Pantera), aunque el
+    # video exista. Buscando por artista + disco si aparece. La consulta no
+    # lleva titulo, pero cada resultado sigue pasando por _candidate_matches
+    # (titulo, artista y duracion), asi que no acepta otra cancion del disco.
+    # Va antes de SoundCloud, cuya coincidencia exacta puede tener DRM.
+    album = (meta.album or "").strip()
+    if album and _norm_text(album) != title_norm:
+        searches.insert(
+            -1,
+            ("YouTube disco", "youtube", f"ytsearch20:{meta.primary_artist} {album}"),
+        )
     for label, provider, query in searches:
         try:
             with YoutubeDL(resolve_opts) as ydl:
