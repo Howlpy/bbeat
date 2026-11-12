@@ -15,6 +15,7 @@ from app.models import (
     AlbumSave,
     AlbumTrack,
     Artist,
+    GenreSuggestion,
     Job,
     Play,
     Track,
@@ -131,12 +132,33 @@ def _meta_from_track(session: Session, track: Track) -> "spotify.TrackMeta":
 
 def _detach_track_references(s: Session, track_id: int) -> None:
     """Limpia todas las FK hacia una pista antes de borrarla."""
-    for model in (AlbumTrack, TrackLike, Play):
+    for model in (AlbumTrack, TrackLike, Play, GenreSuggestion):
         for row in s.exec(select(model).where(model.track_id == track_id)).all():
             s.delete(row)
     for job in s.exec(select(Job).where(Job.result_track_id == track_id)).all():
         job.result_track_id = None
         s.add(job)
+
+
+def _delete_artist_if_orphan(s: Session, artist_id: Optional[int]) -> None:
+    """Borra el artista si ya no le quedan pistas.
+
+    Sus sugerencias de género de la IA se borran con él: apuntan al artista
+    por FK y, sin limpiarlas, el borrado fallaba con FOREIGN KEY constraint
+    failed (y con él cualquier borrado o edición que dejara al artista vacío).
+    """
+    if not artist_id:
+        return
+    if s.exec(select(Track).where(Track.artist_id == artist_id).limit(1)).first():
+        return
+    art = s.get(Artist, artist_id)
+    if not art:
+        return
+    for row in s.exec(select(GenreSuggestion).where(GenreSuggestion.artist_id == artist_id)).all():
+        s.delete(row)
+    # Sin relaciones declaradas el flush no garantiza el orden de los DELETE.
+    s.flush()
+    s.delete(art)
 
 
 def _detach_album_references(s: Session, album_id: int) -> None:
@@ -151,6 +173,8 @@ def _detach_album_references(s: Session, album_id: int) -> None:
 
 
 def delete_track(track_id: int) -> bool:
+    # Los ficheros se borran tras el commit: si la BD fallaba, la pista seguía
+    # en la biblioteca pero ya sin audio ni carátula.
     with session_scope() as s:
         t = s.get(Track, track_id)
         if not t:
@@ -161,15 +185,6 @@ def delete_track(track_id: int) -> bool:
         _detach_track_references(s, track_id)
         s.delete(t)
         s.flush()
-        _delete_file_safe(file_path)
-        # Borrar la carátula propia de la pista si existe
-        for ext in (".jpg", ".png"):
-            cp = settings.covers_dir / f"track-{track_id}{ext}"
-            if cp.is_file():
-                try:
-                    cp.unlink()
-                except OSError:
-                    pass
         # Si el álbum se quedó sin pistas, borrarlo (y carátula)
         if album_id:
             remaining = s.exec(
@@ -178,15 +193,16 @@ def delete_track(track_id: int) -> bool:
             if not remaining:
                 _delete_album_record(s, album_id)
         # Si el artista se quedó sin pistas, borrarlo
-        if artist_id:
-            remaining = s.exec(
-                select(Track).where(Track.artist_id == artist_id).limit(1)
-            ).first()
-            if not remaining:
-                art = s.get(Artist, artist_id)
-                if art:
-                    s.delete(art)
-        return True
+        _delete_artist_if_orphan(s, artist_id)
+    _delete_file_safe(file_path)
+    for ext in (".jpg", ".png"):
+        cp = settings.covers_dir / f"track-{track_id}{ext}"
+        if cp.is_file():
+            try:
+                cp.unlink()
+            except OSError:
+                pass
+    return True
 
 
 def _delete_album_record(s: Session, album_id: int) -> None:
@@ -222,22 +238,34 @@ def delete_album(album_id: int) -> dict:
         _delete_album_record(s, album_id)
         s.flush()
         # ¿Artista huérfano?
-        if artist_id:
-            remaining = s.exec(
-                select(Track).where(Track.artist_id == artist_id).limit(1)
-            ).first()
-            if not remaining:
-                art = s.get(Artist, artist_id)
-                if art:
-                    s.delete(art)
+        _delete_artist_if_orphan(s, artist_id)
     return {"deleted": True, "tracks_deleted": deleted_tracks}
 
 
 # ─── Edición de track ─────────────────────────────────────────
 
 
-def edit_track(
+def edit_track(track_id: int, **fields) -> dict:
+    """Edita la pista y, si la BD no llega a guardarse, devuelve el fichero a
+    su sitio. El fichero se mueve antes del commit: si el commit fallaba, la BD
+    seguía apuntando a la ruta vieja y la pista quedaba sin audio ni portada.
+    """
+    moves: list[tuple[Path, Path]] = []
+    try:
+        return _edit_track(track_id, moves, **fields)
+    except Exception:
+        for src, dst in reversed(moves):
+            try:
+                src.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(dst), src)
+            except OSError as e:
+                log.error("no se pudo devolver %s a %s: %s", dst, src, e)
+        raise
+
+
+def _edit_track(
     track_id: int,
+    moves: list[tuple[Path, Path]],
     *,
     title: Optional[str] = None,
     artist: Optional[str] = None,
@@ -328,6 +356,7 @@ def edit_track(
                     new_path = new_path.with_name(f"{stem} ({i}){ext}")
                     i += 1
             shutil.move(str(old_path), new_path)
+            moves.append((old_path, new_path))
             # Limpieza de carpetas vacías
             try:
                 old_path.parent.rmdir()
@@ -389,13 +418,8 @@ def edit_track(
                 rem = s.exec(select(Track).where(Track.album_id == aid).limit(1)).first()
                 if not rem:
                     _delete_album_record(s, aid)
-        for aid in (old_artist_id,):
-            if aid and aid != t.artist_id:
-                rem = s.exec(select(Track).where(Track.artist_id == aid).limit(1)).first()
-                if not rem:
-                    a = s.get(Artist, aid)
-                    if a:
-                        s.delete(a)
+        if old_artist_id and old_artist_id != t.artist_id:
+            _delete_artist_if_orphan(s, old_artist_id)
 
         return {"ok": True, "track_id": t.id, "file_path": t.file_path}
 

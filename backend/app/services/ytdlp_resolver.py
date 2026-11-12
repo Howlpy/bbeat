@@ -89,6 +89,12 @@ def _split_artist_title(raw_title: str, artist: str) -> tuple[str, str]:
                 or artist_norm in left_norm
             ):
                 return right.strip(), artist
+            # Formato invertido "Canción - Artista": muchos canales lo usan
+            # ("RETRICA - Lucho RK" en el canal de Lucho RK). Sin esto la
+            # canción acababa como artista y el artista como título.
+            right_norm = _normalize_for_compare(right)
+            if right_norm and artist_norm and right_norm == artist_norm:
+                return left.strip(), artist
             # Si no coincide, probablemente el formato es "Artista - Título"
             # pero con un artista distinto al uploader. Cogemos derecho como título.
             return right.strip(), left.strip()

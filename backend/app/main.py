@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
@@ -69,6 +69,40 @@ def _html_response(path: Path, status_code: int = 200) -> FileResponse:
     return FileResponse(path, status_code=status_code, headers={"Cache-Control": "no-cache"})
 
 
+class CatchErrorsMiddleware:
+    """Convierte las excepciones no controladas en un 500 JSON normal.
+
+    Sin esto el 500 lo generaba ServerErrorMiddleware, que va POR FUERA de
+    CORS: la respuesta salía sin cabeceras CORS, el WebView la bloqueaba,
+    fetch lanzaba TypeError y la app decía "Sin conexión a internet".
+    Se registra antes que CORSMiddleware para quedar por dentro de él.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def _send(message):
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, _send)
+        except Exception:
+            log.exception("error no controlado en %s %s", scope.get("method"), scope.get("path"))
+            if started:
+                raise
+            response = JSONResponse({"detail": "error interno del servidor"}, status_code=500)
+            await response(scope, receive, send)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Bbeat",
@@ -77,6 +111,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(CatchErrorsMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
